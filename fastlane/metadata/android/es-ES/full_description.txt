@@ -1,0 +1,60 @@
+Clint es un navegador de código abierto para Android con una interfaz moderna en Material 3 y un montón de funciones. No tiene servidor propio, no recopila ningún dato y no incluye anuncios ni muros de pago. Es totalmente gratis.
+
+<b>CAPTURA DE MEDIOS</b>
+• Detecta flujos de vídeo, audio y subtítulos en las páginas que visitas
+• Compatible con vídeo normal, HLS/M3U8 y DASH
+• Descarga los medios detectados directamente desde el navegador
+
+<b>GESTOR DE DESCARGAS</b>
+• Descargas multihilo y por partes
+• Pausa y reanudación
+• Programador de descargas y límite de velocidad
+• Carpetas de descarga personalizadas
+• Pausa y reanuda automáticamente las descargas atascadas
+
+<b>QUIVER GUARD</b>
+• Bloqueador de anuncios y rastreadores integrado
+• Filtrado cosmético y de red
+• Varias listas de filtros
+• Controles para cada sitio
+
+<b>BLOQUEADOR DE SITIOS WEB</b>
+• Bloquea pornografía, apuestas y otras categorías no deseadas
+• Listas de filtros por categoría
+• Añade tus propios sitios para bloquearlos
+
+<b>AHORRO DE DATOS</b>
+• Solo en redes con límite de datos
+• Desactiva imágenes, bloquea vídeos y detén la reproducción automática
+• Bloquea la precarga de medios, las fuentes web y los marcos de terceros
+• Reutiliza páginas guardadas y solicita páginas más ligeras
+• Desactiva las sugerencias de búsqueda en línea y los favicons
+• Bloquea scripts y CSS
+
+<b>PRIVACIDAD Y SEGURIDAD</b>
+• Modo incógnito
+• Protección contra ventanas emergentes
+• Envío de la solicitud «No rastrear»
+• Compatibilidad con claves de acceso (passkeys)
+• Posibilidad de desactivar el autocompletado
+
+<b>PERSONALIZACIÓN</b>
+• 50 colores de acento, temas claro y oscuro y 5 intensidades de superficie
+• 500 combinaciones de tema posibles
+• Elige entre la página de inicio de Clint y la de tu buscador
+• Fondo de inicio de color liso, degradado o con tu propia imagen
+
+<b>PERFILES</b>
+• Mantén varias cuentas del mismo sitio web abiertas a la vez
+• Cada perfil guarda sus propias cookies y datos de sitios
+• Abre pestañas nuevas y accesos directos en cualquier perfil
+
+<b>NAVEGADOR</b>
+• Navegación con varias pestañas
+• Modo lectura
+• Modo escritorio
+• Eliminación automática de pestañas inactivas
+• Descarga rápida
+• Administrador de accesos directos con accesos sin marco
+
+Requiere Android 8.0 o superior y una implementación de WebView.

@@ -1,0 +1,253 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  release:
+    name: Build and Publish APKs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Detect version and release type
+        id: info
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          VERSION="${VERSION#.}"
+          if [[ "$TAG" == *"-beta"* ]]; then
+            IS_PRERELEASE="true"
+            MANIFEST="Update/Beta.json"
+            RELEASE_LABEL="Beta"
+          else
+            IS_PRERELEASE="false"
+            MANIFEST="Update/Stable.json"
+            RELEASE_LABEL="Stable"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$IS_PRERELEASE" >> "$GITHUB_OUTPUT"
+          echo "manifest=$MANIFEST" >> "$GITHUB_OUTPUT"
+          echo "release_label=$RELEASE_LABEL" >> "$GITHUB_OUTPUT"
+
+      - name: Read versionCode from build.gradle
+        id: read_version
+        run: |
+          VERSION_CODE=$(grep -oP '(?<=versionCode)\s*=?\s*\K\d+' app/build.gradle.kts | head -1)
+          if [ -z "$VERSION_CODE" ]; then
+            echo "::error::Could not find versionCode in app/build.gradle.kts"
+            exit 1
+          fi
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Restore signing keystore
+        run: |
+          printf '%s' "${{ secrets.BASE_64_SIGNING_KEY }}" | tr -d '\n' | base64 -d > app/release_keystore.jks
+
+      - name: Create local.properties
+        run: |
+          printf '%s\n' "${{ secrets.LOCAL_PROPERTIES }}" > local.properties
+
+      - name: Grant Gradle wrapper execute permission
+        run: |
+          chmod +x gradlew
+
+      - name: Cache Gradle Wrapper JAR
+        id: cache-wrapper-jar
+        uses: actions/cache@v5
+        with:
+          path: gradle/wrapper/gradle-wrapper.jar
+          key: gradle-wrapper-jar-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
+
+      - name: Provision Gradle wrapper JAR if missing
+        if: steps.cache-wrapper-jar.outputs.cache-hit != 'true'
+        run: |
+          GRADLE_VERSION=$(grep -oP '(?<=gradle-)[0-9]+\.[0-9]+(\.[0-9]+)?(?=-bin\.zip)' gradle/wrapper/gradle-wrapper.properties)
+          cp gradle/wrapper/gradle-wrapper.properties /tmp/gradle-wrapper.properties.bak
+          curl -fL -o /tmp/gradle-bin.zip "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip"
+          unzip -q /tmp/gradle-bin.zip -d /tmp/gradle-dist
+          "/tmp/gradle-dist/gradle-${GRADLE_VERSION}/bin/gradle" wrapper --gradle-version "$GRADLE_VERSION" --distribution-type bin
+          cp /tmp/gradle-wrapper.properties.bak gradle/wrapper/gradle-wrapper.properties
+
+      - name: Build GitHub release APKs
+        run: |
+          ./gradlew assembleGithubRelease
+
+      - name: Detect ABI split mode
+        id: mode
+        run: |
+          if ls app/build/outputs/apk/github/release/app-github-arm64-v8a-release.apk 2>/dev/null; then
+            echo "split=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "split=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Rename APKs
+        id: apks
+        run: |
+          VERSION="${{ steps.info.outputs.version }}"
+          OUT_DIR="app/build/outputs/apk/renamed"
+          mkdir -p "$OUT_DIR"
+
+          rename_flavor() {
+            local FLAVOR="$1"
+            local BASE="$2"
+            local SRC_DIR="app/build/outputs/apk/${FLAVOR}/release"
+
+            if [[ "${{ steps.mode.outputs.split }}" == "true" ]]; then
+              for apk in "$SRC_DIR"/*.apk; do
+                fname=$(basename "$apk")
+                if [[ "$fname" == *"arm64-v8a"* ]]; then
+                  ARCH="arm64-v8a"
+                elif [[ "$fname" == *"armeabi-v7a"* ]]; then
+                  ARCH="armeabi-v7a"
+                elif [[ "$fname" == *"x86_64"* ]]; then
+                  ARCH="x86_64"
+                elif [[ "$fname" == *"x86"* ]]; then
+                  ARCH="x86"
+                elif [[ "$fname" == *"universal"* ]]; then
+                  ARCH="universal"
+                else
+                  ARCH="unknown"
+                fi
+                cp "$apk" "$OUT_DIR/${BASE}-${ARCH}.apk"
+              done
+            else
+              cp "$SRC_DIR/app-${FLAVOR}-release.apk" "$OUT_DIR/${BASE}.apk"
+            fi
+          }
+
+          rename_flavor github "ClintGecko-${VERSION}"
+
+          echo "apk_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Update manifest with version, versionCode, changelog, and download URLs
+        env:
+          CB_VERSION: ${{ steps.info.outputs.version }}
+          CB_TAG: ${{ steps.info.outputs.tag }}
+          CB_MANIFEST: ${{ steps.info.outputs.manifest }}
+          CB_BASE_URL: "https://github.com/${{ github.repository }}/releases/download/${{ steps.info.outputs.tag }}"
+          CB_SPLIT: ${{ steps.mode.outputs.split }}
+          VERSION_CODE: ${{ steps.read_version.outputs.version_code }}
+          APK_DIR: ${{ steps.apks.outputs.apk_dir }}
+        run: |
+          python3 - <<'PYEOF'
+          import glob, hashlib, json, os, re
+
+          version = os.environ["CB_VERSION"]
+          version_code = int(os.environ["VERSION_CODE"])
+          tag = os.environ["CB_TAG"]
+          manifest = os.environ["CB_MANIFEST"]
+          base_url = os.environ["CB_BASE_URL"]
+          is_split = os.environ["CB_SPLIT"] == "true"
+          apk_dir = os.environ["APK_DIR"]
+
+          with open("CHANGELOG.md", "r", encoding="utf-8") as fh:
+              changelog_raw = fh.read()
+
+          pattern = r"(#{1,6} [^\n]*?" + re.escape(tag) + r"(?!-)[^\n]*\n)(.*?)(?=\n# |\Z)"
+          match = re.search(pattern, changelog_raw, re.DOTALL)
+          if match:
+              heading = match.group(1).strip()
+              heading = re.sub(
+                  r"^(#{1,6} )(?!Clint Gecko\b)(.*)$",
+                  r"\1Clint Gecko \2",
+                  heading,
+              )
+              body = match.group(2).strip()
+              changelog_text = f"{heading}\n\n{body}" if body else heading
+          else:
+              changelog_text = f"## Clint Gecko {tag}"
+
+          with open(manifest, "r", encoding="utf-8") as fh:
+              data = json.load(fh)
+
+          data["version"] = version
+          data["versionCode"] = version_code
+          data["changelog"] = changelog_text
+
+          archs = ["arm64-v8a", "armeabi-v7a", "x86", "x86_64", "universal"]
+          if is_split:
+              for arch in archs:
+                  apk_name = f"ClintGecko-{version}-{arch}.apk"
+                  data["downloads"][arch] = f"{base_url}/{apk_name}"
+          else:
+              url = f"{base_url}/ClintGecko-{version}.apk"
+              for arch in archs:
+                  data["downloads"][arch] = url
+
+          with open(manifest, "w", encoding="utf-8") as fh:
+              json.dump(data, fh, indent=2, ensure_ascii=False)
+              fh.write("\n")
+
+          def sha256_of(path):
+              digest = hashlib.sha256()
+              with open(path, "rb") as fh:
+                  for chunk in iter(lambda: fh.read(1 << 20), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          apk_paths = sorted(glob.glob(os.path.join(apk_dir, "*.apk")))
+          checksum_lines = ["## APKs (SHA-256)", "", "| File | SHA-256 |", "| --- | --- |"]
+          for apk_path in apk_paths:
+              checksum_lines.append(f"| `{os.path.basename(apk_path)}` | `{sha256_of(apk_path)}` |")
+          checksums_text = "\n".join(checksum_lines)
+
+          release_notes = f"{changelog_text}\n\n{checksums_text}\n"
+
+          with open("release_notes.md", "w", encoding="utf-8") as fh:
+              fh.write(release_notes)
+          PYEOF
+
+      - name: Commit and push updated manifest
+        run: |
+          git config user.name "${{ secrets.GIT_USERNAME }}"
+          git config user.email "${{ secrets.GIT_EMAIL }}"
+          git add "${{ steps.info.outputs.manifest }}"
+          if git diff --cached --quiet; then
+            echo "No changes to commit — skipping."
+          else
+            git commit -m "update manifest to v${{ steps.info.outputs.version }} [skip ci]"
+            git push https://x-access-token:${{ secrets.PERSONAL_GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main
+          fi
+
+      - name: Delete draft release for tag if exists
+        run: |
+          DRAFT_ID=$(gh api repos/${{ github.repository }}/releases \
+            --jq ".[] | select(.tag_name == \"${{ steps.info.outputs.tag }}\" and .draft == true) | .id")
+          if [ -n "$DRAFT_ID" ]; then
+            gh api -X DELETE repos/${{ github.repository }}/releases/$DRAFT_ID
+            echo "Deleted draft release $DRAFT_ID"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release and upload APKs
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.info.outputs.tag }}
+          name: "ClintGecko ${{ steps.info.outputs.version }} (${{ steps.info.outputs.release_label }})"
+          prerelease: ${{ steps.info.outputs.is_prerelease }}
+          body_path: release_notes.md
+          files: ${{ steps.apks.outputs.apk_dir }}/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

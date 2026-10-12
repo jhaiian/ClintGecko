@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <external-path name="downloads" path="Download/" />
+    <root-path name="external_root" path="." />
+    <external-files-path name="external_files" path="." />
+    <cache-path name="apk_updates" path="updates/" />
+    <cache-path name="camera_uploads" path="uploads/" />
+    <cache-path name="image_cache" path="image_cache/" />
+</paths>

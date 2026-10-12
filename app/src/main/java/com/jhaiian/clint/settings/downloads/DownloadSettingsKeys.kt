@@ -1,0 +1,51 @@
+package com.jhaiian.clint.settings.downloads
+
+object DownloadSettingsKeys {
+    const val PREF_DOWNLOAD_LOCATION_MODE  = "download_location_mode"
+    const val PREF_DOWNLOAD_CUSTOM_URI     = "download_custom_uri"
+    const val MODE_DEFAULT                 = "default"
+    const val MODE_CUSTOM                  = "custom"
+    const val PREF_UNMETERED_ONLY          = "download_unmetered_only"
+    const val DEFAULT_UNMETERED_ONLY       = false
+    const val PREF_SCHEDULE_ENABLED        = "download_schedule_enabled"
+    const val DEFAULT_SCHEDULE_ENABLED     = false
+    const val PREF_SCHEDULE_START_MINUTES  = "download_schedule_start_minutes"
+    const val DEFAULT_SCHEDULE_START_MINUTES = 23 * 60
+    const val PREF_SCHEDULE_END_MINUTES    = "download_schedule_end_minutes"
+    const val DEFAULT_SCHEDULE_END_MINUTES = 7 * 60
+    const val PREF_RETRY_ENABLED           = "download_retry_enabled"
+    const val PREF_RETRY_UNRECOVERABLE     = "download_retry_unrecoverable"
+    const val PREF_RETRY_COUNT             = "download_retry_count"
+    const val PREF_RETRY_INTERVAL          = "download_retry_interval"
+    const val DEFAULT_RETRY_ENABLED        = true
+    const val DEFAULT_RETRY_UNRECOVERABLE  = false
+    const val DEFAULT_RETRY_COUNT          = 0
+    const val DEFAULT_RETRY_INTERVAL       = 5
+    const val PREF_CONCURRENT_DOWNLOADS    = "download_concurrent_limit"
+    const val DEFAULT_CONCURRENT_DOWNLOADS = 1
+    const val PREF_SPLIT_PARTS             = "download_split_parts"
+    const val DEFAULT_SPLIT_PARTS          = 32
+    const val PREF_MULTITHREADING_PARTS    = "download_multithreading_parts"
+    const val DEFAULT_MULTITHREADING_PARTS = 4
+    const val PREF_STREAM_CONCURRENT_SEGMENTS    = "stream_concurrent_segments"
+    const val DEFAULT_STREAM_CONCURRENT_SEGMENTS = 6
+    const val PREF_SPEED_LIMIT_AMOUNT      = "download_speed_limit_amount"
+    const val DEFAULT_SPEED_LIMIT_AMOUNT   = 0
+    const val PREF_SPEED_LIMIT_UNIT        = "download_speed_limit_unit"
+    const val PREF_PUSH_NOTIFICATIONS      = "download_push_notifications"
+    const val DEFAULT_PUSH_NOTIFICATIONS   = true
+    const val PREF_QUICK_DOWNLOAD          = "download_quick_download"
+    const val DEFAULT_QUICK_DOWNLOAD       = false
+    const val PREF_QUICK_DOWNLOAD_IMAGES   = "download_quick_download_images"
+    const val DEFAULT_QUICK_DOWNLOAD_IMAGES = false
+    const val PREF_KEEP_SCREEN_ON          = "download_keep_screen_on"
+    const val DEFAULT_KEEP_SCREEN_ON       = false
+    const val PREF_DOWNLOAD_MANAGER        = "download_manager_app"
+    const val DEFAULT_DOWNLOAD_MANAGER     = com.jhaiian.clint.downloads.DownloadManagerAppIds.CLINT
+    const val PREF_CATEGORIZE_DOWNLOADS    = "download_categorize_downloads"
+    const val DEFAULT_CATEGORIZE_DOWNLOADS = false
+    const val PREF_DOWNLOAD_DIALOG_UI      = "download_dialog_ui"
+    const val DIALOG_UI_STANDARD           = "standard"
+    const val DIALOG_UI_COMPACT            = "compact"
+    const val DEFAULT_DOWNLOAD_DIALOG_UI   = DIALOG_UI_STANDARD
+}

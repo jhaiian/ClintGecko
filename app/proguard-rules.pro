@@ -1,0 +1,17 @@
+-keep class com.jhaiian.clint.** { *; }
+-keepattributes SourceFile,LineNumberTable
+-keep class android.webkit.** { *; }
+-keep class org.mozilla.geckoview.** { *; }
+-keep class org.mozilla.gecko.** { *; }
+-keep class org.mozilla.thirdparty.** { *; }
+-keepclassmembers class * { @android.webkit.JavascriptInterface <methods>; }
+-dontwarn org.mozilla.**
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-dontwarn javax.annotation.**
+-keep class okhttp3.** { *; }
+-keep class okio.** { *; }
+-keep public class com.caverock.androidsvg.** { *; }
+-keep class com.google.flatbuffers.** { *; }
+-dontwarn com.google.flatbuffers.**
+-dontwarn pl.droidsonroids.gif.**

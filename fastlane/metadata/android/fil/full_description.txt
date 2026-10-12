@@ -1,0 +1,60 @@
+Ang Clint ay isang open source na browser para sa Android na may modernong Material 3 na disenyo at napakaraming feature. Walang sariling backend, walang kinokolektang data, at walang ads o bayad na bahagi. Libre ito nang buo.
+
+<b>MEDIA CAPTURE</b>
+• Nakikita ang video, audio, at subtitle stream sa mga pahinang binibisita mo
+• Sinusuportahan ang normal na video, HLS/M3U8, at DASH
+• I-download ang mga nakitang media nang diretso mula sa browser
+
+<b>DOWNLOAD MANAGER</b>
+• Multi-threaded at multi-part na pag-download
+• I-pause at ituloy
+• Download scheduler at speed limiter
+• Sariling piniling lokasyon ng mga download
+• Awtomatikong pini-pause at itinutuloy ang mga na-stuck na download
+
+<b>QUIVER GUARD</b>
+• Built-in na blocker ng ads at tracker
+• Cosmetic at network filtering
+• Maraming filter list
+• Kontrol para sa bawat site
+
+<b>WEBSITE BLOCKER</b>
+• Hinaharangan ang porn, sugal, at iba pang ayaw mong makita
+• Mga filter list na hinati ayon sa kategorya
+• Idagdag ang sarili mong mga website na gusto mong harangan
+
+<b>DATA SAVER</b>
+• Para lang sa metered na network
+• I-disable ang mga larawan, harangan ang video, at patigilin ang autoplay
+• Harangan ang media preloading, web fonts, at third-party frames
+• Gamitin muli ang mga na-save na pahina at humingi ng mas magaan na pahina
+• I-disable ang online search suggestions at favicons
+• Harangan ang mga script at CSS
+
+<b>PRIVACY AT SEGURIDAD</b>
+• Incognito mode
+• Proteksyon laban sa mga popup
+• Magpadala ng Do Not Track request
+• Suporta sa passkeys
+• Puwedeng i-off ang Autofill
+
+<b>PAGPAPASADYA</b>
+• 50 accent color, Light at Dark theme, at 5 antas ng surface intensity
+• 500 posibleng kombinasyon ng theme
+• Pumili sa pagitan ng homepage ng Clint at ng homepage ng search engine mo
+• Plain color, gradient, o sarili mong larawan bilang background ng homepage
+
+<b>MGA PROFILE</b>
+• Manatiling naka-sign in sa maraming account sa iisang website nang sabay-sabay
+• May sariling cookies at site data ang bawat profile
+• Magbukas ng bagong tab at shortcut sa kahit anong profile
+
+<b>BROWSER</b>
+• Maraming tab
+• Reader Mode
+• Desktop Mode
+• Awtomatikong pagbura ng mga hindi ginagamit na tab
+• Quick Download
+• Tagapamahala ng Shortcut na may frameless na shortcut
+
+Kailangan ng Android 8.0 pataas at WebView.

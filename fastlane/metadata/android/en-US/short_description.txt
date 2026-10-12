@@ -1,0 +1,1 @@
+Customizable Android browser with ad blocking, media capture and Material 3

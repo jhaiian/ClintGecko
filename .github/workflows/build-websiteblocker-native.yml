@@ -1,0 +1,84 @@
+name: Build website blocker native library
+
+# Builds native/websiteblocker-cpp for every supported Android ABI and commits the
+# resulting libwebsiteblocker.so files into app/src/main/jniLibs. Gradle then just
+# packages those prebuilt binaries (see hasNativeLibs in app/build.gradle.kts)
+# instead of invoking CMake/the NDK itself on every build.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: build-websiteblocker-native-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  PROJECT_DIR: native/websiteblocker-cpp
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Android NDK
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+          add-to-path: false
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Build for all Android ABIs
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          set -e
+          for abi in arm64-v8a armeabi-v7a x86 x86_64; do
+            build_dir="$PROJECT_DIR/build-$abi"
+            cmake -S "$PROJECT_DIR" -B "$build_dir" -G Ninja \
+              -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+              -DANDROID_ABI="$abi" \
+              -DANDROID_PLATFORM=android-26 \
+              -DCMAKE_BUILD_TYPE=Release
+            cmake --build "$build_dir" --config Release -j"$(nproc)"
+
+            mkdir -p "app/src/main/jniLibs/$abi"
+            cp "$build_dir/libwebsiteblocker.so" "app/src/main/jniLibs/$abi/libwebsiteblocker.so"
+          done
+
+      - name: Strip debug symbols
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          STRIP="$(find "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt" -name llvm-strip | head -n1)"
+          find app/src/main/jniLibs -name 'libwebsiteblocker.so' -exec "$STRIP" --strip-unneeded {} \;
+
+      - name: Report built library sizes
+        run: find app/src/main/jniLibs -name 'libwebsiteblocker.so' -exec ls -lh {} \;
+
+      - name: Commit and push compiled libraries
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add app/src/main/jniLibs
+
+          if git diff --staged --quiet; then
+            echo "No changes to the compiled libraries - nothing to commit."
+            exit 0
+          fi
+
+          git commit -m "ci: rebuild website blocker native library
+
+          Source: ${{ github.sha }}"
+
+          git push origin HEAD

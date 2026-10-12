@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <attr name="clintSecondaryTextColor" format="color" />
+    <attr name="clintAddressBarColor" format="color" />
+    <attr name="clintPopupBackground" format="color" />
+    <attr name="clintPopupTextColor" format="color" />
+    <attr name="clintPopupStrokeColor" format="color" />
+    <attr name="clintPopupCheckColor" format="color" />
+    <attr name="clintPopupDividerColor" format="color" />
+    <attr name="clintDividerColor" format="color" />
+    <attr name="clintSurfaceVariant" format="color" />
+    <attr name="clintButtonBackground" format="color" />
+    <attr name="clintButtonTextColor" format="color" />
+    <attr name="clintButtonIconTint" format="color" />
+    <attr name="clintIconTint" format="color" />
+    <attr name="clintCardBackground" format="color" />
+</resources>

@@ -1,0 +1,60 @@
+Clint is an open source Android browser with a modern Material 3 interface and tons of features. It has no backend, collects zero data, and has no ads or paywalls. Completely free.
+
+<b>MEDIA CAPTURE</b>
+• Detects video, audio and subtitle streams on the pages you visit
+• Supports normal video, HLS/M3U8 and DASH streams
+• Download detected media directly from the browser
+
+<b>DOWNLOAD MANAGER</b>
+• Multi-threaded and multi-part downloads
+• Pause and resume
+• Download scheduler and speed limiter
+• Custom download locations
+• Automatically pauses and resumes stuck downloads
+
+<b>QUIVER GUARD</b>
+• Built-in ad and tracker blocker
+• Cosmetic and network filtering
+• Multiple filter lists
+• Per-site controls
+
+<b>WEBSITE BLOCKER</b>
+• Blocks pornography, gambling and other unwanted categories
+• Category-based filter lists
+• Add your own custom websites to block
+
+<b>DATA SAVER</b>
+• Only on metered networks
+• Disable images, block video and stop autoplay
+• Block media preloading, web fonts and third-party frames
+• Reuse saved pages and request lighter pages
+• Disable online search suggestions and favicons
+• Block scripts and CSS
+
+<b>PRIVACY AND SECURITY</b>
+• Incognito mode
+• Popup protection
+• Send Do Not Track request
+• Passkeys support
+• Autofill can be turned off
+
+<b>CUSTOMIZATION</b>
+• 50 accent colors, Light and Dark themes and 5 surface intensities
+• 500 possible theme combinations
+• Choose between the Clint homepage and your search engine homepage
+• Plain color, gradient or custom image homepage backgrounds
+
+<b>PROFILES</b>
+• Stay signed in to several accounts on the same website at once
+• Each profile keeps its own cookies and site data
+• Open new tabs and shortcuts in any profile
+
+<b>BROWSER</b>
+• Multi-tab browsing
+• Reader Mode
+• Desktop Mode
+• Delete inactive tabs automatically
+• Quick Download
+• Shortcut Manager with frameless shortcuts
+
+Requires Android 8.0 or higher and a WebView implementation.

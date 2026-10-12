@@ -1,0 +1,25 @@
+{
+  "manifest_version": 2,
+  "name": "Clint Engine Bridge",
+  "version": "1.0",
+  "description": "Connects Clint Gecko to the Gecko engine",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "clint@jhaiian.com"
+    }
+  },
+  "permissions": [
+    "geckoViewAddons",
+    "nativeMessaging",
+    "nativeMessagingFromContent",
+    "webRequest",
+    "webRequestBlocking",
+    "cookies",
+    "tabs",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": true
+  }
+}
