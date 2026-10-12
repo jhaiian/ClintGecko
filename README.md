@@ -191,5 +191,3 @@ All libraries used in this app have their own licenses. Please comply with their
 
 - [Privacy Policy](PRIVACY_POLICY.md)
 - [Terms of Service](TERMS_OF_SERVICE.md)
-# ClintGecko
-# ClintGecko
