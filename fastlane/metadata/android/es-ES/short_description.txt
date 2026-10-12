@@ -1,1 +1,1 @@
-Navegador personalizable con bloqueo de anuncios y captura de medios
+Navegador basado en Firefox con ADM, captura de medios y extensiones

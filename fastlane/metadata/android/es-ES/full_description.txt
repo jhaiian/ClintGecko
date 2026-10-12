@@ -1,60 +1,71 @@
-Clint es un navegador de código abierto para Android con una interfaz moderna en Material 3 y un montón de funciones. No tiene servidor propio, no recopila ningún dato y no incluye anuncios ni muros de pago. Es totalmente gratis.
+Clint Gecko es un navegador de código abierto basado en Firefox, con un ADM (administrador de descargas avanzado) y captura de medios integrados. Su meta es ser el navegador todo en uno definitivo, sin dejar de ser agradable de usar y muy personalizable. Con cada actualización se acerca un poco más a ese objetivo.
+
+El ecosistema Jhaiian ofrece hasta 500 combinaciones de tema posibles para que personalices tu experiencia de navegación a tu gusto.
+
+La privacidad también es una prioridad. Clint Gecko está configurado para desactivar la telemetría de GeckoView y de Mozilla, de modo que no se envíen datos de telemetría a Mozilla a través de esos servicios. Clint en sí no recopila tus datos personales, porque no tiene servidor propio, ni analíticas, ni servidores de recopilación de datos. Todo está pensado para funcionar directamente en tu dispositivo.
+
+Bifurcación (fork) oficial de Clint Browser (github.com/jhaiian/ClintBrowser). Si prefieres una versión más ligera basada en Android WebView, prueba el Clint Browser original.
+
+Creado y mantenido por @jhaiian, un desarrollador independiente de Filipinas.
+
+<b>MOTOR GECKO</b>
+• Funciona con GeckoView, el motor de Firefox
+• Telemetría de GeckoView y de Mozilla desactivada
+
+<b>EXTENSIONES</b>
+• Instala extensiones de Firefox directamente en el navegador
+• Explora la tienda de complementos de Firefox o abre un archivo .xpi
+• Elige si una extensión puede ejecutarse en pestañas de incógnito
+• Abre la página de opciones de una extensión desde el administrador de extensiones
+
+<b>REPRODUCCIÓN EN SEGUNDO PLANO</b>
+• Mantén el audio y el vídeo sonando al cambiar de aplicación o bloquear la pantalla
+• Controla la reproducción desde la notificación multimedia
+• Se puede activar o desactivar en los ajustes del navegador
 
 <b>CAPTURA DE MEDIOS</b>
-• Detecta flujos de vídeo, audio y subtítulos en las páginas que visitas
+• Detecta flujos de vídeo, audio y subtítulos en las páginas web que visitas
 • Compatible con vídeo normal, HLS/M3U8 y DASH
 • Descarga los medios detectados directamente desde el navegador
 
-<b>GESTOR DE DESCARGAS</b>
+<b>ADM (ADMINISTRADOR DE DESCARGAS AVANZADO)</b>
 • Descargas multihilo y por partes
 • Pausa y reanudación
-• Programador de descargas y límite de velocidad
+• Programador de descargas
+• Límite de velocidad
 • Carpetas de descarga personalizadas
-• Pausa y reanuda automáticamente las descargas atascadas
 
-<b>QUIVER GUARD</b>
-• Bloqueador de anuncios y rastreadores integrado
-• Filtrado cosmético y de red
-• Varias listas de filtros
-• Controles para cada sitio
+<b>INTERFAZ Y PERSONALIZACIÓN</b>
+Clint Gecko está creado con Material 3 y Jetpack Compose, con una interfaz muy personalizable.
+• 50 colores de acento
+• Temas claro y oscuro
+• 5 intensidades de superficie
+• En total, 500 combinaciones de tema posibles
 
 <b>BLOQUEADOR DE SITIOS WEB</b>
 • Bloquea pornografía, apuestas y otras categorías no deseadas
-• Listas de filtros por categoría
+• Listas de filtros por categoría (abuso, anuncios, criptomonedas, drogas, fraude, apuestas y más)
 • Añade tus propios sitios para bloquearlos
 
-<b>AHORRO DE DATOS</b>
-• Solo en redes con límite de datos
-• Desactiva imágenes, bloquea vídeos y detén la reproducción automática
-• Bloquea la precarga de medios, las fuentes web y los marcos de terceros
-• Reutiliza páginas guardadas y solicita páginas más ligeras
-• Desactiva las sugerencias de búsqueda en línea y los favicons
-• Bloquea scripts y CSS
-
-<b>PRIVACIDAD Y SEGURIDAD</b>
-• Modo incógnito
-• Protección contra ventanas emergentes
-• Envío de la solicitud «No rastrear»
-• Compatibilidad con claves de acceso (passkeys)
-• Posibilidad de desactivar el autocompletado
-
-<b>PERSONALIZACIÓN</b>
-• 50 colores de acento, temas claro y oscuro y 5 intensidades de superficie
-• 500 combinaciones de tema posibles
-• Elige entre la página de inicio de Clint y la de tu buscador
-• Fondo de inicio de color liso, degradado o con tu propia imagen
-
 <b>PERFILES</b>
-• Mantén varias cuentas del mismo sitio web abiertas a la vez
-• Cada perfil guarda sus propias cookies y datos de sitios
-• Abre pestañas nuevas y accesos directos en cualquier perfil
+• Mantén la sesión iniciada en varias cuentas del mismo sitio web a la vez
+• Cada perfil guarda sus propias cookies, inicios de sesión y datos de sitios
+• Elige un perfil al abrir una pestaña nueva
+• Dale a cada perfil su propio nombre y color
+
+<b>ACCESOS DIRECTOS</b>
+• Añade cualquier sitio web a tu pantalla de inicio con nombre e icono personalizados
+• El modo sin marco oculta la barra de búsqueda y la barra inferior para que se sienta como una aplicación
+• Administra todos tus accesos directos en un solo lugar con el Administrador de accesos directos integrado
 
 <b>NAVEGADOR</b>
 • Navegación con varias pestañas
+• Modo incógnito
 • Modo lectura
 • Modo escritorio
-• Eliminación automática de pestañas inactivas
-• Descarga rápida
-• Administrador de accesos directos con accesos sin marco
+• Protección contra ventanas emergentes
+• Ahorro de datos
 
-Requiere Android 8.0 o superior y una implementación de WebView.
+Solo descarga la aplicación y descúbrela por ti mismo.
+
+Requiere Android 8.0 (API 26) o superior.

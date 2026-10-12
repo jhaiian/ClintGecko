@@ -1,1 +1,1 @@
-Customizable Android browser with ad blocking, media capture and Material 3
+Android Firefox-based browser with ADM, media capture, and extensions.

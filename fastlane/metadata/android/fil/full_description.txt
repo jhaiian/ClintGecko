@@ -1,60 +1,71 @@
-Ang Clint ay isang open source na browser para sa Android na may modernong Material 3 na disenyo at napakaraming feature. Walang sariling backend, walang kinokolektang data, at walang ads o bayad na bahagi. Libre ito nang buo.
+Ang Clint Gecko ay isang open-source na browser na batay sa Firefox, na may built-in na ADM (Advanced Download Manager) at Media Capture. Layunin ng Clint Gecko na maging all-in-one na browser mo habang nananatiling masarap gamitin at madaling i-customize. Sa bawat update, palapit nang palapit ang Clint Gecko sa layuning iyon.
+
+Nag-aalok ang Jhaiian ecosystem ng hanggang 500 posibleng kombinasyon ng theme para mapasadya mo ang pagba-browse mo ayon sa gusto mo.
+
+Prayoridad din ang privacy. Naka-configure ang Clint Gecko na mag-opt out sa GeckoView at Mozilla telemetry, kaya walang telemetry data na napapadala sa Mozilla sa pamamagitan ng mga serbisyong iyon. Ang Clint mismo ay hindi nangongolekta ng personal mong data dahil wala itong backend, analytics, o server para sa pangongolekta ng data. Idinisenyo ang lahat para gumana mismo sa device mo.
+
+Opisyal na fork ng Clint Browser (github.com/jhaiian/ClintBrowser). Kung gusto mo ng mas magaan na bersyong nakabatay sa Android WebView, subukan ang orihinal na Clint Browser.
+
+Ginawa at pinapanatili ni @jhaiian, isang solo developer mula sa Pilipinas.
+
+<b>GECKO ENGINE</b>
+• Pinapagana ng GeckoView, ang engine ng Firefox
+• Naka-opt out ang GeckoView at Mozilla telemetry
+
+<b>MGA EXTENSION</b>
+• Mag-install ng mga Firefox extension direkta sa browser
+• Mag-browse sa Firefox add-on store o magbukas ng .xpi file
+• Piliin kung puwedeng tumakbo ang extension sa mga incognito tab
+• Buksan ang options page ng extension mula sa extension manager
+
+<b>BACKGROUND PLAYBACK</b>
+• Panatilihing tumutugtog ang audio at video kahit lumipat ka ng app o i-lock ang screen
+• Kontrolin ang playback mula sa media notification
+• Puwedeng i-on o i-off sa mga setting ng browser
 
 <b>MEDIA CAPTURE</b>
 • Nakikita ang video, audio, at subtitle stream sa mga pahinang binibisita mo
 • Sinusuportahan ang normal na video, HLS/M3U8, at DASH
 • I-download ang mga nakitang media nang diretso mula sa browser
 
-<b>DOWNLOAD MANAGER</b>
+<b>ADM (ADVANCED DOWNLOAD MANAGER)</b>
 • Multi-threaded at multi-part na pag-download
 • I-pause at ituloy
-• Download scheduler at speed limiter
+• Download scheduler
+• Speed limiter
 • Sariling piniling lokasyon ng mga download
-• Awtomatikong pini-pause at itinutuloy ang mga na-stuck na download
 
-<b>QUIVER GUARD</b>
-• Built-in na blocker ng ads at tracker
-• Cosmetic at network filtering
-• Maraming filter list
-• Kontrol para sa bawat site
+<b>UI AT PAGPAPASADYA</b>
+Ginawa ang Clint Gecko gamit ang Material 3 at Jetpack Compose, at madaling i-customize ang interface.
+• 50 accent color
+• Light at Dark theme
+• 5 antas ng surface intensity
+• Sa kabuuan, 500 posibleng kombinasyon ng theme
 
 <b>WEBSITE BLOCKER</b>
 • Hinaharangan ang porn, sugal, at iba pang ayaw mong makita
-• Mga filter list na hinati ayon sa kategorya
+• Mga filter list ayon sa kategorya (abuse, ads, crypto, droga, panloloko, sugal, at iba pa)
 • Idagdag ang sarili mong mga website na gusto mong harangan
-
-<b>DATA SAVER</b>
-• Para lang sa metered na network
-• I-disable ang mga larawan, harangan ang video, at patigilin ang autoplay
-• Harangan ang media preloading, web fonts, at third-party frames
-• Gamitin muli ang mga na-save na pahina at humingi ng mas magaan na pahina
-• I-disable ang online search suggestions at favicons
-• Harangan ang mga script at CSS
-
-<b>PRIVACY AT SEGURIDAD</b>
-• Incognito mode
-• Proteksyon laban sa mga popup
-• Magpadala ng Do Not Track request
-• Suporta sa passkeys
-• Puwedeng i-off ang Autofill
-
-<b>PAGPAPASADYA</b>
-• 50 accent color, Light at Dark theme, at 5 antas ng surface intensity
-• 500 posibleng kombinasyon ng theme
-• Pumili sa pagitan ng homepage ng Clint at ng homepage ng search engine mo
-• Plain color, gradient, o sarili mong larawan bilang background ng homepage
 
 <b>MGA PROFILE</b>
 • Manatiling naka-sign in sa maraming account sa iisang website nang sabay-sabay
-• May sariling cookies at site data ang bawat profile
-• Magbukas ng bagong tab at shortcut sa kahit anong profile
+• May sariling cookies, login, at site data ang bawat profile
+• Pumili ng profile kapag magbubukas ng bagong tab
+• Bigyan ng sariling pangalan at kulay ang bawat profile
+
+<b>MGA SHORTCUT</b>
+• Idagdag ang kahit anong website sa home screen mo na may sariling pangalan at icon
+• Itinatago ng frameless mode ang search bar at bottom bar para parang totoong app ang dating
+• Pamahalaan ang lahat ng shortcut mo sa iisang lugar gamit ang built-in na Shortcut Manager
 
 <b>BROWSER</b>
 • Maraming tab
+• Incognito mode
 • Reader Mode
 • Desktop Mode
-• Awtomatikong pagbura ng mga hindi ginagamit na tab
-• Quick Download
-• Tagapamahala ng Shortcut na may frameless na shortcut
+• Proteksyon laban sa mga popup
+• Data Saver
 
-Kailangan ng Android 8.0 pataas at WebView.
+I-download lang ang app at tuklasin mo mismo.
+
+Kailangan ng Android 8.0 (API 26) pataas.

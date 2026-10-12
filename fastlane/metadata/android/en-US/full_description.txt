@@ -1,60 +1,71 @@
-Clint is an open source Android browser with a modern Material 3 interface and tons of features. It has no backend, collects zero data, and has no ads or paywalls. Completely free.
+Clint Gecko is an open-source Firefox-based browser with a built-in ADM (Advanced Download Manager) and Media Capture. The goal of Clint Gecko is to be your ultimate all-in-one browser while remaining pleasant to use and highly customizable. With every update, Clint Gecko continues to get closer to that goal.
+
+The Jhaiian ecosystem offers up to 500 possible theme combinations, allowing you to personalize your browsing experience to your liking.
+
+Privacy is also a priority. Clint Gecko is configured to opt out of GeckoView and Mozilla telemetry, preventing telemetry data from being sent to Mozilla through those services. Clint itself doesn't collect your personal data because it has no backend, analytics, or data collection servers. Everything is designed to work directly on your device.
+
+Official fork of Clint Browser (github.com/jhaiian/ClintBrowser). If you want a lighter version built on Android WebView, check out the original Clint Browser.
+
+Built and maintained by @jhaiian, a solo developer from the Philippines.
+
+<b>GECKO ENGINE</b>
+• Powered by GeckoView, the Firefox engine
+• GeckoView and Mozilla telemetry are opted out
+
+<b>EXTENSIONS</b>
+• Install Firefox extensions directly in the browser
+• Browse the Firefox add-on store or open an .xpi file
+• Choose whether an extension can run in incognito tabs
+• Open an extension's options page from the extension manager
+
+<b>BACKGROUND PLAYBACK</b>
+• Keep audio and video playing when you switch apps or lock your screen
+• Control playback from the media notification
+• Can be turned on or off in the browser settings
 
 <b>MEDIA CAPTURE</b>
-• Detects video, audio and subtitle streams on the pages you visit
+• Detects video, audio and subtitle streams on webpages you visit
 • Supports normal video, HLS/M3U8 and DASH streams
 • Download detected media directly from the browser
 
-<b>DOWNLOAD MANAGER</b>
+<b>ADM (ADVANCED DOWNLOAD MANAGER)</b>
 • Multi-threaded and multi-part downloads
 • Pause and resume
-• Download scheduler and speed limiter
+• Download scheduler
+• Speed limiter
 • Custom download locations
-• Automatically pauses and resumes stuck downloads
 
-<b>QUIVER GUARD</b>
-• Built-in ad and tracker blocker
-• Cosmetic and network filtering
-• Multiple filter lists
-• Per-site controls
+<b>UI AND CUSTOMIZATION</b>
+Clint Gecko is built with Material 3 and Jetpack Compose, with a highly customizable interface.
+• 50 accent colors
+• Light and Dark themes
+• 5 surface intensities
+• In total, 500 possible theme combinations
 
 <b>WEBSITE BLOCKER</b>
 • Blocks pornography, gambling and other unwanted categories
-• Category-based filter lists
+• Category-based filter lists (abuse, ads, crypto, drugs, fraud, gambling and more)
 • Add your own custom websites to block
 
-<b>DATA SAVER</b>
-• Only on metered networks
-• Disable images, block video and stop autoplay
-• Block media preloading, web fonts and third-party frames
-• Reuse saved pages and request lighter pages
-• Disable online search suggestions and favicons
-• Block scripts and CSS
-
-<b>PRIVACY AND SECURITY</b>
-• Incognito mode
-• Popup protection
-• Send Do Not Track request
-• Passkeys support
-• Autofill can be turned off
-
-<b>CUSTOMIZATION</b>
-• 50 accent colors, Light and Dark themes and 5 surface intensities
-• 500 possible theme combinations
-• Choose between the Clint homepage and your search engine homepage
-• Plain color, gradient or custom image homepage backgrounds
-
 <b>PROFILES</b>
-• Stay signed in to several accounts on the same website at once
-• Each profile keeps its own cookies and site data
-• Open new tabs and shortcuts in any profile
+• Stay signed in to several accounts on the same website at the same time
+• Each profile keeps its own cookies, logins and site data
+• Pick a profile when opening a new tab
+• Give each profile its own name and color
+
+<b>SHORTCUTS</b>
+• Add any website to your home screen with a custom name and icon
+• Frameless mode hides the search bar and bottom bar for an app-like feel
+• Manage all your shortcuts in one place with the built-in Shortcut Manager
 
 <b>BROWSER</b>
 • Multi-tab browsing
+• Incognito mode
 • Reader Mode
 • Desktop Mode
-• Delete inactive tabs automatically
-• Quick Download
-• Shortcut Manager with frameless shortcuts
+• Popup protection
+• Data Saver
 
-Requires Android 8.0 or higher and a WebView implementation.
+Just download the app and explore it yourself.
+
+Requires Android 8.0 (API 26) or higher.
