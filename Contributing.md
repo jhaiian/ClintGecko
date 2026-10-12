@@ -61,7 +61,7 @@ Thank you for helping make the app available in more languages!
 ### Prerequisites
 - Android Studio or JDK 17
 - Android SDK (API 37)
-- Gradle 9.8.0
+- Gradle 9.8.1
 
 ### Steps
 
