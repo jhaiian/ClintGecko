@@ -21,9 +21,13 @@ internal fun MainActivity.dismissWebsiteBlockedOverlay() {
     val request = uiState.websiteBlockedRequest ?: return
     uiState.websiteBlockedRequest = null
     val tab = tabManager.tabs.find { it.id == request.tabId } ?: return
-    if (tab.webView.canGoBack()) {
-        tab.webView.goBack()
-    } else {
-        tab.webView.loadUrl(getHomepageUrl())
+    val currentUrl = tab.webView.url
+    val blockedHost = runCatching { android.net.Uri.parse(request.blockedUrl).host }.getOrNull()
+    val currentHost = runCatching { android.net.Uri.parse(currentUrl).host }.getOrNull()
+    val blockedPageCommitted = !blockedHost.isNullOrEmpty() && blockedHost.equals(currentHost, ignoreCase = true)
+    when {
+        blockedPageCommitted && tab.webView.canGoBack() -> tab.webView.goBack()
+        blockedPageCommitted || currentUrl.isNullOrEmpty() -> tab.webView.loadUrl(getHomepageUrl())
+        else -> tab.webView.onBlockedLoadDismissed()
     }
 }

@@ -16,13 +16,13 @@ But that's not all. Since Clint Gecko is an official fork of Clint Browser, with
 
 ---
 
-## 🔥 Key Features
+##  Key Features
 
-- 🦊 Firefox-based browsing with GeckoView
-- 🧩 Browser extension support
-- 🎵 Background playback
-- 📥 Built-in Advanced Download Manager (ADM)
-- 🎬 Built-in Media Capture
+-  Firefox-based browsing with GeckoView
+-  Browser extension support (thanks to @brnwlshubh for suggesting this [#18](https://github.com/jhaiian/ClintBrowser/issues/18))
+-  Background playback
+-  Built-in Advanced Download Manager (ADM)
+-  Built-in Media Capture
 
 ---
 
@@ -30,6 +30,6 @@ Clint is no longer limited to one browser engine. You can stick with the origina
 
 And don't worry! The original Clint Browser will continue to be maintained as the lighter version, so you can choose whichever browser suits your needs best.
 
-**Two engines. One Clint. 💜**
+**Two engines. One Clint. **
 
 ---

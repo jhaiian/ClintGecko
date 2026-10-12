@@ -288,6 +288,10 @@ class ClintWebView(
         if (!destroyed && session.isOpen) session.stop()
     }
 
+    fun onBlockedLoadDismissed() {
+        awaitingRealLoad = false
+    }
+
     fun canGoBack(): Boolean = canGoBackState
     fun canGoForward(): Boolean = canGoForwardState
     fun goBack() = session.goBack()
