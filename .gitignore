@@ -1,0 +1,7 @@
+.gradle/
+build/
+.cxx/
+.ccache/
+local.properties
+*.jks
+native/**/build-*/

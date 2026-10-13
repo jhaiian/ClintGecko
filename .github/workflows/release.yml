@@ -59,6 +59,9 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: Set up native build cache
+        uses: ./.github/actions/native-cache
+
       - name: Restore signing keystore
         run: |
           printf '%s' "${{ secrets.BASE_64_SIGNING_KEY }}" | tr -d '\n' | base64 -d > app/release_keystore.jks
@@ -92,15 +95,6 @@ jobs:
         run: |
           ./gradlew assembleGithubRelease
 
-      - name: Detect ABI split mode
-        id: mode
-        run: |
-          if ls app/build/outputs/apk/github/release/app-github-arm64-v8a-release.apk 2>/dev/null; then
-            echo "split=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "split=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Rename APKs
         id: apks
         run: |
@@ -113,27 +107,23 @@ jobs:
             local BASE="$2"
             local SRC_DIR="app/build/outputs/apk/${FLAVOR}/release"
 
-            if [[ "${{ steps.mode.outputs.split }}" == "true" ]]; then
-              for apk in "$SRC_DIR"/*.apk; do
-                fname=$(basename "$apk")
-                if [[ "$fname" == *"arm64-v8a"* ]]; then
-                  ARCH="arm64-v8a"
-                elif [[ "$fname" == *"armeabi-v7a"* ]]; then
-                  ARCH="armeabi-v7a"
-                elif [[ "$fname" == *"x86_64"* ]]; then
-                  ARCH="x86_64"
-                elif [[ "$fname" == *"x86"* ]]; then
-                  ARCH="x86"
-                elif [[ "$fname" == *"universal"* ]]; then
-                  ARCH="universal"
-                else
-                  ARCH="unknown"
-                fi
-                cp "$apk" "$OUT_DIR/${BASE}-${ARCH}.apk"
-              done
-            else
-              cp "$SRC_DIR/app-${FLAVOR}-release.apk" "$OUT_DIR/${BASE}.apk"
-            fi
+            for apk in "$SRC_DIR"/*.apk; do
+              fname=$(basename "$apk")
+              if [[ "$fname" == *"arm64-v8a"* ]]; then
+                ARCH="arm64-v8a"
+              elif [[ "$fname" == *"armeabi-v7a"* ]]; then
+                ARCH="armeabi-v7a"
+              elif [[ "$fname" == *"x86_64"* ]]; then
+                ARCH="x86_64"
+              elif [[ "$fname" == *"x86"* ]]; then
+                ARCH="x86"
+              elif [[ "$fname" == *"universal"* ]]; then
+                ARCH="universal"
+              else
+                ARCH="unknown"
+              fi
+              cp "$apk" "$OUT_DIR/${BASE}-${ARCH}.apk"
+            done
           }
 
           rename_flavor github "ClintGecko-${VERSION}"
@@ -146,7 +136,6 @@ jobs:
           CB_TAG: ${{ steps.info.outputs.tag }}
           CB_MANIFEST: ${{ steps.info.outputs.manifest }}
           CB_BASE_URL: "https://github.com/${{ github.repository }}/releases/download/${{ steps.info.outputs.tag }}"
-          CB_SPLIT: ${{ steps.mode.outputs.split }}
           VERSION_CODE: ${{ steps.read_version.outputs.version_code }}
           APK_DIR: ${{ steps.apks.outputs.apk_dir }}
         run: |
@@ -158,7 +147,6 @@ jobs:
           tag = os.environ["CB_TAG"]
           manifest = os.environ["CB_MANIFEST"]
           base_url = os.environ["CB_BASE_URL"]
-          is_split = os.environ["CB_SPLIT"] == "true"
           apk_dir = os.environ["APK_DIR"]
 
           with open("CHANGELOG.md", "r", encoding="utf-8") as fh:
@@ -186,14 +174,9 @@ jobs:
           data["changelog"] = changelog_text
 
           archs = ["arm64-v8a", "armeabi-v7a", "x86", "x86_64", "universal"]
-          if is_split:
-              for arch in archs:
-                  apk_name = f"ClintGecko-{version}-{arch}.apk"
-                  data["downloads"][arch] = f"{base_url}/{apk_name}"
-          else:
-              url = f"{base_url}/ClintGecko-{version}.apk"
-              for arch in archs:
-                  data["downloads"][arch] = url
+          for arch in archs:
+              apk_name = f"ClintGecko-{version}-{arch}.apk"
+              data["downloads"][arch] = f"{base_url}/{apk_name}"
 
           with open(manifest, "w", encoding="utf-8") as fh:
               json.dump(data, fh, indent=2, ensure_ascii=False)

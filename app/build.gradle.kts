@@ -13,6 +13,13 @@ if (localPropertiesFile.exists()) {
     }
 }
 
+val ccacheExecutable: String? = (System.getenv("PATH") ?: "")
+    .split(File.pathSeparator)
+    .filter { it.isNotEmpty() }
+    .flatMap { dir -> listOf(File(dir, "ccache"), File(dir, "ccache.exe")) }
+    .firstOrNull { it.isFile && it.canExecute() }
+    ?.absolutePath
+
 android {
     namespace = "com.jhaiian.clint"
     compileSdk {
@@ -21,12 +28,35 @@ android {
         }
     }
 
+    ndkVersion = "27.2.12479018"
+
     defaultConfig {
         applicationId = "com.jhaiian.clint.gecko"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
         versionName = "1.0.0"
+
+        externalNativeBuild {
+            cmake {
+                arguments.addAll(
+                    listOf(
+                        "-DANDROID_STL=c++_static",
+                        "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON"
+                    )
+                )
+                if (ccacheExecutable != null) {
+                    arguments.add("-DCMAKE_CXX_COMPILER_LAUNCHER=$ccacheExecutable")
+                }
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = rootProject.file("native/websiteblocker-cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 
     val hasSigningConfig = localProperties.getProperty("signingConfig.storePassword") != null
@@ -75,14 +105,9 @@ android {
         }
     }
 
-    val hasNativeLibs = fileTree("src/main/jniLibs") { include("**/*.so") }.files.isNotEmpty() ||
-            file("src/main/cpp/CMakeLists.txt").exists() ||
-            file("CMakeLists.txt").exists() ||
-            file("src/main/jni/Android.mk").exists()
-
     splits {
         abi {
-            isEnable = hasNativeLibs
+            isEnable = true
             reset()
             include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
             isUniversalApk = true

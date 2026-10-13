@@ -9,8 +9,10 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -fvisibility=hidden -fno-exceptions -fno-rtti")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g0 -DNDEBUG -fvisibility=hidden -fno-exceptions -fno-rtti")
+set(CMAKE_CXX_FLAGS_MINSIZEREL "-Os -DNDEBUG -fvisibility=hidden -fno-exceptions -fno-rtti")
 
 add_library(websiteblocker SHARED
     src/website_blocker.cpp
@@ -18,6 +20,11 @@ add_library(websiteblocker SHARED
 )
 
 target_include_directories(websiteblocker PRIVATE src)
+
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_compile_options(websiteblocker PRIVATE -flto=thin)
+    target_link_options(websiteblocker PRIVATE -flto=thin)
+endif()
 
 find_library(log-lib log)
 target_link_libraries(websiteblocker ${log-lib})

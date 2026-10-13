@@ -1,0 +1,38 @@
+name: Native build cache
+description: Installs ccache and restores the ccache and NDK caches used by the Gradle CMake build
+
+runs:
+  using: composite
+  steps:
+    - name: Install ccache
+      shell: bash
+      run: |
+        if ! command -v ccache >/dev/null 2>&1; then
+          sudo apt-get update
+          sudo apt-get install -y ccache
+        fi
+
+    - name: Configure ccache
+      shell: bash
+      run: |
+        {
+          echo "CCACHE_DIR=${GITHUB_WORKSPACE}/.ccache"
+          echo "CCACHE_BASEDIR=${GITHUB_WORKSPACE}"
+          echo "CCACHE_COMPILERCHECK=content"
+          echo "CCACHE_MAXSIZE=300M"
+          echo "CCACHE_COMPRESS=true"
+        } >> "$GITHUB_ENV"
+
+    - name: Restore ccache
+      uses: actions/cache@v5
+      with:
+        path: .ccache
+        key: ccache-${{ runner.os }}-${{ hashFiles('native/**', 'app/build.gradle.kts') }}
+        restore-keys: |
+          ccache-${{ runner.os }}-
+
+    - name: Restore Android NDK
+      uses: actions/cache@v5
+      with:
+        path: /usr/local/lib/android/sdk/ndk/27.2.12479018
+        key: android-ndk-27.2.12479018-${{ runner.os }}
