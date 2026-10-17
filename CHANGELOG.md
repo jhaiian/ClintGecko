@@ -113,9 +113,9 @@ Bumped GeckoView version from `157.0.20261005135250` to `158.0.20261007201254`.
 
 ## Secure DNS
 
-- **Off** � Use your network's default DNS resolver.
-- **Increased protection** � Use DNS over HTTPS (DoH) when available. Fall back to regular DNS if the provider is unavailable.
-- **Maximum protection** � Use DNS over HTTPS exclusively. Websites won't load if the DNS provider is unavailable.
+- **Off** — Use your network's default DNS resolver.
+- **Increased protection** — Use DNS over HTTPS (DoH) when available. Fall back to regular DNS if the provider is unavailable.
+- **Maximum protection** — Use DNS over HTTPS exclusively. Websites won't load if the DNS provider is unavailable.
 
 ### DNS Provider
 
@@ -188,13 +188,13 @@ But that's not all. Since Clint Gecko is an official fork of Clint Browser, with
 
 ---
 
-## 🔥 Key Features
+## ðŸ”¥ Key Features
 
-- 🦊 Firefox-based browsing with GeckoView
-- 🧩 Browser extension support
-- 🎵 Background playback
-- 📥 Built-in Advanced Download Manager (ADM)
-- 🎬 Built-in Media Capture
+- ðŸ¦Š Firefox-based browsing with GeckoView
+- ðŸ§© Browser extension support
+- ðŸŽµ Background playback
+- ðŸ“¥ Built-in Advanced Download Manager (ADM)
+- ðŸŽ¬ Built-in Media Capture
 
 ---
 
@@ -202,6 +202,6 @@ Clint is no longer limited to one browser engine. You can stick with the origina
 
 And don't worry! The original Clint Browser will continue to be maintained as the lighter version, so you can choose whichever browser suits your needs best.
 
-**Two engines. One Clint. 💜**
+**Two engines. One Clint. ðŸ’œ**
 
 ---
