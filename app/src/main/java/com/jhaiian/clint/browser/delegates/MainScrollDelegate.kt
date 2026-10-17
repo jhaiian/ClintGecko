@@ -2,9 +2,7 @@ package com.jhaiian.clint.browser.delegates
 import com.jhaiian.clint.browser.webview.*
 import com.jhaiian.clint.browser.MainActivity
 
-import android.view.GestureDetector
-import android.view.MotionEvent
-import android.view.VelocityTracker
+import android.os.SystemClock
 import com.jhaiian.clint.browser.webview.ClintWebView
 import android.animation.ValueAnimator
 import android.view.animation.AccelerateInterpolator
@@ -16,7 +14,7 @@ internal fun MainActivity.setupSwipeRefresh() {
             val wv = tabManager.activeTab?.webView
             val mode = prefs.getString("scroll_hide_mode", "off") ?: "off"
             val barsHiddenByScrolling = !hasWebBottomNav && mode != "off" && uiState.topBarFraction >= 1f
-            wv != null && (barsHiddenByScrolling || wv.canScrollVertically(-1) || nestedScrollActive)
+            wv != null && (wv.url?.startsWith("moz-extension://") == true || barsHiddenByScrolling || wv.canScrollVertically(-1) || nestedScrollActive)
         }
     }
     updateSwipeRefreshColors(uiState.isIncognito)
@@ -30,11 +28,15 @@ internal fun MainActivity.setupSwipeRefresh() {
 }
 
 internal fun MainActivity.updateMainContentInsets() {
-    val contentBarHeight = uiState.topBarFullHeightPx - uiState.statusBarInsetPx
-    val visibleTop = uiState.statusBarInsetPx + ((1f - uiState.topBarFraction) * contentBarHeight).toInt().coerceAtLeast(0)
-    val visibleBottom = ((1f - uiState.bottomBarFraction) * uiState.bottomBarFullHeightPx).toInt().coerceAtLeast(0)
+    val contentBarHeight = (uiState.topBarFullHeightPx - uiState.statusBarInsetPx).coerceAtLeast(0)
+    val topCollapsed = uiState.topBarFraction > 0f || uiState.topBarAnimating
+    val bottomCollapsed = uiState.bottomBarFraction > 0f || uiState.bottomBarAnimating
+    val visibleTop = uiState.statusBarInsetPx + if (topCollapsed) 0 else contentBarHeight
+    val visibleBottom = if (bottomCollapsed) 0 else uiState.bottomBarFullHeightPx
     uiState.contentPaddingTopPx = visibleTop
     uiState.contentPaddingBottomPx = visibleBottom
+    swipeRefreshView.setPadding(0, visibleTop, 0, maxOf(visibleBottom, uiState.imeInsetPx))
+    webContainer.translationY = if (topCollapsed) (1f - uiState.topBarFraction) * contentBarHeight else 0f
     val mode = prefs.getString("scroll_hide_mode", "off") ?: "off"
     val position = prefs.getString("address_bar_position", "top") ?: "top"
     val barsHidden = mode != "off" && when (mode) {
@@ -43,6 +45,29 @@ internal fun MainActivity.updateMainContentInsets() {
         else -> uiState.topBarFraction >= 1f
     }
     swipeRefreshView.isEnabled = !barsHidden
+}
+
+private const val HIDE_THRESHOLD_DP = 24
+private const val SHOW_THRESHOLD_DP = 12
+private const val BAR_ANIMATION_MS = 200L
+private const val BAR_SETTLE_MS = 160L
+
+private fun MainActivity.scrollHideSettledHidden(mode: String, position: String): Boolean {
+    val topAnimating = uiState.topBarAnimating
+    val bottomAnimating = uiState.bottomBarAnimating
+    if (topAnimating || bottomAnimating) return uiState.barsTargetHidden
+    return when (mode) {
+        "search_bar" -> if (position == "bottom") uiState.bottomBarFraction >= 1f else uiState.topBarFraction >= 1f
+        else -> uiState.bottomBarFraction >= 1f
+    }
+}
+
+private fun MainActivity.animateScrollHideBars(mode: String, position: String, target: Float) {
+    when (mode) {
+        "search_bar" -> if (position == "bottom") animateBottomBarOnlyTo(target) else animateTopBarOnlyTo(target)
+        "navigation_bar" -> animateBottomBarOnlyTo(target)
+        "both" -> animateBottomBarTo(target)
+    }
 }
 
 internal fun MainActivity.setTopBarFraction(fraction: Float) {
@@ -55,6 +80,35 @@ internal fun MainActivity.setBottomBarFraction(fraction: Float) {
     updateMainContentInsets()
 }
 
+private fun MainActivity.runBarAnimation(
+    target: Float,
+    start: Float,
+    top: Boolean,
+    bottom: Boolean
+) {
+    uiState.barsTargetHidden = target >= 1f
+    uiState.topBarAnimating = top
+    uiState.bottomBarAnimating = bottom
+    val animator = ValueAnimator.ofFloat(start, target).apply {
+        duration = BAR_ANIMATION_MS
+        interpolator = if (target > start) AccelerateInterpolator() else DecelerateInterpolator()
+        addUpdateListener { anim ->
+            val f = anim.animatedValue as Float
+            if (top) uiState.topBarFraction = f
+            if (bottom) uiState.bottomBarFraction = f
+            updateMainContentInsets()
+        }
+        doOnEnd {
+            uiState.topBarAnimating = false
+            uiState.bottomBarAnimating = false
+            updateMainContentInsets()
+        }
+    }
+    bottomBarAnimator2 = animator
+    updateMainContentInsets()
+    animator.start()
+}
+
 internal fun MainActivity.animateBottomBarTo(targetFraction: Float, animated: Boolean = true) {
     bottomBarAnimator2?.cancel()
     if (!animated || (uiState.topBarFullHeightPx == 0 && uiState.bottomBarFullHeightPx == 0)) {
@@ -64,16 +118,7 @@ internal fun MainActivity.animateBottomBarTo(targetFraction: Float, animated: Bo
     }
     val startFraction = uiState.bottomBarFraction
     if (startFraction == targetFraction) return
-    bottomBarAnimator2 = ValueAnimator.ofFloat(startFraction, targetFraction).apply {
-        duration = 200L
-        interpolator = if (targetFraction > startFraction) AccelerateInterpolator() else DecelerateInterpolator()
-        addUpdateListener { anim ->
-            val f = anim.animatedValue as Float
-            setTopBarFraction(f)
-            setBottomBarFraction(f)
-        }
-        start()
-    }
+    runBarAnimation(targetFraction, startFraction, top = true, bottom = true)
 }
 
 internal fun MainActivity.animateTopBarOnlyTo(targetFraction: Float, animated: Boolean = true) {
@@ -84,15 +129,7 @@ internal fun MainActivity.animateTopBarOnlyTo(targetFraction: Float, animated: B
     }
     val startFraction = uiState.topBarFraction
     if (startFraction == targetFraction) return
-    bottomBarAnimator2 = ValueAnimator.ofFloat(startFraction, targetFraction).apply {
-        duration = 200L
-        interpolator = if (targetFraction > startFraction) AccelerateInterpolator() else DecelerateInterpolator()
-        addUpdateListener { anim ->
-            val f = anim.animatedValue as Float
-            setTopBarFraction(f)
-        }
-        start()
-    }
+    runBarAnimation(targetFraction, startFraction, top = true, bottom = false)
 }
 
 internal fun MainActivity.animateBottomBarOnlyTo(targetFraction: Float, animated: Boolean = true) {
@@ -103,15 +140,7 @@ internal fun MainActivity.animateBottomBarOnlyTo(targetFraction: Float, animated
     }
     val startFraction = uiState.bottomBarFraction
     if (startFraction == targetFraction) return
-    bottomBarAnimator2 = ValueAnimator.ofFloat(startFraction, targetFraction).apply {
-        duration = 200L
-        interpolator = if (targetFraction > startFraction) AccelerateInterpolator() else DecelerateInterpolator()
-        addUpdateListener { anim ->
-            val f = anim.animatedValue as Float
-            setBottomBarFraction(f)
-        }
-        start()
-    }
+    runBarAnimation(targetFraction, startFraction, top = false, bottom = true)
 }
 
 private fun ValueAnimator.doOnEnd(action: () -> Unit) {
@@ -121,88 +150,44 @@ private fun ValueAnimator.doOnEnd(action: () -> Unit) {
 }
 
 internal fun MainActivity.attachScrollListener(webView: ClintWebView) {
-    var localVelocityTracker: VelocityTracker? = null
+    val density = resources.displayMetrics.density
+    val hideThresholdPx = (HIDE_THRESHOLD_DP * density).toInt()
+    val showThresholdPx = (SHOW_THRESHOLD_DP * density).toInt()
+    var accumulated = 0
+    var settleUntil = 0L
 
-    val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
-        override fun onScroll(
-            e1: MotionEvent?,
-            e2: MotionEvent,
-            distanceX: Float,
-            distanceY: Float
-        ): Boolean {
-            val mode = prefs.getString("scroll_hide_mode", "off") ?: "off"
-            if (mode != "off") {
-                val position = prefs.getString("address_bar_position", "top") ?: "top"
-                val refHeight = when (mode) {
-                    "search_bar" -> if (position == "bottom") uiState.bottomBarFullHeightPx.takeIf { it > 0 } ?: uiState.topBarFullHeightPx else uiState.topBarFullHeightPx
-                    else -> uiState.bottomBarFullHeightPx.takeIf { it > 0 } ?: uiState.topBarFullHeightPx
-                }
-                if (refHeight > 0) {
-                    val delta = distanceY / (refHeight * 1.5f)
-                    when (mode) {
-                        "search_bar" -> {
-                            if (position == "bottom") {
-                                val newFrac = (uiState.bottomBarFraction + delta).coerceIn(0f, 1f)
-                                setBottomBarFraction(newFrac)
-                            } else {
-                                val newFrac = (uiState.topBarFraction + delta).coerceIn(0f, 1f)
-                                setTopBarFraction(newFrac)
-                            }
-                        }
-                        "navigation_bar" -> {
-                            val newFrac = (uiState.bottomBarFraction + delta).coerceIn(0f, 1f)
-                            setBottomBarFraction(newFrac)
-                        }
-                        "both" -> {
-                            val newFrac = (uiState.bottomBarFraction + delta).coerceIn(0f, 1f)
-                            setTopBarFraction(newFrac)
-                            setBottomBarFraction(newFrac)
-                        }
-                    }
-                }
+    fun handleScroll(scrollY: Int, oldScrollY: Int) {
+        val mode = prefs.getString("scroll_hide_mode", "off") ?: "off"
+        if (mode == "off" || webView !== tabManager.activeTab?.webView) return
+        val position = prefs.getString("address_bar_position", "top") ?: "top"
+        val hidden = scrollHideSettledHidden(mode, position)
+        val now = SystemClock.uptimeMillis()
+        val delta = scrollY - oldScrollY
+        if (scrollY <= 0) {
+            accumulated = 0
+            if (hidden) {
+                animateScrollHideBars(mode, position, 0f)
+                settleUntil = now + BAR_ANIMATION_MS + BAR_SETTLE_MS
             }
-            return false
+            return
         }
-    })
-
-    webView.touchObserver = { event ->
-        when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                localVelocityTracker?.recycle()
-                localVelocityTracker = VelocityTracker.obtain()
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                val mode = prefs.getString("scroll_hide_mode", "off") ?: "off"
-                if (mode != "off") {
-                    localVelocityTracker?.computeCurrentVelocity(1000)
-                    val vy = localVelocityTracker?.yVelocity ?: 0f
-                    val position = prefs.getString("address_bar_position", "top") ?: "top"
-                    val currentFrac = when (mode) {
-                        "search_bar" -> if (position == "bottom") uiState.bottomBarFraction else uiState.topBarFraction
-                        else -> uiState.bottomBarFraction
-                    }
-                    val snapToHidden = when {
-                        vy < -900f -> true
-                        vy > 900f -> false
-                        else -> currentFrac >= 0.5f
-                    }
-                    val target = if (snapToHidden) 1f else 0f
-                    when (mode) {
-                        "search_bar" -> {
-                            if (position == "bottom") animateBottomBarOnlyTo(target)
-                            else animateTopBarOnlyTo(target)
-                        }
-                        "navigation_bar" -> animateBottomBarOnlyTo(target)
-                        "both" -> animateBottomBarTo(target)
-                    }
-                }
-                localVelocityTracker?.recycle()
-                localVelocityTracker = null
-            }
+        if (now < settleUntil || delta == 0) {
+            accumulated = 0
+            return
         }
-        localVelocityTracker?.addMovement(event)
-        detector.onTouchEvent(event)
+        if (accumulated != 0 && (delta > 0) != (accumulated > 0)) accumulated = 0
+        accumulated = (accumulated + delta).coerceIn(-hideThresholdPx, hideThresholdPx)
+        val shouldHide = accumulated >= hideThresholdPx && !hidden
+        val shouldShow = accumulated <= -showThresholdPx && hidden
+        if (shouldHide || shouldShow) {
+            accumulated = 0
+            settleUntil = now + BAR_ANIMATION_MS + BAR_SETTLE_MS
+            animateScrollHideBars(mode, position, if (shouldHide) 1f else 0f)
+        }
     }
+
+    webView.touchObserver = null
+    webView.scrollListener = { scrollY, oldScrollY -> handleScroll(scrollY, oldScrollY) }
 }
 
 internal fun MainActivity.injectScrollTracker(webView: ClintWebView) {

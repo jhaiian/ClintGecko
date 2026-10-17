@@ -126,6 +126,15 @@ class ClintWebViewClient(
             }
         }
 
+        if (prefs.getBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.STRIP_TRACKING_PARAMS, com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_STRIP_TRACKING_PARAMS)) {
+            val original = uri.toString()
+            val cleaned = com.jhaiian.clint.privacy.TrackingParams.strip(original)
+            if (cleaned != original) {
+                view.loadUrlDeferred(cleaned)
+                return true
+            }
+        }
+
         if (tryOpenInApp(view, uri)) return true
 
         val websiteBlockerEnabled = prefs.getBoolean("website_blocker_enabled", false)

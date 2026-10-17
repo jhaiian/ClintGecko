@@ -127,7 +127,7 @@ internal fun MainActivity.openNewTabSilent(
     title: String? = null,
     profileId: String = WebProfiles.DEFAULT_ID
 ) {
-    val webView = createClintWebView(false, WebProfiles.resolve(this, profileId))
+    val webView = createClintWebView(false, WebProfiles.resolve(this, profileId), deferLoad)
     val tab = BrowserTab(id = id, url = url, shortcutId = shortcutId, profileId = WebProfiles.profileOf(webView), webView = webView)
     if (!title.isNullOrBlank()) tab.title = title
     tabManager.add(tab)

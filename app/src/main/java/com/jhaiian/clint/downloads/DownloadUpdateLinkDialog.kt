@@ -43,6 +43,10 @@ private fun sizesWithinTolerance(a: Long, b: Long): Boolean {
 
 @Composable
 fun DownloadUpdateLinkDialog(item: DownloadItem, hideStatusBar: Boolean, hideSystemNavigation: Boolean, onDismiss: () -> Unit) {
+    if (item.isStream) {
+        StreamUpdateLinkDialog(item, hideStatusBar, hideSystemNavigation, onDismiss)
+        return
+    }
     val context = LocalContext.current
     val colors = LocalClintColors.current
 
@@ -65,40 +69,6 @@ fun DownloadUpdateLinkDialog(item: DownloadItem, hideStatusBar: Boolean, hideSys
         helperText = null
         checking = true
         delay(600)
-        if (item.isStream) {
-            val isValidManifest = withContext(Dispatchers.IO) {
-                try {
-                    val request = okhttp3.Request.Builder().url(typed).get().build()
-                    val response = ClintDownloadManager.httpClient.newCall(request).execute()
-                    val body = if (response.isSuccessful) response.body.string() else null
-                    response.close()
-                    when {
-                        body == null -> null
-                        item.streamFormat.equals("DASH", true) -> body.contains("<MPD", ignoreCase = true)
-                        else -> body.trimStart().startsWith("#EXTM3U")
-                    }
-                } catch (e: Throwable) {
-                    null
-                }
-            }
-            checking = false
-            when (isValidManifest) {
-                null -> {
-                    helperText = null
-                    errorText = context.getString(R.string.download_update_link_dialog_fetch_failed)
-                }
-                false -> {
-                    helperText = null
-                    errorText = context.getString(R.string.download_update_link_dialog_not_a_manifest)
-                }
-                true -> {
-                    errorText = null
-                    helperText = null
-                    verifiedUrl = typed
-                }
-            }
-            return@LaunchedEffect
-        }
         val remoteSize = withContext(Dispatchers.IO) {
             try {
                 var size = -1L

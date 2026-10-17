@@ -227,6 +227,89 @@
     port.postMessage({ k: "cookiesRes", id: m.id, cookie: out });
   }
 
+  function ckUrl(c) {
+    return (c.secure ? "https://" : "http://") + c.domain.replace(/^\./, "") + c.path;
+  }
+
+  async function ckGetAll(url, storeId) {
+    var q = { url: url };
+    if (storeId) q.storeId = storeId;
+    try {
+      q.partitionKey = {};
+      return await browser.cookies.getAll(q);
+    } catch (e) {
+      delete q.partitionKey;
+      return await browser.cookies.getAll(q);
+    }
+  }
+
+  async function ckList(m) {
+    var list = await ckGetAll(m.url, m.storeId);
+    return list.map(function (c) {
+      return {
+        name: c.name,
+        value: c.value,
+        domain: c.domain,
+        hostOnly: !!c.hostOnly,
+        path: c.path,
+        secure: !!c.secure,
+        httpOnly: !!c.httpOnly,
+        exp: c.expirationDate || 0
+      };
+    });
+  }
+
+  async function ckRemove(m) {
+    var list = await ckGetAll(m.url, m.storeId);
+    var removed = 0;
+    var failed = 0;
+    for (var c of list) {
+      try {
+        var d = { url: ckUrl(c), name: c.name };
+        if (c.storeId) d.storeId = c.storeId;
+        if (c.partitionKey) d.partitionKey = c.partitionKey;
+        if (c.firstPartyDomain) d.firstPartyDomain = c.firstPartyDomain;
+        var r = await browser.cookies.remove(d);
+        if (r) removed++; else failed++;
+      } catch (e) { failed++; }
+    }
+    return { removed: removed, failed: failed };
+  }
+
+  async function ckSet(m) {
+    var ok = 0;
+    var failed = 0;
+    var items = m.cookies || [];
+    for (var c of items) {
+      try {
+        var d = {
+          url: c.url,
+          name: c.name,
+          value: c.value,
+          path: c.path || "/",
+          secure: !!c.secure,
+          httpOnly: !!c.httpOnly
+        };
+        if (c.domain) d.domain = c.domain;
+        if (c.exp > 0) d.expirationDate = c.exp;
+        if (m.storeId) d.storeId = m.storeId;
+        var r = await browser.cookies.set(d);
+        if (r) ok++; else failed++;
+      } catch (e) { failed++; }
+    }
+    return { ok: ok, failed: failed };
+  }
+
+  async function cookieOp(m) {
+    var res = null;
+    try {
+      if (m.op === "list") res = await ckList(m);
+      else if (m.op === "remove") res = await ckRemove(m);
+      else if (m.op === "set") res = await ckSet(m);
+    } catch (e) {}
+    port.postMessage({ k: "ckRes", id: m.id, res: res });
+  }
+
   function onNative(m) {
     if (!m) return;
     if (m.k === "bundle") {
@@ -235,6 +318,8 @@
       if (m.cfg) cfg = m.cfg;
     } else if (m.k === "cookies") {
       cookiesFor(m);
+    } else if (m.k === "ck") {
+      cookieOp(m);
     }
   }
 

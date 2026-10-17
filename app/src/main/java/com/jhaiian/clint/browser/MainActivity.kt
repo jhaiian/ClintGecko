@@ -49,6 +49,8 @@ import com.jhaiian.clint.update.UpdateChecker
 class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity, ConfirmDialogHostActivity {
 
     companion object {
+        private const val TRIM_MEMORY_BACKGROUND_LEVEL = 40
+        private const val TRIM_MEMORY_MODERATE_LEVEL = 60
         const val EXTRA_REFRESH_LINK_MODE = "extra_refresh_link_mode"
         const val EXTRA_REFRESH_LINK_DOWNLOAD_ID = "extra_refresh_link_download_id"
         const val EXTRA_REFRESH_LINK_FILENAME = "extra_refresh_link_filename"
@@ -446,6 +448,7 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
     override fun onResume() {
         super.onResume()
         if (isFinishing) return
+        ClintDownloadManager.resumeTimeoutPaused(this)
         com.jhaiian.clint.extensions.ClintExtensions.reassertActiveSession()
         addBackgroundPlaybackScript()
         syncFramelessShortcuts()
@@ -462,6 +465,7 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
         uiState.homepageDesign = com.jhaiian.clint.browser.home.readHomepageDesign(this, prefs)
         uiState.homepageImageVersion = prefs.getLong(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_IMAGE_VERSION, 0L)
         uiState.homepageShowFavorites = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_FAVORITES, true)
+        uiState.homepageShowQuickActions = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_QUICK_ACTIONS, true)
         uiState.homepageShowRecent = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_RECENT, true)
         uiState.homepageCenterContent = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_CENTER_CONTENT, true)
     }
@@ -471,9 +475,15 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
         if (hasFocus) applySystemUiVisibility()
     }
 
+    override fun onStart() {
+        super.onStart()
+        tabManager.activeTab?.webView?.onResume()
+    }
+
     override fun onStop() {
         super.onStop()
         saveTabs()
+        tabManager.activeTab?.webView?.onPause()
         if (refreshLinkSession != null) {
             cleanupRefreshLinkTabs()
             refreshLinkSession = null
@@ -482,7 +492,14 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        if (level == 10 || level == 15 || level >= 60) trimBackgroundTabs(0)
+        when {
+            level >= TRIM_MEMORY_MODERATE_LEVEL -> {
+                trimBackgroundTabs(0)
+                hibernateActiveTabIfHidden()
+            }
+            level >= TRIM_MEMORY_BACKGROUND_LEVEL -> trimBackgroundTabs(BACKGROUND_TRIM_KEEP_LIVE)
+            level == 10 || level == 15 -> trimBackgroundTabs(0)
+        }
     }
 
     override fun onSystemThemeChanged() {
@@ -792,6 +809,9 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
         val tab = tabManager.activeTab ?: return
         tab.webView.setAudioMuted(!tab.webView.audioState.muted)
     }
+    fun onMenuCookiesControl() {
+        openCookiesControl()
+    }
     fun onMenuWebsiteBlocker() {
         val enabled = !prefs.getBoolean("website_blocker_enabled", false)
         prefs.edit().putBoolean("website_blocker_enabled", enabled).apply()
@@ -959,52 +979,6 @@ td,th{border:1px solid $secondaryColor;padding:6px 8px;}
             )
             if (stored != com.jhaiian.clint.settings.sitepermissions.SitePermissionDatabase.STATE_ALLOW) return
             runOnUiThread { postWebNotification(title, body, tag, rawOrigin) }
-        }
-    }
-
-    inner class ClipboardBridge(private val webView: com.jhaiian.clint.browser.webview.ClintWebView) {
-        @android.webkit.JavascriptInterface
-        fun getPermissionState(origin: String): String {
-            val tab = tabManager.tabs.find { it.webView == webView }
-            if (tab?.isIncognito == true) return "denied"
-            val rawOrigin = origin.trim()
-            return when (com.jhaiian.clint.settings.sitepermissions.SitePermissionManager.getState(
-                this@MainActivity, rawOrigin,
-                com.jhaiian.clint.settings.sitepermissions.SitePermissionDatabase.TYPE_CLIPBOARD
-            )) {
-                com.jhaiian.clint.settings.sitepermissions.SitePermissionDatabase.STATE_ALLOW -> "granted"
-                com.jhaiian.clint.settings.sitepermissions.SitePermissionDatabase.STATE_DENY -> "denied"
-                else -> "default"
-            }
-        }
-
-        @android.webkit.JavascriptInterface
-        fun requestPermission(callbackId: String, origin: String) {
-            runOnUiThread {
-                val tab = tabManager.tabs.find { it.webView == webView }
-                val safeId = callbackId.replace("'", "")
-                if (tab?.isIncognito == true) {
-                    webView.evaluateJavascript("window._ClintResolvePermission('$safeId','denied')", null)
-                    return@runOnUiThread
-                }
-                showWebClipboardPermissionFromBridge(webView, safeId, origin.trim())
-            }
-        }
-
-        @android.webkit.JavascriptInterface
-        fun readClipboardText(): String {
-            val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-            val clip = clipboard?.primaryClip
-            if (clip == null || clip.itemCount == 0) return ""
-            return clip.getItemAt(0).coerceToText(this@MainActivity)?.toString() ?: ""
-        }
-
-        @android.webkit.JavascriptInterface
-        fun writeClipboardText(text: String) {
-            runOnUiThread {
-                val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("", text))
-            }
         }
     }
 

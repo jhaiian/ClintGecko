@@ -24,7 +24,8 @@ import com.jhaiian.clint.mediacapture.download.HlsSubtitleResolver
 import com.jhaiian.clint.mediacapture.download.StreamContainerFormat
 import com.jhaiian.clint.mediacapture.download.StreamDownloadRequest
 import com.jhaiian.clint.mediacapture.isMediaCaptureManifestBased
-import com.jhaiian.clint.mediacapture.pickPairedAudio
+import com.jhaiian.clint.mediacapture.audioTrackName
+import com.jhaiian.clint.mediacapture.compatibleAudioTracks
 import com.jhaiian.clint.mediacapture.pickSoleSubtitle
 import com.jhaiian.clint.mediacapture.suggestMediaCaptureFilename
 import com.jhaiian.clint.settings.downloads.DownloadSettingsKeys
@@ -54,8 +55,8 @@ internal fun MainActivity.mountMediaCaptureDialog() {
                 onPreviewMediaStarted = {
                     tabManager.activeTab?.webView?.evaluateJavascript(com.jhaiian.clint.browser.webview.TabMediaControl.PAUSE_SCRIPT, null)
                 },
-                onDownload = { media, allItems, estimatedBytes, containerExtension ->
-                    showMediaCaptureDownloadDialog(media, pageUrl, pageTitle, allItems, estimatedBytes, containerExtension)
+                onDownload = { media, audio, allItems, estimatedBytes, containerExtension ->
+                    showMediaCaptureDownloadDialog(media, audio, pageUrl, pageTitle, allItems, estimatedBytes, containerExtension)
                 }
             )
         }
@@ -72,6 +73,7 @@ private fun MainActivity.copyMediaCaptureLink(text: String) {
 
 private fun MainActivity.showMediaCaptureDownloadDialog(
     media: DetectedMedia,
+    audio: DetectedMedia?,
     pageUrl: String,
     pageTitle: String,
     allItems: List<DetectedMedia>,
@@ -85,16 +87,17 @@ private fun MainActivity.showMediaCaptureDownloadDialog(
                 HlsSubtitleResolver.sniffPlaylist(media.url, pageUrl, userAgent, media.requestHeaders)
             }
             showMediaCaptureDownloadDialogReady(
-                media.copy(isHlsPlaylist = isPlaylist), pageUrl, pageTitle, allItems, estimatedBytes, containerExtension
+                media.copy(isHlsPlaylist = isPlaylist), audio, pageUrl, pageTitle, allItems, estimatedBytes, containerExtension
             )
         }
         return
     }
-    showMediaCaptureDownloadDialogReady(media, pageUrl, pageTitle, allItems, estimatedBytes, containerExtension)
+    showMediaCaptureDownloadDialogReady(media, audio, pageUrl, pageTitle, allItems, estimatedBytes, containerExtension)
 }
 
 private fun MainActivity.showMediaCaptureDownloadDialogReady(
     media: DetectedMedia,
+    audio: DetectedMedia?,
     pageUrl: String,
     pageTitle: String,
     allItems: List<DetectedMedia>,
@@ -108,7 +111,7 @@ private fun MainActivity.showMediaCaptureDownloadDialogReady(
     val isStreamJob = isManifestBased || isHlsSubtitle
     val isAudioPrimary = media.kind == MediaKind.AUDIO
     val convertTsToMp4 = prefs.getBoolean(MEDIA_CAPTURE_CONVERT_TS_TO_MP4_PREF, MEDIA_CAPTURE_CONVERT_TS_TO_MP4_DEFAULT)
-    val pairedAudio = if (isManifestBased && !isAudioPrimary) pickPairedAudio(media, allItems) else null
+    val pairedAudio = if (isManifestBased && !isAudioPrimary) audio else null
     val realExtension = if (isManifestBased) {
         when {
             pairedAudio != null -> "mp4"
@@ -121,7 +124,14 @@ private fun MainActivity.showMediaCaptureDownloadDialogReady(
             else -> containerExtension
         }
     } else null
-    val filename = suggestMediaCaptureFilename(media, pageTitle, realExtension)
+    val baseFilename = suggestMediaCaptureFilename(media, pageTitle, realExtension)
+    val filename = if (pairedAudio != null && compatibleAudioTracks(media, allItems).size > 1) {
+        val audioSuffix = audioTrackName(pairedAudio)?.replace(Regex("[/\\\\:*?\"<>|]"), "_")?.trim()
+        val dot = baseFilename.lastIndexOf('.')
+        if (audioSuffix.isNullOrBlank()) baseFilename
+        else if (dot > 0) "${baseFilename.substring(0, dot)} ($audioSuffix)${baseFilename.substring(dot)}"
+        else "$baseFilename ($audioSuffix)"
+    } else baseFilename
     val knownLengthBytes = media.sizeBytes?.takeIf { it > 0L }
     val fileSizeDisplayOverride = if (isManifestBased && knownLengthBytes == null) {
         estimatedBytes?.takeIf { it > 0L }?.let { getString(R.string.download_dialog_file_size_estimated, formatFileSize(it)) }
@@ -163,7 +173,7 @@ private fun MainActivity.showMediaCaptureDownloadDialogReady(
                     if (isHlsSubtitle) {
                         enqueueMediaCaptureHlsSubtitle(media, pageUrl, userAgent, submission)
                     } else {
-                        enqueueMediaCaptureStream(media, allItems, pageUrl, userAgent, submission, knownLengthBytes ?: estimatedBytes ?: 0L, convertTsToMp4)
+                        enqueueMediaCaptureStream(media, pairedAudio, allItems, pageUrl, userAgent, submission, knownLengthBytes ?: estimatedBytes ?: 0L, convertTsToMp4)
                     }
                 } else {
                     initiateDownload(
@@ -180,7 +190,7 @@ private fun MainActivity.showMediaCaptureDownloadDialogReady(
                 }
             }
 
-            val existing = findExistingMediaCaptureDownload(media.url)
+            val existing = findExistingMediaCaptureDownload(media, pairedAudio)
             if (existing != null) {
                 val isPending = existing.status in DownloadStatus.NOT_FINISHED
                 uiState.conflictDialogRequest = DownloadConflictDialogRequest(
@@ -192,7 +202,8 @@ private fun MainActivity.showMediaCaptureDownloadDialogReady(
                     onRename = onRename,
                     onUpdateLink = if (isPending) {
                         {
-                            ClintDownloadManager.updateDownloadUrl(existing.id, media.url)
+                            if (existing.isStream) ClintDownloadManager.updateStreamUrls(existing.id, media.url, pairedAudio?.url)
+                            else ClintDownloadManager.updateDownloadUrl(existing.id, media.url)
                             dismiss()
                             showClintSnackbar(message = getString(R.string.media_capture_duplicate_link_updated))
                         }
@@ -205,14 +216,20 @@ private fun MainActivity.showMediaCaptureDownloadDialogReady(
     )
 }
 
-private fun MainActivity.findExistingMediaCaptureDownload(mediaUrl: String): DownloadItem? =
-    ClintDownloadManager.downloadsFlow.value.firstOrNull {
-        it.status != DownloadStatus.FAILED &&
-            (it.url == mediaUrl || it.streamVideoUrl == mediaUrl || it.streamAudioUrl == mediaUrl)
+private fun MainActivity.findExistingMediaCaptureDownload(media: DetectedMedia, audio: DetectedMedia?): DownloadItem? =
+    ClintDownloadManager.downloadsFlow.value.firstOrNull { item ->
+        if (item.status == DownloadStatus.FAILED) return@firstOrNull false
+        if (!item.isStream) return@firstOrNull item.url == media.url
+        val primaryRepresentation = if (media.kind == MediaKind.AUDIO) item.streamVideoRepresentationId ?: item.streamAudioRepresentationId else item.streamVideoRepresentationId
+        item.streamVideoUrl == media.url &&
+            primaryRepresentation == media.representationId &&
+            item.streamAudioUrl == audio?.url &&
+            (audio == null || item.streamAudioRepresentationId == audio.representationId)
     }
 
 private fun MainActivity.enqueueMediaCaptureStream(
     media: DetectedMedia,
+    pairedAudio: DetectedMedia?,
     allItems: List<DetectedMedia>,
     pageUrl: String,
     userAgent: String,
@@ -222,7 +239,7 @@ private fun MainActivity.enqueueMediaCaptureStream(
 ) {
     val isDash = media.format.equals("DASH", true)
     val isAudioPrimary = media.kind == MediaKind.AUDIO
-    val audio = if (!isAudioPrimary) pickPairedAudio(media, allItems) else null
+    val audio = if (!isAudioPrimary) pairedAudio else null
     val subtitle = pickSoleSubtitle(media, allItems)
     val headers = media.requestHeaders.ifEmpty { audio?.requestHeaders ?: emptyMap() }
 
@@ -240,7 +257,7 @@ private fun MainActivity.enqueueMediaCaptureStream(
         estimatedTotalBytes = estimatedTotalBytes,
         speedLimitBytesPerSec = submission.speedLimitBytesPerSec,
         concurrentSegments = submission.concurrentSegments,
-        noAudio = !isAudioPrimary && media.hasAudio == false,
+        noAudio = !isAudioPrimary && media.hasAudio == false && audio == null,
         isLive = media.isLive,
         convertTsToMp4 = convertTsToMp4
     )
@@ -249,14 +266,16 @@ private fun MainActivity.enqueueMediaCaptureStream(
         request = request,
         videoWidth = if (!isAudioPrimary) media.width else null,
         videoHeight = if (!isAudioPrimary) media.height else null,
-        videoBandwidth = if (!isAudioPrimary) media.bandwidthBitsPerSec else null,
-        audioBandwidth = audio?.bandwidthBitsPerSec,
+        videoBandwidth = media.bandwidthBitsPerSec,
+        audioBandwidth = audio?.bandwidthBitsPerSec ?: (if (isAudioPrimary) media.bandwidthBitsPerSec else null),
         primaryIsAudio = isAudioPrimary,
         locationMode = submission.locationMode,
         customLocationUri = submission.customLocationUri,
         categorizeEnabled = submission.categorizeEnabled,
-        videoRepresentationId = if (!isAudioPrimary) media.representationId else null,
-        audioRepresentationId = audio?.representationId ?: (if (isAudioPrimary) media.representationId else null)
+        videoRepresentationId = media.representationId,
+        audioRepresentationId = audio?.representationId ?: (if (isAudioPrimary) media.representationId else null),
+        audioLanguage = (audio ?: media.takeIf { isAudioPrimary })?.language,
+        audioLabel = audio?.let { audioTrackName(it) }
     )
 }
 

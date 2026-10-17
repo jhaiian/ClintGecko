@@ -16,19 +16,48 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
+import java.util.Locale
 
 data class RemuxResult(val success: Boolean, val errorMessage: String?)
+
+enum class MuxVerification { OK, MISSING_VIDEO, MISSING_AUDIO, UNREADABLE }
 
 object MediaRemuxer {
 
     private class CancelledRemuxException : Exception("Cancelled")
+
+    private const val SHARED_TIMELINE_WINDOW_US = 10_000_000L
+
+    private fun iso3Language(tag: String?): String? {
+        val clean = tag?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        return runCatching { Locale.forLanguageTag(clean.replace('_', '-')).isO3Language }
+            .getOrNull()?.takeIf { it.isNotBlank() }
+    }
+
+    suspend fun verify(path: String, expectVideo: Boolean, expectAudio: Boolean): MuxVerification =
+        withContext(Dispatchers.IO) {
+            val extractor = MediaExtractor()
+            try {
+                extractor.setDataSource(path)
+                when {
+                    expectVideo && findTrack(extractor, "video/") < 0 -> MuxVerification.MISSING_VIDEO
+                    expectAudio && findTrack(extractor, "audio/") < 0 -> MuxVerification.MISSING_AUDIO
+                    else -> MuxVerification.OK
+                }
+            } catch (e: Exception) {
+                MuxVerification.UNREADABLE
+            } finally {
+                runCatching { extractor.release() }
+            }
+        }
 
     private class Track(val extractorIndex: Int, val trackIndex: Int, val muxerTrackId: Int)
 
     private class PullState(
         val extractor: MediaExtractor,
         val muxerTrackId: Int,
-        val offsetUs: Long
+        val offsetUs: Long,
+        val convertNal: Boolean
     ) {
         var buffer: ByteBuffer = ByteBuffer.allocateDirect(256 * 1024)
         var size = -1
@@ -46,6 +75,7 @@ object MediaRemuxer {
             }
             buffer.clear()
             size = extractor.readSampleData(buffer, 0)
+            if (convertNal && size > 0) convertLengthPrefixedToAnnexB(buffer, size)
             ptsUs = (extractor.sampleTime - offsetUs).coerceAtLeast(0)
             flags = if (extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) {
                 MediaCodec.BUFFER_FLAG_KEY_FRAME
@@ -58,6 +88,7 @@ object MediaRemuxer {
         @Suppress("UNUSED_PARAMETER") context: Context,
         inputPaths: List<String>,
         outputPath: String,
+        audioLanguage: String? = null,
         onProgress: ((Int) -> Unit)? = null
     ): RemuxResult {
         if (inputPaths.isEmpty()) return RemuxResult(false, null)
@@ -69,7 +100,7 @@ object MediaRemuxer {
                     extractor.setDataSource(path)
                     extractors += extractor
                 }
-                remuxTracks(extractors, inputPaths, outputPath, onProgress) { isActive }
+                remuxTracks(extractors, inputPaths, outputPath, audioLanguage, onProgress) { isActive }
             } catch (e: CancelledRemuxException) {
                 RemuxResult(false, e.message)
             } catch (e: Exception) {
@@ -89,6 +120,27 @@ object MediaRemuxer {
     }
 
     private val NAL_START_CODE = byteArrayOf(0, 0, 0, 1)
+
+    private fun convertLengthPrefixedToAnnexB(buffer: ByteBuffer, size: Int) {
+        if (size < 5) return
+        var pos = 0
+        while (pos < size) {
+            if (pos + 4 > size) return
+            val length = buffer.getInt(pos)
+            if (length <= 0 || length > size - pos - 4) return
+            pos += 4 + length
+        }
+        if (pos != size) return
+        pos = 0
+        while (pos < size) {
+            val length = buffer.getInt(pos)
+            buffer.putInt(pos, 1)
+            pos += 4 + length
+        }
+    }
+
+    private fun isNalVideo(mime: String?): Boolean =
+        mime == MediaFormat.MIMETYPE_VIDEO_AVC || mime == MediaFormat.MIMETYPE_VIDEO_HEVC
 
     private fun annexBNalUnits(data: ByteArray): List<ByteArray> {
         val starts = mutableListOf<Int>()
@@ -211,6 +263,7 @@ object MediaRemuxer {
         extractors: List<MediaExtractor>,
         inputPaths: List<String>,
         outputPath: String,
+        audioLanguage: String?,
         onProgress: ((Int) -> Unit)?,
         isActive: () -> Boolean
     ): RemuxResult {
@@ -236,6 +289,7 @@ object MediaRemuxer {
             Mp4Muxer.Builder(SeekableMuxerOutput.of(outputStream))
                 .setAttemptStreamableOutputEnabled(false)
                 .setSampleBatchingEnabled(true)
+                .setSampleCopyingEnabled(true)
                 .build()
         } catch (e: Exception) {
             runCatching { outputStream.close() }
@@ -244,26 +298,35 @@ object MediaRemuxer {
 
         return try {
             val tracks = mutableListOf<Track>()
+            val nalTrackIds = mutableSetOf<Int>()
             if (videoSourceIdx >= 0) {
                 val trackIndex = videoTrackIndices[videoSourceIdx]
                 val extractor = extractors[videoSourceIdx]
                 extractor.selectTrack(trackIndex)
-                val muxerTrackId = muxer.addTrack(buildFormat(extractor.getTrackFormat(trackIndex), extractor))
+                val videoMediaFormat = extractor.getTrackFormat(trackIndex)
+                val muxerTrackId = muxer.addTrack(buildFormat(videoMediaFormat, extractor))
                 tracks += Track(videoSourceIdx, trackIndex, muxerTrackId)
+                if (isNalVideo(videoMediaFormat.getString(MediaFormat.KEY_MIME))) nalTrackIds += muxerTrackId
             }
             if (audioSourceIdx >= 0) {
                 val trackIndex = audioTrackIndices[audioSourceIdx]
                 val extractor = extractors[audioSourceIdx]
                 extractor.selectTrack(trackIndex)
-                val muxerTrackId = muxer.addTrack(buildFormat(extractor.getTrackFormat(trackIndex)))
+                var audioFormat = buildFormat(extractor.getTrackFormat(trackIndex))
+                iso3Language(audioLanguage)?.let { audioFormat = audioFormat.buildUpon().setLanguage(it).build() }
+                val muxerTrackId = muxer.addTrack(audioFormat)
                 tracks += Track(audioSourceIdx, trackIndex, muxerTrackId)
             }
 
-            val offsetByExtractor = mutableMapOf<Int, Long>()
+            val startByExtractor = mutableMapOf<Int, Long>()
             for (extractorIndex in tracks.map { it.extractorIndex }.distinct()) {
                 val startUs = extractors[extractorIndex].sampleTime
-                offsetByExtractor[extractorIndex] = if (startUs < 0) 0L else startUs
+                startByExtractor[extractorIndex] = if (startUs < 0) 0L else startUs
             }
+            val earliestStart = startByExtractor.values.minOrNull() ?: 0L
+            val latestStart = startByExtractor.values.maxOrNull() ?: 0L
+            val sharedTimeline = latestStart - earliestStart <= SHARED_TIMELINE_WINDOW_US
+            val offsetByExtractor = startByExtractor.mapValues { if (sharedTimeline) earliestStart else it.value }
 
             val totalDurationUs = tracks.maxOfOrNull { track ->
                 val fmt = extractors[track.extractorIndex].getTrackFormat(track.trackIndex)
@@ -315,6 +378,7 @@ object MediaRemuxer {
                         extractor.advance()
                         continue
                     }
+                    if (muxerTrackId in nalTrackIds && size > 0) convertLengthPrefixedToAnnexB(buffer, size)
                     val ptsUs = (extractor.sampleTime - offset).coerceAtLeast(0)
                     val flags = if (extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) {
                         MediaCodec.BUFFER_FLAG_KEY_FRAME
@@ -330,12 +394,21 @@ object MediaRemuxer {
                 }
             } else {
                 val states = tracks.map { track ->
-                    PullState(extractors[track.extractorIndex], track.muxerTrackId, offsetByExtractor.getValue(track.extractorIndex))
+                    PullState(
+                        extractors[track.extractorIndex],
+                        track.muxerTrackId,
+                        offsetByExtractor.getValue(track.extractorIndex),
+                        track.muxerTrackId in nalTrackIds
+                    )
                 }
                 states.forEach { it.pull() }
                 while (true) {
                     checkCancelled()
-                    val next = states.filter { it.size >= 0 }.minByOrNull { it.ptsUs } ?: break
+                    var candidate: PullState? = null
+                    for (state in states) {
+                        if (state.size >= 0 && (candidate == null || state.ptsUs < candidate.ptsUs)) candidate = state
+                    }
+                    val next = candidate ?: break
                     next.buffer.position(0)
                     next.buffer.limit(next.size)
                     muxer.writeSampleData(next.muxerTrackId, next.buffer, BufferInfo(next.ptsUs, next.size, next.flags))

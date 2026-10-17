@@ -175,7 +175,7 @@ internal fun CompactDownloadRequestContent(
                 CompactSliderRow(
                     title = stringResource(R.string.download_concurrent_segments_title),
                     valueText = pluralStringResource(R.plurals.download_concurrent_segments_value, concurrentSegments, concurrentSegments),
-                    value = concurrentSegments, range = 1..8, onChange = onConcurrentSegmentsChange
+                    value = concurrentSegments, range = 1..24, onChange = onConcurrentSegmentsChange
                 )
             }
 

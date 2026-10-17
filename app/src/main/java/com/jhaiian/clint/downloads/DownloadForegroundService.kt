@@ -23,9 +23,33 @@ class DownloadForegroundService : LifecycleService() {
     companion object {
         internal const val FOREGROUND_ID = 9001
 
+        private val DOWNLOAD_PHASE = setOf(
+            DownloadStatus.CONNECTING, DownloadStatus.ALLOCATING, DownloadStatus.DOWNLOADING, DownloadStatus.RETRYING
+        )
+
+        private val PROCESS_PHASE = setOf(
+            DownloadStatus.DECRYPTING, DownloadStatus.MUXING, DownloadStatus.CONVERTING,
+            DownloadStatus.COPYING_TEMP, DownloadStatus.DELETING_TEMP
+        )
+
         fun start(context: Context) {
-            val intent = Intent(context, DownloadForegroundService::class.java)
-            androidx.core.content.ContextCompat.startForegroundService(context, intent)
+            runCatching {
+                val intent = Intent(context, DownloadForegroundService::class.java)
+                androidx.core.content.ContextCompat.startForegroundService(context, intent)
+            }
+        }
+
+        private fun typeFor(items: List<DownloadItem>): Int {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return 0
+            val dataSync = ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) return dataSync
+            val downloading = items.any { it.status in DOWNLOAD_PHASE }
+            val processing = items.any { it.status in PROCESS_PHASE }
+            return when {
+                downloading && processing -> dataSync or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING
+                processing -> ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING
+                else -> dataSync
+            }
         }
     }
 
@@ -34,6 +58,28 @@ class DownloadForegroundService : LifecycleService() {
     }
 
     private var wakeLock: PowerManager.WakeLock? = null
+    private var currentType = -1
+
+    private fun promote(notification: Notification, type: Int): Boolean = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(FOREGROUND_ID, notification, type)
+        } else {
+            startForeground(FOREGROUND_ID, notification)
+        }
+        currentType = type
+    }.isSuccess
+
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        val items = ClintDownloadManager.downloadsFlow.value
+        items.filter { it.status in DOWNLOAD_PHASE && it.resumable }.forEach {
+            ClintDownloadManager.timeoutPausedIds.add(it.id)
+            ClintDownloadManager.pause(applicationContext, it.id)
+        }
+        val keepProcessing = items.any { it.status in PROCESS_PHASE } &&
+            fgsType and ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC != 0
+        stopSelf()
+        if (keepProcessing) start(applicationContext)
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -53,16 +99,10 @@ class DownloadForegroundService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         val notification = DownloadNotificationHelper.buildSummaryNotification(this, 0)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(
-                FOREGROUND_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING
-            )
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(FOREGROUND_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        } else {
-            startForeground(FOREGROUND_ID, notification)
+        val initialType = typeFor(ClintDownloadManager.downloadsFlow.value)
+        if (!promote(notification, initialType) && !promote(notification, typeFor(emptyList()))) {
+            stopSelf()
+            return START_NOT_STICKY
         }
 
         val nm = getSystemService(NotificationManager::class.java)
@@ -70,11 +110,13 @@ class DownloadForegroundService : LifecycleService() {
 
         lifecycleScope.launch {
             ClintDownloadManager.downloadsFlow
-                .map { list -> list.count { it.status in DownloadStatus.ACTIVELY_WORKING } }
+                .map { list -> list.count { it.status in DownloadStatus.ACTIVELY_WORKING } to typeFor(list) }
                 .distinctUntilChanged()
-                .collectLatest { activeCount ->
+                .collectLatest { (activeCount, type) ->
                     if (activeCount > 0) {
-                        nm.notify(FOREGROUND_ID, DownloadNotificationHelper.buildSummaryNotification(this@DownloadForegroundService, activeCount))
+                        val summary = DownloadNotificationHelper.buildSummaryNotification(this@DownloadForegroundService, activeCount)
+                        if (type != currentType) promote(summary, type)
+                        nm.notify(FOREGROUND_ID, summary)
                     } else {
                         wakeLock?.let { if (it.isHeld) it.release() }
                         delay(1000)

@@ -96,7 +96,7 @@ data class ManualDownloadSubmission(
     val streamAudioBandwidth: Long? = null,
     val streamPrimaryIsAudio: Boolean = false,
     val estimatedTotalBytes: Long = 0L,
-    val concurrentSegments: Int = 6,
+    val concurrentSegments: Int = 12,
     val convertTsToMp4: Boolean = false
 )
 
@@ -268,7 +268,7 @@ fun DownloadManualDialog(
     var fetchedContentLength by remember { mutableStateOf(-1L) }
     var streamPlan by remember { mutableStateOf<ManualStreamPlan?>(null) }
     var concurrentSegments by remember {
-        mutableStateOf(prefs.getInt(DownloadSettingsKeys.PREF_STREAM_CONCURRENT_SEGMENTS, DownloadSettingsKeys.DEFAULT_STREAM_CONCURRENT_SEGMENTS).coerceIn(1, 8))
+        mutableStateOf(prefs.getInt(DownloadSettingsKeys.PREF_STREAM_CONCURRENT_SEGMENTS, DownloadSettingsKeys.DEFAULT_STREAM_CONCURRENT_SEGMENTS).coerceIn(1, 24))
     }
 
     var locationMode by remember {
@@ -699,7 +699,7 @@ fun DownloadManualDialog(
                         ClintSlider(
                             value = concurrentSegments.toFloat(),
                             onValueChange = { concurrentSegments = it.toInt() },
-                            valueRange = 1f..8f, steps = 6
+                            valueRange = 1f..24f, steps = 22
                         )
                     }
 

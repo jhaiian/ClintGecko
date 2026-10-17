@@ -1,0 +1,8 @@
+• Editor de temas personalizados con vista previa
+• Une video sin audio con audio aparte en Captura de medios
+• Detalles de segmentos y progreso real en descargas
+• Privacidad: protección contra rastreo, bloqueo de la app, bloqueo de capturas, borrar datos al salir, DNS seguro
+• URL de inicio personalizada y about:config opcional
+• Mejor batería y menos uso de memoria
+• Fallos del motor en Depuración e informes
+• Arreglos en Android 10, portapapeles y notificaciones

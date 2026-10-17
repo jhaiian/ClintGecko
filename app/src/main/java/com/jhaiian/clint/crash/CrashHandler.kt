@@ -35,16 +35,58 @@ class CrashHandler(private val context: Context) : Thread.UncaughtExceptionHandl
                 ?: emptyList()
         }
 
+        fun deleteReportFiles(report: File) {
+            report.delete()
+            File(report.parentFile, report.nameWithoutExtension + ".dmp").delete()
+        }
+
         fun deleteOldReports(context: Context) {
             val sevenDaysMs = 7L * 24 * 60 * 60 * 1000
             val cutoff = System.currentTimeMillis() - sevenDaysMs
             getCrashFiles(context).forEach { file ->
-                if (file.lastModified() < cutoff) file.delete()
+                if (file.lastModified() < cutoff) deleteReportFiles(file)
             }
+            purgeOrphanDumps(context)
         }
 
         fun clearAllReports(context: Context) {
-            getCrashFiles(context).forEach { it.delete() }
+            getCrashFiles(context).forEach { deleteReportFiles(it) }
+            purgeOrphanDumps(context)
+        }
+
+        private fun purgeOrphanDumps(context: Context) {
+            getCrashDir(context)
+                .listFiles { f -> f.name.endsWith(".dmp") }
+                ?.forEach { dump ->
+                    if (!File(dump.parentFile, dump.nameWithoutExtension + ".txt").exists()) dump.delete()
+                }
+        }
+
+        private fun pruneExcess(context: Context) {
+            val files = getCrashFiles(context)
+            if (files.size > MAX_REPORTS) {
+                files.drop(MAX_REPORTS).forEach { deleteReportFiles(it) }
+            }
+        }
+
+        fun saveReport(context: Context, body: String, minidump: File? = null): File? {
+            return runCatching {
+                val dir = getCrashDir(context)
+                val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                var base = "crash_${stamp}_gecko"
+                var index = 1
+                while (File(dir, "$base.txt").exists()) {
+                    index++
+                    base = "crash_${stamp}_gecko$index"
+                }
+                if (minidump != null && minidump.isFile) {
+                    runCatching { minidump.copyTo(File(dir, "$base.dmp"), overwrite = true) }
+                }
+                val file = File(dir, "$base.txt")
+                file.writeText(body)
+                pruneExcess(context)
+                file
+            }.getOrNull()
         }
 
         fun buildDeviceInfo(context: Context): String {
@@ -97,10 +139,7 @@ class CrashHandler(private val context: Context) : Thread.UncaughtExceptionHandl
             val file = File(dir, "crash_$fileTimestamp.txt")
             file.writeText(report)
 
-            val files = getCrashFiles(context)
-            if (files.size > MAX_REPORTS) {
-                files.drop(MAX_REPORTS).forEach { it.delete() }
-            }
+            pruneExcess(context)
         } catch (e: Exception) {
         }
 

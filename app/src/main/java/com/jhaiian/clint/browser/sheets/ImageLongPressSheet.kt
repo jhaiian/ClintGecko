@@ -117,7 +117,7 @@ internal fun ImageLongPressSheet(request: ImageLongPressRequest, activity: MainA
 
     val isPortrait = configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
     val maxSheetHeight = if (isPortrait) {
-        (configuration.screenHeightDp.dp * 0.5f).coerceAtLeast(320.dp)
+        (configuration.screenHeightDp.dp * 0.8f).coerceAtLeast(320.dp)
     } else {
         (configuration.screenHeightDp.dp - 96.dp).coerceAtLeast(320.dp)
     }

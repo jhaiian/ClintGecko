@@ -32,7 +32,7 @@ object ClintDownloadManager {
     internal val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
-        .connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
+        .connectionPool(ConnectionPool(32, 5, TimeUnit.MINUTES))
         .build()
 
     internal val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -67,6 +67,14 @@ object ClintDownloadManager {
     internal val activeSpeedLimiters: MutableMap<Int, SpeedLimiter> = ConcurrentHashMap()
 
     internal val pauseRequested: MutableSet<Int> = ConcurrentHashMap.newKeySet()
+    internal val timeoutPausedIds: MutableSet<Int> = ConcurrentHashMap.newKeySet()
+
+    fun resumeTimeoutPaused(context: Context) {
+        if (timeoutPausedIds.isEmpty()) return
+        val ids = timeoutPausedIds.toList()
+        timeoutPausedIds.clear()
+        ids.forEach { resume(context, it) }
+    }
 
     internal val removedIds: MutableSet<Int> = ConcurrentHashMap.newKeySet()
 
@@ -227,6 +235,74 @@ object ClintDownloadManager {
         }
     }
 
+    fun enqueueStreamFromItem(
+        context: Context,
+        item: DownloadItem,
+        filename: String = item.filename,
+        speedLimitBytesPerSec: Long = item.speedLimitBytesPerSec,
+        locationMode: String = item.locationMode,
+        customLocationUri: String? = item.customLocationUri,
+        categorizeEnabled: Boolean = item.categorizeEnabled
+    ) {
+        val primaryUrl = item.streamVideoUrl.ifBlank { item.url }
+        val request = com.jhaiian.clint.mediacapture.download.StreamDownloadRequest(
+            format = if (item.streamFormat == "DASH") com.jhaiian.clint.mediacapture.download.StreamContainerFormat.DASH
+            else com.jhaiian.clint.mediacapture.download.StreamContainerFormat.HLS,
+            videoUrl = if (item.streamPrimaryIsAudio) null else primaryUrl,
+            audioUrl = if (item.streamPrimaryIsAudio) primaryUrl else item.streamAudioUrl,
+            subtitleUrl = item.streamSubtitleUrl,
+            pageUrl = item.streamPageUrl,
+            referer = item.referer,
+            cookies = item.cookies,
+            userAgent = item.userAgent,
+            filename = filename,
+            headers = item.streamHeaders,
+            estimatedTotalBytes = item.totalBytes.coerceAtLeast(0L),
+            speedLimitBytesPerSec = speedLimitBytesPerSec,
+            concurrentSegments = item.streamConcurrentSegments,
+            noAudio = item.streamNoAudio,
+            isLive = item.streamIsLive,
+            convertTsToMp4 = item.streamConvertTsToMp4,
+            subtitleOnly = item.streamFormat == com.jhaiian.clint.mediacapture.download.STREAM_FORMAT_HLS_SUBTITLE,
+            audioLanguage = item.streamAudioLanguage,
+            audioLabel = item.streamAudioLabel
+        )
+        enqueueStream(
+            context = context,
+            request = request,
+            videoWidth = item.streamVideoWidth,
+            videoHeight = item.streamVideoHeight,
+            videoBandwidth = item.streamVideoBandwidth,
+            audioBandwidth = item.streamAudioBandwidth,
+            primaryIsAudio = item.streamPrimaryIsAudio,
+            locationMode = locationMode.ifBlank { null },
+            customLocationUri = customLocationUri,
+            categorizeEnabled = categorizeEnabled,
+            videoRepresentationId = item.streamVideoRepresentationId,
+            audioRepresentationId = item.streamAudioRepresentationId,
+            audioLanguage = item.streamAudioLanguage,
+            audioLabel = item.streamAudioLabel
+        )
+    }
+
+    fun redownloadItem(context: Context, item: DownloadItem) {
+        if (item.isStream) {
+            enqueueStreamFromItem(context, item)
+            return
+        }
+        enqueue(
+            context, item.url, item.filename, item.userAgent,
+            item.referer, item.cookies,
+            retryEnabled = item.retryEnabled,
+            unmeteredOnly = item.unmeteredOnly,
+            splitParts = item.splitParts,
+            multithreadingParts = item.multithreadingParts,
+            speedLimitBytesPerSec = item.speedLimitBytesPerSec,
+            locationMode = item.locationMode,
+            customLocationUri = item.customLocationUri
+        )
+    }
+
     fun enqueueStream(
         context: Context,
         request: com.jhaiian.clint.mediacapture.download.StreamDownloadRequest,
@@ -239,7 +315,9 @@ object ClintDownloadManager {
         customLocationUri: String? = null,
         categorizeEnabled: Boolean? = null,
         videoRepresentationId: String? = null,
-        audioRepresentationId: String? = null
+        audioRepresentationId: String? = null,
+        audioLanguage: String? = null,
+        audioLabel: String? = null
     ) {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         val effectiveLocationMode = locationMode
@@ -250,10 +328,14 @@ object ClintDownloadManager {
         val effectiveCategorizeEnabled = categorizeEnabled ?: DownloadCategories.isEnabled(context)
         if (!DownloadFileHelper.isCustomLocationAccessible(context, effectiveLocationMode, effectiveCustomLocationUri)) {
             promptInvalidLocation(context) {
-                enqueueStream(context, request, videoWidth, videoHeight, videoBandwidth, audioBandwidth, primaryIsAudio, locationMode, customLocationUri, categorizeEnabled, videoRepresentationId, audioRepresentationId)
+                enqueueStream(context, request, videoWidth, videoHeight, videoBandwidth, audioBandwidth, primaryIsAudio, locationMode, customLocationUri, categorizeEnabled, videoRepresentationId, audioRepresentationId, audioLanguage, audioLabel)
             }
             return
         }
+        if (requestStoragePermissionIfNeeded(context, effectiveLocationMode) {
+                enqueueStream(context, request, videoWidth, videoHeight, videoBandwidth, audioBandwidth, primaryIsAudio, locationMode, customLocationUri, categorizeEnabled, videoRepresentationId, audioRepresentationId, audioLanguage, audioLabel)
+            }
+        ) return
 
         val id = idCounter.getAndIncrement()
         File(context.filesDir, "stream_downloads/$id").deleteRecursively()
@@ -293,6 +375,8 @@ object ClintDownloadManager {
             streamConvertTsToMp4 = request.convertTsToMp4,
             streamVideoRepresentationId = videoRepresentationId,
             streamAudioRepresentationId = audioRepresentationId,
+            streamAudioLanguage = audioLanguage,
+            streamAudioLabel = audioLabel,
             speedLimitBytesPerSec = request.speedLimitBytesPerSec
         )
         val directCustomDir = DownloadFileHelper.resolveDirectCustomDir(context, baseItem)
@@ -318,6 +402,7 @@ object ClintDownloadManager {
 
         if (queued) {
             DownloadNotificationHelper.showQueuedNotification(context, item)
+            DownloadForegroundService.start(context)
             return
         }
 
@@ -353,6 +438,42 @@ object ClintDownloadManager {
         activeSpeedLimiters[id]?.updateLimit(speedLimitBytesPerSec)
     }
 
+    fun requestStoragePermissionIfNeeded(context: Context, locationMode: String, onGranted: () -> Unit): Boolean {
+        if (locationMode == DownloadSettingsKeys.MODE_CUSTOM) return false
+        if (!DownloadFileHelper.needsLegacyStoragePermission(context)) return false
+        val activity = context as? com.jhaiian.clint.base.ClintActivity ?: return false
+        val dialogHost = context as? com.jhaiian.clint.ui.ConfirmDialogHostActivity ?: return false
+        dialogHost.confirmDialogConfig = com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig(
+            title = context.getString(R.string.download_storage_permission_title),
+            message = context.getString(R.string.download_storage_permission_message),
+            positiveLabel = context.getString(R.string.action_allow),
+            onPositive = {
+                activity.requestLegacyStoragePermission { granted ->
+                    if (granted) onGranted() else showStoragePermissionDenied(activity, dialogHost)
+                }
+            },
+            negativeLabel = context.getString(R.string.action_cancel)
+        )
+        return true
+    }
+
+    private fun showStoragePermissionDenied(context: Context, dialogHost: com.jhaiian.clint.ui.ConfirmDialogHostActivity) {
+        dialogHost.confirmDialogConfig = com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig(
+            title = context.getString(R.string.download_storage_permission_title),
+            message = context.getString(R.string.download_storage_permission_denied_message),
+            positiveLabel = context.getString(R.string.action_open_settings),
+            onPositive = {
+                context.startActivity(
+                    android.content.Intent(
+                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:${context.packageName}")
+                    )
+                )
+            },
+            negativeLabel = context.getString(R.string.action_cancel)
+        )
+    }
+
     private fun promptInvalidLocation(context: Context, onUseDefault: () -> Unit) {
         val config = com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig(
             title = context.getString(R.string.download_location_invalid_title),
@@ -385,6 +506,7 @@ object ClintDownloadManager {
             promptInvalidLocation(context) { enqueueBlob(context, base64, filename, mimeType) }
             return
         }
+        if (requestStoragePermissionIfNeeded(context, locationMode) { enqueueBlob(context, base64, filename, mimeType) }) return
         val id = idCounter.getAndIncrement()
         val item = DownloadItem(
             id = id, url = "blob:", filename = filename, userAgent = "",
@@ -527,6 +649,14 @@ object ClintDownloadManager {
             }
             return
         }
+        if (requestStoragePermissionIfNeeded(context, locationMode) {
+                enqueue(
+                    context, url, filename, userAgent, referer, cookies, retryEnabled, unmeteredOnly,
+                    splitParts, multithreadingParts, speedLimitBytesPerSec,
+                    locationMode, customLocationUri, scheduledStartAtMillis, categorizeEnabled
+                )
+            }
+        ) return
         val id = idCounter.getAndIncrement()
         val baseItem = DownloadItem(
             id = id, url = url, filename = filename, userAgent = userAgent, referer = referer,
@@ -730,12 +860,17 @@ object ClintDownloadManager {
 
     fun updateDownloadUrl(id: Int, newUrl: String) {
         updateItem(id) { current ->
-            if (current.isStream) {
-                if (current.streamPrimaryIsAudio) current.copy(url = newUrl, streamAudioUrl = newUrl)
-                else current.copy(url = newUrl, streamVideoUrl = newUrl)
-            } else {
-                current.copy(url = newUrl)
-            }
+            if (current.isStream) current.copy(url = newUrl, streamVideoUrl = newUrl) else current.copy(url = newUrl)
+        }
+    }
+
+    fun updateStreamUrls(id: Int, primaryUrl: String?, audioUrl: String?) {
+        updateItem(id) { current ->
+            if (!current.isStream) return@updateItem current
+            var next = current
+            if (primaryUrl != null) next = next.copy(url = primaryUrl, streamVideoUrl = primaryUrl)
+            if (audioUrl != null && next.streamAudioUrl != null && !next.streamPrimaryIsAudio) next = next.copy(streamAudioUrl = audioUrl)
+            next
         }
     }
 

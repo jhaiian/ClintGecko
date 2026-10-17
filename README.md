@@ -10,8 +10,8 @@ Android Firefox-based browser with ADM, media capture, and extensions.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blueviolet.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-blueviolet.svg)](https://developer.android.com)
-[![Stable](https://img.shields.io/badge/Stable-1.0.0-blueviolet.svg)](https://github.com/jhaiian/ClintGecko/releases/tag/v1.0.0)
-[![Beta](https://img.shields.io/badge/Beta-1.0.0-blueviolet.svg)](https://github.com/jhaiian/ClintGecko/releases/tag/v1.0.0)
+[![Stable](https://img.shields.io/badge/Stable-1.0.1-blueviolet.svg)](https://github.com/jhaiian/ClintGecko/releases/tag/v1.0.1)
+[![Beta](https://img.shields.io/badge/Beta-1.0.1-blueviolet.svg)](https://github.com/jhaiian/ClintGecko/releases/tag/v1.0.1)
 [![Downloads](https://img.shields.io/github/downloads/jhaiian/ClintGecko/total?color=blueviolet)](https://github.com/jhaiian/ClintGecko/releases)
 [![Open Source](https://img.shields.io/badge/Open%20Source-Yes-blueviolet.svg)](https://github.com/jhaiian/ClintGecko)
 
@@ -94,6 +94,19 @@ Clint Gecko is built with **Material 3** and **Jetpack Compose**, with a highly 
 - Light and Dark themes
 - 5 surface intensities
 - **In total, 500 possible theme combinations**
+- Custom themes: create your own Light and Dark palettes with a live preview
+
+### 🔒 Privacy & Security
+
+- Tracking protection: strip tracking parameters, fingerprinting protection, Global Privacy Control, trimmed referrer, and WebRTC leak protection
+- Secure DNS over HTTPS with Cloudflare, Google, Quad9, or your own provider
+- App lock with your fingerprint, face, or screen lock
+- Block screenshots and screen recording
+- Incognito keyboard
+- Auto-clear clipboard
+- Clear data on exit
+- Strict certificate checking
+- No backend, analytics, or data collection. See the [Privacy Policy](PRIVACY_POLICY.md)
 
 ### 🚫 Website Blocker
 

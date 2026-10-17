@@ -42,6 +42,13 @@ Clint Gecko está creado con Material 3 y Jetpack Compose, con una interfaz muy 
 • 5 intensidades de superficie
 • En total, 500 combinaciones de tema posibles
 
+<b>PRIVACIDAD Y SEGURIDAD</b>
+• Protección contra rastreo y DNS seguro (DoH)
+• Bloqueo de la app con huella, rostro o bloqueo de pantalla
+• Bloqueo de capturas de pantalla y teclado de incógnito
+• Borrado automático del portapapeles y de los datos al salir
+• Sin servidor propio, analíticas ni recopilación de datos
+
 <b>BLOQUEADOR DE SITIOS WEB</b>
 • Bloquea pornografía, apuestas y otras categorías no deseadas
 • Listas de filtros por categoría (abuso, anuncios, criptomonedas, drogas, fraude, apuestas y más)

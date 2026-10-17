@@ -2,6 +2,12 @@ package com.jhaiian.clint.settings.browser
 import com.jhaiian.clint.browser.home.HOMEPAGE_SEARCH_ENGINE
 import com.jhaiian.clint.tabs.InactiveTabsPolicy
 import com.jhaiian.clint.browser.home.HOMEPAGE_CLINT
+import com.jhaiian.clint.browser.home.HOMEPAGE_CUSTOM
+import com.jhaiian.clint.browser.home.normalizeCustomHomepageUrl
+import com.jhaiian.clint.ui.ClintOutlinedTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import com.jhaiian.clint.browser.home.HOMEPAGE_DESIGN_GRADIENT
 import com.jhaiian.clint.browser.home.HOMEPAGE_DESIGN_IMAGE
 import com.jhaiian.clint.browser.home.HOMEPAGE_DESIGN_PLAIN
@@ -227,12 +233,15 @@ fun SearchSuggestionsApiDialog(
 @Composable
 fun HomepageDialog(
     current: String,
+    currentCustomUrl: String,
     hideStatusBar: Boolean, hideSystemNavigation: Boolean,
-    onConfirm: (String) -> Unit,
+    onConfirm: (String, String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val colors = LocalClintColors.current
     var selected by remember(current) { mutableStateOf(current) }
+    var customUrl by remember(currentCustomUrl) { mutableStateOf(currentCustomUrl) }
+    var customUrlError by remember { mutableStateOf(false) }
 
     ClintDialog(
         title = stringResource(R.string.choose_homepage),
@@ -243,7 +252,16 @@ fun HomepageDialog(
                 TextButton(onClick = onDismiss) {
                     Text(stringResource(android.R.string.cancel), color = colors.primary, fontWeight = FontWeight.Medium)
                 }
-                TextButton(onClick = { onConfirm(selected) }) {
+                TextButton(
+                    onClick = {
+                        if (selected == HOMEPAGE_CUSTOM) {
+                            val normalized = normalizeCustomHomepageUrl(customUrl)
+                            if (normalized == null) customUrlError = true else onConfirm(selected, normalized)
+                        } else {
+                            onConfirm(selected, currentCustomUrl)
+                        }
+                    }
+                ) {
                     Text(stringResource(android.R.string.ok), color = colors.primary, fontWeight = FontWeight.Medium)
                 }
             }
@@ -252,7 +270,8 @@ fun HomepageDialog(
         data class HomepageOption(val key: String, val titleRes: Int, val descRes: Int, val showDefault: Boolean)
         listOf(
             HomepageOption(HOMEPAGE_CLINT, R.string.homepage_clint, R.string.homepage_clint_desc, true),
-            HomepageOption(HOMEPAGE_SEARCH_ENGINE, R.string.homepage_search_engine, R.string.homepage_search_engine_desc, false)
+            HomepageOption(HOMEPAGE_SEARCH_ENGINE, R.string.homepage_search_engine, R.string.homepage_search_engine_desc, false),
+            HomepageOption(HOMEPAGE_CUSTOM, R.string.homepage_custom, R.string.homepage_custom_desc, false)
         ).forEach { option ->
             val sel = selected == option.key
             SelectableCard(
@@ -266,6 +285,24 @@ fun HomepageDialog(
                     Text(stringResource(option.descRes), color = colors.secondaryText, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
                 }
                 if (option.showDefault) DefaultChip(stringResource(R.string.default_label), colors.primary)
+            }
+            if (option.key == HOMEPAGE_CUSTOM && sel) {
+                ClintOutlinedTextField(
+                    value = customUrl,
+                    onValueChange = { customUrl = it; customUrlError = false },
+                    label = { Text(stringResource(R.string.homepage_custom_url_hint)) },
+                    singleLine = true,
+                    isError = customUrlError,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Done),
+                    supportingText = {
+                        Text(
+                            stringResource(if (customUrlError) R.string.homepage_custom_url_error else R.string.homepage_custom_url_helper),
+                            color = if (customUrlError) colors.colorError else colors.secondaryText,
+                            fontSize = 12.sp
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 8.dp)
+                )
             }
         }
     }

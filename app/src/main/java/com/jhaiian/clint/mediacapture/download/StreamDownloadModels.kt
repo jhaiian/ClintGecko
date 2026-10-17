@@ -45,11 +45,13 @@ data class StreamDownloadRequest(
     val headers: Map<String, String> = emptyMap(),
     val estimatedTotalBytes: Long = 0L,
     val speedLimitBytesPerSec: Long = 0L,
-    val concurrentSegments: Int = 6,
+    val concurrentSegments: Int = 12,
     val noAudio: Boolean = false,
     val isLive: Boolean = false,
     val convertTsToMp4: Boolean = false,
-    val subtitleOnly: Boolean = false
+    val subtitleOnly: Boolean = false,
+    val audioLanguage: String? = null,
+    val audioLabel: String? = null
 )
 
 object StreamBackoff {

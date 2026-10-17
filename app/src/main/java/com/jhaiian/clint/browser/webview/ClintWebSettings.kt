@@ -20,6 +20,7 @@ class ClintWebSettings(private val view: ClintWebView) {
         set(value) {
             field = value
             view.applyDesktopMode(value.isNotEmpty() && !value.contains("Mobile", ignoreCase = true))
+            view.applyUserAgentOverride(if (value.isEmpty() || value == ClintGecko.nativeUserAgent()) null else value)
         }
 
     fun setSupportMultipleWindows(enabled: Boolean) {}

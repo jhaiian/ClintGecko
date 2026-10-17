@@ -108,6 +108,7 @@ const val HOMEPAGE_CLINT = "clint"
 const val HOMEPAGE_SEARCH_ENGINE = "search_engine"
 const val PREF_HOMEPAGE_DESIGN = "homepage_design"
 const val PREF_HOMEPAGE_SHOW_FAVORITES = "homepage_show_favorites"
+const val PREF_HOMEPAGE_SHOW_QUICK_ACTIONS = "homepage_show_quick_actions"
 const val PREF_HOMEPAGE_SHOW_RECENT = "homepage_show_recent"
 const val PREF_HOMEPAGE_CENTER_CONTENT = "homepage_center_content"
 const val HOMEPAGE_DESIGN_GRADIENT = "gradient"
@@ -229,7 +230,7 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
             }
         }
     }
-    LaunchedEffect(state.activeTabId, isIncognito, design, bgImage, favorites, recent, refreshTick, colors.background) {
+    LaunchedEffect(state.activeTabId, isIncognito, design, bgImage, favorites, recent, refreshTick, colors.background, state.homepageShowQuickActions) {
         delay(800)
         captureThumbnail()
     }
@@ -277,6 +278,7 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
         val contentWidth = if (maxWidth < maxContent) maxWidth else maxContent
         val centered = state.homepageCenterContent
         val showFavorites = state.homepageShowFavorites
+        val showQuickActions = state.homepageShowQuickActions
         val showRecent = state.homepageShowRecent && recent.isNotEmpty()
         val sideBySide = isDesktop && !isIncognito && showFavorites && showRecent && contentWidth >= 800.dp
         val gridWidth = if (sideBySide) (contentWidth - 64.dp) * (1.6f / 2.6f) else contentWidth - 40.dp
@@ -361,8 +363,10 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
                             modifier = Modifier.widthIn(max = 680.dp),
                             height = if (compact) 52.dp else 60.dp
                         )
-                        Spacer(Modifier.height(if (compact) 16.dp else 24.dp))
-                        HomeDesktopActions(actions, actionsPerRow)
+                        if (showQuickActions) {
+                            Spacer(Modifier.height(if (compact) 16.dp else 24.dp))
+                            HomeDesktopActions(actions, actionsPerRow)
+                        }
                     } else {
                         if (!centered) Spacer(Modifier.height(if (compact) 12.dp else 40.dp))
                         HomeHero(
@@ -373,8 +377,10 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
                         )
                         Spacer(Modifier.height(if (compact) 16.dp else 28.dp))
                         HomeSearchPill(hint = hint, onClick = openSearch, onVoice = openVoice)
-                        Spacer(Modifier.height(if (compact) 16.dp else 28.dp))
-                        HomeQuickActions(actions)
+                        if (showQuickActions) {
+                            Spacer(Modifier.height(if (compact) 16.dp else 28.dp))
+                            HomeQuickActions(actions)
+                        }
                     }
                     if (!isIncognito && (showFavorites || showRecent)) {
                         Spacer(Modifier.height(if (compact) 20.dp else 32.dp))

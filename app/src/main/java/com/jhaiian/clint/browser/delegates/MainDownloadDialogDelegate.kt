@@ -138,7 +138,7 @@ internal fun MainActivity.mountDownloadRequestDialog(
     showStorageInfo: Boolean = showOptions,
     showSplitAndMultithreading: Boolean = showOptions,
     showConcurrentSegments: Boolean = false,
-    initialConcurrentSegments: Int = 6,
+    initialConcurrentSegments: Int = 12,
     initialLocationMode: String,
     initialCustomUri: Uri?,
     initialRetryEnabled: Boolean = false,

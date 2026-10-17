@@ -20,6 +20,7 @@ import com.jhaiian.clint.media.TabAudioState
 import org.json.JSONArray
 import org.json.JSONObject
 import org.mozilla.geckoview.AllowOrDeny
+import org.mozilla.geckoview.BasicSelectionActionDelegate
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.GeckoSessionSettings
@@ -40,10 +41,19 @@ fun interface ClintDownloadListener {
 class ClintWebView(
     context: Context,
     val isPrivate: Boolean = false,
-    val profileId: String? = null
+    val profileId: String? = null,
+    deferOpen: Boolean = false
 ) : FrameLayout(context) {
 
-    val geckoView = GeckoView(context)
+    val geckoView = object : GeckoView(context) {
+        override fun onCreateInputConnection(outAttrs: android.view.inputmethod.EditorInfo): android.view.inputmethod.InputConnection? {
+            val connection = super.onCreateInputConnection(outAttrs)
+            if (isPrivate && com.jhaiian.clint.privacy.IncognitoKeyboard.isEnabled(context)) {
+                com.jhaiian.clint.privacy.IncognitoKeyboard.apply(outAttrs)
+            }
+            return connection
+        }
+    }
     val session: GeckoSession
     private val cover = android.view.View(context).apply {
         visibility = android.view.View.GONE
@@ -65,6 +75,17 @@ class ClintWebView(
     var cookieStoreId: String? = null
     var selectPromptHandler: ((String, List<com.jhaiian.clint.browser.dialogs.SelectPickerOption>, Boolean, (List<String>) -> Unit, () -> Unit) -> Unit)? = null
     var autofillAllowed: Boolean = true
+        set(value) {
+            field = value
+            geckoView.setAutofillEnabled(value)
+            geckoView.importantForAutofill = if (value) {
+                android.view.View.IMPORTANT_FOR_AUTOFILL_YES
+            } else {
+                android.view.View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+            }
+        }
+    var clipboardPermissionHandler: ((String, (Boolean) -> Unit) -> Unit)? = null
+    var clipboardDismissHandler: (() -> Unit)? = null
 
     @Volatile var rawUrl: String? = null
         private set
@@ -84,6 +105,8 @@ class ClintWebView(
     private var extensionAttached = false
     private var lastSessionState: GeckoSession.SessionState? = null
     private var recoveryPending = false
+    private var neverOpened = deferOpen
+    private var paused = false
 
     val url: String? get() = currentUrl
     val originalUrl: String? get() = currentUrl
@@ -199,7 +222,7 @@ class ClintWebView(
     }
 
     fun onMediaIdle() {
-        if (!destroyed && session.isOpen && !isAttachedToWindow) session.setActive(false)
+        if (!destroyed && session.isOpen && (paused || !isAttachedToWindow)) session.setActive(false)
     }
 
     fun evaluateJavascript(script: String, callback: ((String?) -> Unit)?) {
@@ -281,6 +304,7 @@ class ClintWebView(
     fun reload(bypassCache: Boolean = false) {
         if (isClintHomeUrl(currentUrl)) return
         if (recoverIfNeeded()) return
+        if (destroyed || !session.isOpen) return
         if (bypassCache) session.reload(org.mozilla.geckoview.GeckoSession.LOAD_FLAGS_BYPASS_CACHE) else session.reload()
     }
 
@@ -294,19 +318,30 @@ class ClintWebView(
 
     fun canGoBack(): Boolean = canGoBackState
     fun canGoForward(): Boolean = canGoForwardState
-    fun goBack() = session.goBack()
-    fun goForward() = session.goForward()
+    fun goBack() {
+        if (!destroyed && session.isOpen) session.goBack()
+    }
+
+    fun goForward() {
+        if (!destroyed && session.isOpen) session.goForward()
+    }
 
     fun pauseTimers() {}
     fun resumeTimers() {}
 
     fun onResume() {
+        if (destroyed) return
+        paused = false
+        ClintGecko.setForeground(this)
         if (recoverIfNeeded()) return
+        if (!session.isOpen) return
         session.setActive(true)
         session.setFocused(true)
     }
 
     fun onPause() {
+        paused = true
+        ClintGecko.clearForeground(this)
         if (destroyed || !session.isOpen) return
         session.setFocused(false)
         if (!isMediaPlaying) session.setActive(false)
@@ -352,16 +387,18 @@ class ClintWebView(
         }.start()
     }
 
-    fun canHibernate(): Boolean =
+    fun canHibernate(force: Boolean = false): Boolean =
         !destroyed && !isPrivate && session.isOpen && !recoveryPending &&
-            lastSessionState != null && progress >= 100 && !isAttachedToWindow && !isMediaPlaying
+            lastSessionState != null && progress >= 100 && (force || !isAttachedToWindow) && !isMediaPlaying
 
-    fun hibernate(): Boolean {
-        if (!canHibernate()) return false
+    fun hibernate(force: Boolean = false): Boolean {
+        if (!canHibernate(force)) return false
         recoveryPending = true
         pagePainted = false
         topPort = null
         ports.clear()
+        queuedEvals.clear()
+        ClintGecko.clearForeground(this)
         MediaPlaybackController.onViewReleased(this)
         runCatching { geckoView.releaseSession() }
         runCatching { session.close() }
@@ -369,11 +406,17 @@ class ClintWebView(
     }
 
     fun clearHistory() {
+        if (destroyed || !session.isOpen) return
         session.purgeHistory()
     }
 
     fun clearCache(includeDiskFiles: Boolean = true) {
         if (!isPrivate) ClintGecko.clearCache()
+    }
+
+    fun applyUserAgentOverride(userAgent: String?) {
+        if (destroyed) return
+        session.settings.userAgentOverride = userAgent
     }
 
     fun applyDesktopMode(enabled: Boolean) {
@@ -403,16 +446,37 @@ class ClintWebView(
         bridges.clear()
         lastSessionState = null
         MediaPlaybackController.onViewReleased(this)
+        ClintGecko.clearForeground(this)
         ClintGecko.unregisterView(this)
         runCatching { geckoView.releaseSession() }
         runCatching { session.close() }
+        runCatching {
+            session.contentDelegate = null
+            session.navigationDelegate = null
+            session.progressDelegate = null
+            session.permissionDelegate = null
+            session.promptDelegate = null
+            session.scrollDelegate = null
+            session.mediaSessionDelegate = null
+            session.selectionActionDelegate = null
+        }
+        webViewClient = null
+        webChromeClient = null
+        downloadListener = null
+        contextMenuListener = null
+        scrollListener = null
+        touchObserver = null
+        selectPromptHandler = null
+        clipboardPermissionHandler = null
+        clipboardDismissHandler = null
         removeAllViews()
     }
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         coverSurface()
-        if (!destroyed && !(isWindowActive() && recoverIfNeeded())) {
+        paused = false
+        if (!destroyed && !(isWindowActive() && recoverIfNeeded()) && session.isOpen) {
             session.setActive(true)
             session.setFocused(true)
         }
@@ -447,9 +511,18 @@ class ClintWebView(
     private fun buildErrorPage(uri: String, error: WebRequestError): String {
         val host = runCatching { Uri.parse(uri).host }.getOrNull().orEmpty().ifEmpty { uri }
         val isCert = error.category == WebRequestError.ERROR_CATEGORY_SECURITY
-        val message = context.getString(if (isCert) R.string.error_page_cert_message else R.string.error_page_message, host)
+        val strictCert = isCert && androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+            .getBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.STRICT_CERTIFICATES, com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_STRICT_CERTIFICATES)
+        val message = context.getString(
+            when {
+                strictCert -> R.string.error_page_cert_strict_message
+                isCert -> R.string.error_page_cert_message
+                else -> R.string.error_page_message
+            },
+            host
+        )
         val js = JSONObject.quote(uri)
-        val proceed = if (isCert) {
+        val proceed = if (isCert && !strictCert) {
             "<button class=\"warn\" onclick=\"document.addCertException(false).then(function(){location.href=$js})\">" +
                 "${android.text.TextUtils.htmlEncode(context.getString(R.string.error_page_proceed))}</button>"
         } else ""
@@ -655,10 +728,12 @@ class ClintWebView(
         }
 
         override fun onCrash(session: GeckoSession) {
+            com.jhaiian.clint.crash.GeckoCrashReports.onContentProcessGone(context, killed = false)
             markForRecovery()
         }
 
         override fun onKill(session: GeckoSession) {
+            com.jhaiian.clint.crash.GeckoCrashReports.onContentProcessGone(context, killed = true)
             markForRecovery()
         }
     }
@@ -675,6 +750,7 @@ class ClintWebView(
     }
 
     private fun reopenSession() {
+        neverOpened = false
         pagePainted = false
         runCatching { geckoView.releaseSession() }
         if (!session.isOpen) session.open(ClintGecko.runtime)
@@ -709,7 +785,7 @@ class ClintWebView(
     }
 
     private fun recoverIfNeeded(): Boolean {
-        if (destroyed) return false
+        if (destroyed || neverOpened) return false
         if (recoveryPending || !session.isOpen) {
             recoverNow()
             return true
@@ -924,6 +1000,47 @@ class ClintWebView(
         private fun webClientOrNull(): ClintWebViewClient? = webViewClient
     }
 
+    private inner class ClipboardSelectionDelegate(activity: android.app.Activity) : BasicSelectionActionDelegate(activity) {
+        private var pending: GeckoResult<AllowOrDeny>? = null
+
+        private fun finish(result: GeckoResult<AllowOrDeny>, allow: Boolean) {
+            if (pending !== result) return
+            pending = null
+            result.complete(if (allow) AllowOrDeny.ALLOW else AllowOrDeny.DENY)
+        }
+
+        override fun onShowClipboardPermissionRequest(
+            session: GeckoSession,
+            permission: GeckoSession.SelectionActionDelegate.ClipboardPermission
+        ): GeckoResult<AllowOrDeny>? {
+            val handler = clipboardPermissionHandler ?: return super.onShowClipboardPermissionRequest(session, permission)
+            pending?.let { finish(it, false) }
+            val result = GeckoResult<AllowOrDeny>()
+            pending = result
+            handler(this@ClintWebView.url.orEmpty()) { allow -> finish(result, allow) }
+            return result
+        }
+
+        override fun onDismissClipboardPermissionRequest(session: GeckoSession) {
+            val result = pending
+            if (result == null) {
+                super.onDismissClipboardPermissionRequest(session)
+                return
+            }
+            finish(result, false)
+            clipboardDismissHandler?.invoke()
+        }
+    }
+
+    private fun findActivity(): android.app.Activity? {
+        var ctx: Context? = context
+        while (ctx is android.content.ContextWrapper) {
+            if (ctx is android.app.Activity) return ctx
+            ctx = ctx.baseContext
+        }
+        return null
+    }
+
     init {
         ClintGecko.init(context)
         val builder = GeckoSessionSettings.Builder()
@@ -938,11 +1055,15 @@ class ClintWebView(
         session.promptDelegate = promptDelegate
         session.scrollDelegate = scrollDelegate
         session.mediaSessionDelegate = mediaDelegate
-        session.open(ClintGecko.runtime)
-        geckoView.setSession(session)
+        findActivity()?.let { session.selectionActionDelegate = ClipboardSelectionDelegate(it) }
+        autofillAllowed = !isPrivate
+        if (!deferOpen) {
+            session.open(ClintGecko.runtime)
+            geckoView.setSession(session)
+        }
         addView(geckoView, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         addView(cover, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        ClintGecko.registerView(this)
+        if (!deferOpen) ClintGecko.registerView(this)
     }
 
     companion object {

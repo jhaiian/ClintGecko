@@ -256,7 +256,7 @@ private fun downloadRowDisplay(
             } else context.getString(R.string.download_status_progress_indeterminate, downloaded)
             val speedEtaText = buildSpeedEtaText(context, item)
             val segmentText = if (isSegmented) context.getString(R.string.download_status_segment_progress, item.segmentsCompleted, item.segmentsTotal) else null
-            val combinedMeta = listOfNotNull(segmentText, speedEtaText)
+            val combinedMeta = listOfNotNull(streamStageLabel(context, item), segmentText, speedEtaText)
             RowDisplay(
                 statusText = statusText,
                 metaText = if (combinedMeta.isEmpty()) null else combinedMeta.joinToString("  \u2022  "),
@@ -283,9 +283,9 @@ private fun downloadRowDisplay(
         DownloadStatus.MUXING -> {
             RowDisplay(
                 statusText = if (item.totalBytes > 0) formatFileSize(item.totalBytes) else "",
-                metaText = context.getString(R.string.download_status_muxing),
+                metaText = muxStatusLabel(context, item),
                 retryHintText = null, resumableText = null,
-                cardProgress = DownloadCardProgress.Indeterminate,
+                cardProgress = muxProgressFraction(item)?.let { DownloadCardProgress.Determinate(it) } ?: DownloadCardProgress.Indeterminate,
                 pauseIconRes = null, pauseContentDesc = "", pauseAction = null,
                 moreVisible = false
             )

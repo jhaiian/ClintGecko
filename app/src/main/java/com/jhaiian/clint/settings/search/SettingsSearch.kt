@@ -40,6 +40,15 @@ import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Cookie
+import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.GppGood
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.PhonelinkLock
+import androidx.compose.material.icons.filled.ContentPasteOff
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.DataSaverOff
 import androidx.compose.material.icons.filled.DataSaverOn
 import androidx.compose.material.icons.filled.DateRange
@@ -82,6 +91,7 @@ import androidx.compose.material.icons.filled.Splitscreen
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.VerticalAlignCenter
@@ -314,6 +324,7 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
             R.string.homepage_design_title, section = R.string.pref_category_homepage,
             extras = listOf(R.string.homepage_design_plain, R.string.homepage_design_gradient, R.string.homepage_design_image)
         )
+        item(R.string.homepage_show_quick_actions_title, R.string.homepage_show_quick_actions_summary, R.string.pref_category_homepage, icon = Icons.Filled.Apps)
         item(R.string.homepage_show_favorites_title, R.string.homepage_show_favorites_summary, R.string.pref_category_homepage, icon = Icons.Filled.Bookmark)
         item(R.string.homepage_show_recent_title, R.string.homepage_show_recent_summary, R.string.pref_category_homepage, icon = Icons.Filled.History)
         item(R.string.homepage_center_content_title, R.string.homepage_center_content_summary, R.string.pref_category_homepage, icon = Icons.Filled.VerticalAlignCenter)
@@ -343,6 +354,19 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
         item(R.string.custom_user_agent, R.string.custom_user_agent_summary, R.string.privacy_section_privacy, icon = Icons.Filled.Language)
         item(R.string.https_only, R.string.https_only_summary, R.string.privacy_section_privacy, icon = Icons.Filled.Lock)
         item(R.string.do_not_track_title, R.string.do_not_track_summary, R.string.privacy_section_privacy, icon = Icons.Filled.VisibilityOff)
+        item(R.string.secure_dns_title, section = R.string.privacy_section_privacy, icon = Icons.Filled.Dns)
+        item(R.string.secure_dns_provider_title, section = R.string.privacy_section_privacy, icon = Icons.Filled.Dns)
+        item(R.string.strict_certificates_title, R.string.strict_certificates_summary, R.string.privacy_section_privacy, icon = Icons.Filled.VerifiedUser)
+        item(R.string.strip_tracking_params_title, R.string.strip_tracking_params_summary, R.string.privacy_section_tracking, icon = Icons.Filled.LinkOff)
+        item(R.string.fingerprinting_protection_title, R.string.fingerprinting_protection_summary, R.string.privacy_section_tracking, icon = Icons.Filled.Fingerprint)
+        item(R.string.global_privacy_control_title, R.string.global_privacy_control_summary, R.string.privacy_section_tracking, icon = Icons.Filled.GppGood)
+        item(R.string.referrer_trimming_title, R.string.referrer_trimming_summary, R.string.privacy_section_tracking, icon = Icons.Filled.Link)
+        item(R.string.webrtc_protection_title, R.string.webrtc_protection_summary, R.string.privacy_section_tracking, icon = Icons.Filled.Videocam)
+        item(R.string.app_lock_title, R.string.app_lock_summary, R.string.privacy_section_device, icon = Icons.Filled.PhonelinkLock)
+        item(R.string.screenshot_blocking_title, R.string.screenshot_blocking_summary, R.string.privacy_section_device, icon = Icons.Filled.HideImage)
+        item(R.string.incognito_keyboard_title, R.string.incognito_keyboard_summary, R.string.privacy_section_device, icon = Icons.Filled.Keyboard)
+        item(R.string.clipboard_clear_title, section = R.string.privacy_section_device, icon = Icons.Filled.ContentPasteOff)
+        item(R.string.clear_on_exit_title, R.string.clear_on_exit_summary, R.string.privacy_section_device, icon = Icons.Filled.DeleteSweep)
         if (ClintAutofill.isSupported(context)) {
             item(R.string.autofill_title, R.string.autofill_summary, R.string.privacy_section_autofill, icon = Icons.Filled.Password)
             item(R.string.autofill_service_title, section = R.string.privacy_section_autofill, icon = Icons.Filled.ManageAccounts)

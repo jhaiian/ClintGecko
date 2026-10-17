@@ -42,6 +42,15 @@ Clint Gecko is built with Material 3 and Jetpack Compose, with a highly customiz
 • 5 surface intensities
 • In total, 500 possible theme combinations
 
+<b>PRIVACY AND SECURITY</b>
+• Tracking protection: strips tracking parameters, fingerprinting protection, Global Privacy Control, trimmed referrer and WebRTC leak protection
+• Secure DNS over HTTPS (Cloudflare, Google, Quad9 or custom)
+• App lock with fingerprint, face or screen lock
+• Block screenshots and incognito keyboard
+• Auto-clear clipboard and clear data on exit
+• Strict certificate checking
+• No backend, analytics or data collection
+
 <b>WEBSITE BLOCKER</b>
 • Blocks pornography, gambling and other unwanted categories
 • Category-based filter lists (abuse, ads, crypto, drugs, fraud, gambling and more)

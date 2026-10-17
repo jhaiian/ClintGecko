@@ -200,17 +200,7 @@ class SetupActivity : ClintActivity(), OverlayHostActivity {
     }
 
     private fun onNextFromLayoutPage() {
-        if (uiState.scrollHideMode != "off") {
-            uiState.confirmDialogConfig = com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig(
-                title = getString(R.string.nested_scroll_warning_title),
-                message = getString(R.string.nested_scroll_warning_message),
-                positiveLabel = getString(R.string.action_enable_anyway),
-                onPositive = { uiState.currentPage = 4 },
-                negativeLabel = getString(R.string.action_cancel)
-            )
-        } else {
-            uiState.currentPage = 4
-        }
+        uiState.currentPage = 4
     }
 
     private fun onNextFromEnginePage() {

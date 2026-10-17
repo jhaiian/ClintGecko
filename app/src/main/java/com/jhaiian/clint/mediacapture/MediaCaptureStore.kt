@@ -56,7 +56,7 @@ object MediaCaptureStore {
 
     private fun dedupeKey(media: DetectedMedia): String =
         if (media.groupUrl != null && media.url == media.groupUrl) {
-            "${media.url}#${media.width}x${media.height}#${media.bandwidthBitsPerSec}#${media.mimeType}"
+            "${media.url}#${media.width}x${media.height}#${media.bandwidthBitsPerSec}#${media.mimeType}#${media.representationId}#${media.language}"
         } else {
             media.url
         }

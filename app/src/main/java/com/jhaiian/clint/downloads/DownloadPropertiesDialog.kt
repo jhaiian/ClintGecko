@@ -70,6 +70,12 @@ fun DownloadPropertiesDialog(
     val activeTimeStr = if (activeElapsedSec > 0) formatElapsed(activeElapsedSec) else dash
     val avgSpeedBytes = remember(item, tick) { item.averageSpeedBytesPerSec() }
     val avgSpeedStr = if (activeElapsedSec > 0 && item.bytesDownloaded > 0) stringResource(R.string.download_speed_only, formatFileSize(avgSpeedBytes)) else dash
+    val showSegments = item.isStream && (item.streamSegDone > 0 || item.streamSegTotal > 0)
+    val segmentsStr = stringResource(
+        R.string.download_props_segments_format, item.streamSegDone,
+        if (item.streamSegTotal > 0) item.streamSegTotal.toString() else dash
+    )
+    val avgSegmentStr = if (item.streamSegDone > 0 && item.streamSegBytes > 0L) formatFileSize(item.streamSegBytes / item.streamSegDone) else dash
     val dateAddedStr = if (item.startedAt > 0L) formatPropTimestamp(item.startedAt) else dash
     val completedAtResolved = remember(item.id, item.completedAt, item.status) {
         when {
@@ -142,7 +148,13 @@ fun DownloadPropertiesDialog(
             PropSection(stringResource(R.string.download_props_section_source))
             SettingsSection(colors.dialogSectionBackground) {
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    PropRow(stringResource(R.string.download_props_label_url), item.url) { copy(item.url) }
+                    val audioLink = item.streamAudioUrl
+                    if (item.isStream && audioLink != null) {
+                        PropRow(stringResource(R.string.download_props_label_video_url), item.streamVideoUrl) { copy(item.streamVideoUrl) }
+                        PropRow(stringResource(R.string.download_props_label_audio_url), audioLink) { copy(audioLink) }
+                    } else {
+                        PropRow(stringResource(R.string.download_props_label_url), item.url) { copy(item.url) }
+                    }
                     if (item.referer.isNotEmpty()) {
                         PropRow(stringResource(R.string.download_props_label_page), item.referer) { copy(item.referer) }
                     }
@@ -153,6 +165,10 @@ fun DownloadPropertiesDialog(
             SettingsSection(colors.dialogSectionBackground) {
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     PropRow(stringResource(R.string.download_props_label_avg_speed), avgSpeedStr) { copy(avgSpeedStr) }
+                    if (showSegments) {
+                        PropRow(stringResource(R.string.download_props_label_segments), segmentsStr) { copy(segmentsStr) }
+                        PropRow(stringResource(R.string.download_props_label_avg_segment_size), avgSegmentStr) { copy(avgSegmentStr) }
+                    }
                     PropRow(stringResource(R.string.download_props_label_active_time), activeTimeStr) { copy(activeTimeStr) }
                     PropRow(stringResource(R.string.download_props_label_date_added), dateAddedStr) { copy(dateAddedStr) }
                     PropRow(stringResource(R.string.download_props_label_date_completed), dateCompletedStr) { copy(dateCompletedStr) }

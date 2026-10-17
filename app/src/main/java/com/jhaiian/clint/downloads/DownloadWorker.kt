@@ -359,7 +359,7 @@ internal object DownloadWorker {
                                             lastSpeedBytes = current.bytesDownloaded
                                             lastSpeedTime = now
                                         }
-                                        DownloadNotificationHelper.showProgressNotification(context, current)
+                                        DownloadNotificationHelper.showProgressNotificationThrottled(context, current)
                                         ClintDownloadManager.publish(ClintDownloadManager.withLiveSettings(current))
                                         if (now - lastCheckpointTime >= PROGRESS_CHECKPOINT_INTERVAL_MS) {
                                             lastCheckpointTime = now
@@ -430,7 +430,7 @@ internal object DownloadWorker {
                                     val newProgress = ((bytesCopied * 100) / totalBytes).toInt()
                                     if (newProgress != working.copyProgress) {
                                         working = working.copy(copyProgress = newProgress)
-                                        DownloadNotificationHelper.showCopyingTempNotification(context, working)
+                                        DownloadNotificationHelper.showCopyingTempNotificationThrottled(context, working)
                                         ClintDownloadManager.publish(working)
                                         lastNotifiedProgress = newProgress
                                     }
@@ -618,7 +618,7 @@ internal object DownloadWorker {
                         lastSpeedBytes = total
                         lastSpeedTime = now
                     }
-                    DownloadNotificationHelper.showProgressNotification(context, item)
+                    DownloadNotificationHelper.showProgressNotificationThrottled(context, item)
                     ClintDownloadManager.publish(ClintDownloadManager.withLiveSettings(item))
                 }
 

@@ -8,15 +8,40 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
 import com.jhaiian.clint.settings.downloads.DownloadSettingsKeys
+import java.util.concurrent.ConcurrentHashMap
 
 internal object DownloadNotificationHelper {
 
     const val DOWNLOAD_GROUP_KEY = "com.jhaiian.clint.downloads.GROUP"
     private const val COMPLETE_TAG = "com.jhaiian.clint.downloads.COMPLETE"
+    private const val PROGRESS_NOTIFY_INTERVAL_MS = 1000L
+
+    private val lastProgressPostAt = ConcurrentHashMap<Int, Long>()
+
+    private fun shouldPostProgress(id: Int): Boolean {
+        val now = SystemClock.elapsedRealtime()
+        var allowed = false
+        lastProgressPostAt.compute(id) { _, last ->
+            if (last == null || now - last >= PROGRESS_NOTIFY_INTERVAL_MS) {
+                allowed = true
+                now
+            } else last
+        }
+        return allowed
+    }
+
+    fun showProgressNotificationThrottled(context: Context, item: DownloadItem) {
+        if (shouldPostProgress(item.id)) showProgressNotification(context, item)
+    }
+
+    fun showCopyingTempNotificationThrottled(context: Context, item: DownloadItem) {
+        if (shouldPostProgress(item.id)) showCopyingTempNotification(context, item)
+    }
 
     fun cancelCompleteNotification(context: Context, id: Int) {
         context.getSystemService(NotificationManager::class.java).cancel(COMPLETE_TAG, id)
@@ -87,6 +112,7 @@ internal object DownloadNotificationHelper {
 
     fun showProgressNotification(context: Context, item: DownloadItem) {
         if (ClintDownloadManager.isRemoved(item.id)) return
+        lastProgressPostAt[item.id] = SystemClock.elapsedRealtime()
         val nm = context.getSystemService(NotificationManager::class.java)
 
         val statusText: String
@@ -135,10 +161,11 @@ internal object DownloadNotificationHelper {
                 showPause = false
             }
             DownloadStatus.MUXING -> {
-                statusText = context.getString(R.string.download_status_muxing)
+                statusText = muxStatusLabel(context, item)
                 metaText = null
-                indeterminate = true
-                progress = 0
+                val muxFraction = muxProgressFraction(item)
+                indeterminate = muxFraction == null
+                progress = ((muxFraction ?: 0f) * 100).toInt()
                 showPause = false
             }
             DownloadStatus.CONVERTING -> {
@@ -162,7 +189,7 @@ internal object DownloadNotificationHelper {
                 }
                 val speedEtaText = buildSpeedEtaText(context, item)
                 val segmentText = if (item.segmentsTotal > 0) context.getString(R.string.download_status_segment_progress, item.segmentsCompleted, item.segmentsTotal) else null
-                val combinedMeta = listOfNotNull(segmentText, speedEtaText)
+                val combinedMeta = listOfNotNull(streamStageLabel(context, item), segmentText, speedEtaText)
                 metaText = if (combinedMeta.isEmpty()) null else combinedMeta.joinToString("  \u2022  ")
                 indeterminate = pct < 0
                 progress = pct.coerceAtLeast(0)
@@ -340,6 +367,7 @@ internal object DownloadNotificationHelper {
     }
 
     fun showCompleteNotification(context: Context, item: DownloadItem) {
+        lastProgressPostAt.remove(item.id)
         val nm = context.getSystemService(NotificationManager::class.java)
         if (item.file == null && item.contentUri == null) {
             nm.cancel(item.id)
@@ -382,6 +410,7 @@ internal object DownloadNotificationHelper {
     }
 
     fun showFailedNotification(context: Context, item: DownloadItem) {
+        lastProgressPostAt.remove(item.id)
         if (!isPushEnabled(context)) return
         val nm = context.getSystemService(NotificationManager::class.java)
         val downloadsIntent = Intent(context, DownloadsActivity::class.java).apply {
@@ -404,6 +433,7 @@ internal object DownloadNotificationHelper {
     }
 
     fun showRetryingNotification(context: Context, item: DownloadItem) {
+        lastProgressPostAt.remove(item.id)
         val nm = context.getSystemService(NotificationManager::class.java)
         nm.cancel(item.id)
         if (!isPushEnabled(context)) return

@@ -94,7 +94,7 @@ fun DownloadRequestDialog(
     showStorageInfo: Boolean = showOptions,
     showSplitAndMultithreading: Boolean = showOptions,
     showConcurrentSegments: Boolean = false,
-    initialConcurrentSegments: Int = 6,
+    initialConcurrentSegments: Int = 12,
     initialLocationMode: String,
     initialCustomUri: Uri?,
     initialCategorizeEnabled: Boolean? = null,
@@ -158,7 +158,7 @@ fun DownloadRequestDialog(
     var unmeteredOnly by remember { mutableStateOf(initialUnmeteredOnly) }
     var splitParts by remember { mutableStateOf(initialSplitParts.coerceIn(1, 32)) }
     var multithreadingParts by remember { mutableStateOf(initialMultithreadingParts.coerceIn(1, 8)) }
-    var concurrentSegments by remember { mutableStateOf(initialConcurrentSegments.coerceIn(1, 8)) }
+    var concurrentSegments by remember { mutableStateOf(initialConcurrentSegments.coerceIn(1, 24)) }
 
     var speedLimitText by remember { mutableStateOf(if (initialSpeedLimitAmount > 0) initialSpeedLimitAmount.toString() else "") }
     val kbLabel = stringResource(R.string.speed_limit_unit_kb)
@@ -470,7 +470,7 @@ fun DownloadRequestDialog(
                                 ClintSlider(
                                     value = concurrentSegments.toFloat(),
                                     onValueChange = { concurrentSegments = it.toInt() },
-                                    valueRange = 1f..8f, steps = 6
+                                    valueRange = 1f..24f, steps = 22
                                 )
                             }
 

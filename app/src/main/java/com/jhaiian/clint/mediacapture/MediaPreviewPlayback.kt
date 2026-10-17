@@ -9,6 +9,7 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.exoplayer.source.MergingMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import com.jhaiian.clint.downloads.ClintDownloadManager
 import com.jhaiian.clint.mediacapture.download.StreamRequestHeaders
@@ -30,6 +31,13 @@ internal fun buildMediaPreviewSource(media: DetectedMedia, dataSourceFactory: Ok
         "DASH" -> DashMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem)
         else -> ProgressiveMediaSource.Factory(dataSourceFactory).createMediaSource(mediaItem)
     }
+}
+
+internal fun buildCombinedMediaPreviewSource(context: Context, video: DetectedMedia, audio: DetectedMedia?): MediaSource {
+    val videoSource = buildMediaPreviewSource(video, createMediaPreviewDataSourceFactory(context, video))
+    if (audio == null || audio.url == video.url) return videoSource
+    val audioSource = buildMediaPreviewSource(audio, createMediaPreviewDataSourceFactory(context, audio))
+    return MergingMediaSource(videoSource, audioSource)
 }
 
 internal fun resolveMediaPreviewUserAgent(media: DetectedMedia, fallback: String): String =

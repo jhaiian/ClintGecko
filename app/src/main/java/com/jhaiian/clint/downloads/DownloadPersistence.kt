@@ -78,6 +78,9 @@ internal object DownloadPersistence {
                     || status == DownloadStatus.RETRYING
                     || status == DownloadStatus.ALLOCATING
                     || status == DownloadStatus.DOWNLOADING
+                    || status == DownloadStatus.DECRYPTING
+                    || status == DownloadStatus.MUXING
+                    || status == DownloadStatus.CONVERTING
                 ) status = DownloadStatus.FAILED
                 val filePath = it.getString(it.getColumnIndexOrThrow(DownloadDatabase.COL_FILE_PATH))
                 val resumableIdx = it.getColumnIndex(DownloadDatabase.COL_RESUMABLE)
@@ -215,8 +218,13 @@ internal object DownloadPersistence {
         put("convertTsToMp4", item.streamConvertTsToMp4)
         putOpt("videoRepresentationId", item.streamVideoRepresentationId)
         putOpt("audioRepresentationId", item.streamAudioRepresentationId)
+        putOpt("audioLanguage", item.streamAudioLanguage)
+        putOpt("audioLabel", item.streamAudioLabel)
         put("segmentsCompleted", item.segmentsCompleted)
         put("segmentsTotal", item.segmentsTotal)
+        put("segDone", item.streamSegDone)
+        put("segAll", item.streamSegTotal)
+        put("segBytes", item.streamSegBytes)
     }.toString()
 
     private fun JSONObject.optNullableString(key: String): String? =
@@ -247,13 +255,18 @@ internal object DownloadPersistence {
             streamPrimaryIsAudio = o.optBoolean("primaryIsAudio", false),
             streamNoAudio = o.optBoolean("noAudio", false),
             streamHeaders = headers,
-            streamConcurrentSegments = o.optInt("concurrentSegments", 6),
+            streamConcurrentSegments = o.optInt("concurrentSegments", 12),
             streamIsLive = o.optBoolean("isLive", false),
             streamConvertTsToMp4 = o.optBoolean("convertTsToMp4", false),
             streamVideoRepresentationId = o.optNullableString("videoRepresentationId"),
             streamAudioRepresentationId = o.optNullableString("audioRepresentationId"),
+            streamAudioLanguage = o.optNullableString("audioLanguage"),
+            streamAudioLabel = o.optNullableString("audioLabel"),
             segmentsCompleted = o.optInt("segmentsCompleted", 0),
-            segmentsTotal = o.optInt("segmentsTotal", 0)
+            segmentsTotal = o.optInt("segmentsTotal", 0),
+            streamSegDone = o.optInt("segDone", 0),
+            streamSegTotal = o.optInt("segAll", 0),
+            streamSegBytes = o.optLong("segBytes", 0L)
         )
     }
 

@@ -59,11 +59,17 @@ internal object DownloadFileHelper {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
             Environment.isExternalStorageManager()
 
+    private fun hasLegacyStoragePermission(context: Context): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
+            PackageManager.PERMISSION_GRANTED
+
+    fun needsLegacyStoragePermission(context: Context): Boolean =
+        Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q && !hasLegacyStoragePermission(context)
+
     fun canWriteSharedStorageDirectly(context: Context): Boolean = when {
-        Build.VERSION.SDK_INT <= Build.VERSION_CODES.P ->
-            ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) ==
-                PackageManager.PERMISSION_GRANTED
-        Build.VERSION.SDK_INT == Build.VERSION_CODES.Q -> false
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q -> hasLegacyStoragePermission(context)
+        Build.VERSION.SDK_INT == Build.VERSION_CODES.Q ->
+            hasLegacyStoragePermission(context) && Environment.isExternalStorageLegacy()
         else -> hasAllFilesAccess()
     }
 
@@ -98,6 +104,9 @@ internal object DownloadFileHelper {
         val treeUri = getSafTreeUri(context, item) ?: return null
         return safTreeUriToFile(treeUri)
     }
+
+    fun moveFileDirect(source: File, target: File): Boolean =
+        runCatching { source.renameTo(target) }.getOrDefault(false)
 
     fun resolveDownloadDir(): File {
         return Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)

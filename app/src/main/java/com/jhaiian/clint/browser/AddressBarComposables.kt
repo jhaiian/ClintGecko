@@ -305,7 +305,8 @@ internal fun SearchOverlay(
     onClose: () -> Unit,
     onSuggestionClick: (String) -> Unit,
     onSuggestionDelete: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    incognitoKeyboard: Boolean = false
 ) {
     val colors = LocalClintColors.current
     val density = LocalDensity.current
@@ -374,20 +375,22 @@ internal fun SearchOverlay(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    BasicTextField(
-                        value = fieldValue,
-                        onValueChange = {
-                            val corrected = withoutAutoSpaceAfterPeriod(it)
-                            fieldValue = corrected
-                            onQueryChange(corrected.text)
-                        },
-                        singleLine = true,
-                        textStyle = TextStyle(color = colors.onSurface, fontSize = 16.sp),
-                        cursorBrush = SolidColor(colors.primary),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
-                        keyboardActions = KeyboardActions(onGo = { onSubmit(fieldValue.text.trim()) }),
-                        modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
-                    )
+                    com.jhaiian.clint.privacy.IncognitoKeyboardScope(enabled = incognitoKeyboard) {
+                        BasicTextField(
+                            value = fieldValue,
+                            onValueChange = {
+                                val corrected = withoutAutoSpaceAfterPeriod(it)
+                                fieldValue = corrected
+                                onQueryChange(corrected.text)
+                            },
+                            singleLine = true,
+                            textStyle = TextStyle(color = colors.onSurface, fontSize = 16.sp),
+                            cursorBrush = SolidColor(colors.primary),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
+                            keyboardActions = KeyboardActions(onGo = { onSubmit(fieldValue.text.trim()) }),
+                            modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
+                        )
+                    }
                 }
                 if (fieldValue.text.isNotEmpty()) {
                     Icon(

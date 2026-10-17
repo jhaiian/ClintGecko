@@ -19,8 +19,8 @@ import com.jhaiian.clint.util.registeredDomain
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 @SuppressLint("SetJavaScriptEnabled")
-internal fun MainActivity.createClintWebView(isIncognito: Boolean, profileId: String = WebProfiles.DEFAULT_ID): ClintWebView {
-    val webView = ClintWebView(this, isIncognito, if (isIncognito || profileId == WebProfiles.DEFAULT_ID) null else profileId)
+internal fun MainActivity.createClintWebView(isIncognito: Boolean, profileId: String = WebProfiles.DEFAULT_ID, deferOpen: Boolean = false): ClintWebView {
+    val webView = ClintWebView(this, isIncognito, if (isIncognito || profileId == WebProfiles.DEFAULT_ID) null else profileId, deferOpen && !isIncognito)
     if (!isIncognito) WebProfiles.bind(webView, profileId)
     val settings = webView.settings
     settings.javaScriptEnabled = prefs.getBoolean("javascript_enabled", true)
@@ -31,7 +31,8 @@ internal fun MainActivity.createClintWebView(isIncognito: Boolean, profileId: St
     webView.addJavascriptInterface(CanvasTouchBridge(), "CanvasTouchBridge")
     webView.addJavascriptInterface(BottomNavBridge(), "BottomNavBridge")
     webView.addJavascriptInterface(NotificationBridge(webView), "ClintNotificationBridge")
-    webView.addJavascriptInterface(ClipboardBridge(webView), "ClintClipboardBridge")
+    webView.clipboardPermissionHandler = { uri, onResult -> showWebClipboardPermission(webView, uri, onResult) }
+    webView.clipboardDismissHandler = { dismissWebClipboardPermission() }
     webView.addJavascriptInterface(BlobDownloadBridge(), "BlobDownloadBridge")
     webView.addJavascriptInterface(DateTimePickerBridge(this, webView), "DateTimePickerBridge")
     webView.addJavascriptInterface(ColorPickerBridge(this, webView), "ColorPickerBridge")
@@ -99,7 +100,6 @@ internal fun MainActivity.syncBaseScripts() {
     val names = listOf(
         "link_touch_tracker" to "link_touch_tracker.js",
         "notification_bridge" to "web_notification_bridge.js",
-        "clipboard_bridge" to "web_clipboard_bridge.js",
         "date_time_picker" to "date_time_picker.js",
         "color_picker" to "color_picker.js",
         "fullscreen_popup_guard" to "fullscreen_popup_guard.js"
@@ -183,13 +183,13 @@ internal fun MainActivity.buildUserAgent(): String {
 
 internal fun MainActivity.applyWebDarkMode(webView: ClintWebView) {
     val theme = prefs.getString("app_theme", "system") ?: "system"
-    val resolved = com.jhaiian.clint.ui.theme.resolveClintTheme(
+    val chrome = com.jhaiian.clint.customtheme.resolveThemeChrome(
         this,
         if (ThemeMode.isLight(theme)) "light" else "dark",
         prefs.getString("accent_color", "material_you") ?: "material_you",
         prefs.getString("surface_intensity", "soft_tint") ?: "soft_tint"
     )
-    webView.setLoadingBackground(resolved.background.toArgb(), true)
+    webView.setLoadingBackground(chrome.background, true)
     ClintGecko.setDarkMode(
         when {
             ThemeMode.isLight(theme) -> 1
@@ -249,10 +249,12 @@ internal fun MainActivity.removeDesktopScript(tab: BrowserTab? = null) {}
 
 internal fun MainActivity.getHomepageUrl(): String {
     val homepage = prefs.getString(com.jhaiian.clint.browser.home.PREF_HOMEPAGE, com.jhaiian.clint.browser.home.HOMEPAGE_CLINT)
-    return if (homepage == com.jhaiian.clint.browser.home.HOMEPAGE_SEARCH_ENGINE) {
-        getSearchEngineHomeUrl()
-    } else {
-        com.jhaiian.clint.browser.home.CLINT_HOME_URL
+    return when (homepage) {
+        com.jhaiian.clint.browser.home.HOMEPAGE_SEARCH_ENGINE -> getSearchEngineHomeUrl()
+        com.jhaiian.clint.browser.home.HOMEPAGE_CUSTOM -> com.jhaiian.clint.browser.home.normalizeCustomHomepageUrl(
+            prefs.getString(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_CUSTOM_URL, "") ?: ""
+        ) ?: com.jhaiian.clint.browser.home.CLINT_HOME_URL
+        else -> com.jhaiian.clint.browser.home.CLINT_HOME_URL
     }
 }
 

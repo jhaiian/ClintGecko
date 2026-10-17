@@ -39,5 +39,8 @@ data class DetectedMedia(
     val representationId: String? = null,
     val estimate: HlsSegmentEstimate? = null,
     val cueCount: Int? = null,
-    val isHlsPlaylist: Boolean = false
+    val isHlsPlaylist: Boolean = false,
+    val codecs: String? = null,
+    val frameRate: Double? = null,
+    val channels: Int? = null
 )

@@ -120,7 +120,9 @@ object MediaManifestParser {
                         groupUrl = manifestUrl,
                         mediaGroupId = attrs["GROUP-ID"],
                         language = attrs["LANGUAGE"],
-                        isDefaultTrack = attrs["DEFAULT"]?.equals("YES", ignoreCase = true) == true
+                        isDefaultTrack = attrs["DEFAULT"]?.equals("YES", ignoreCase = true) == true,
+                        codecs = attrs["CODECS"],
+                        channels = attrs["CHANNELS"]?.substringBefore('/')?.trim()?.toIntOrNull()
                     )
                 }
                 line.isNotEmpty() && !line.startsWith("#") -> {
@@ -156,12 +158,24 @@ object MediaManifestParser {
                         bandwidthBitsPerSec = bandwidth,
                         hasAudio = hasAudio,
                         groupUrl = manifestUrl,
-                        audioGroupRef = attrs?.get("AUDIO")
+                        audioGroupRef = attrs?.get("AUDIO"),
+                        codecs = codecs,
+                        frameRate = MediaCodecNames.parseFrameRate(attrs?.get("FRAME-RATE"))
                     )
                 }
             }
         }
-        return results
+        val audioCodecsByGroup = HashMap<String, String>()
+        for (item in results) {
+            val group = item.audioGroupRef ?: continue
+            if (item.kind != MediaKind.VIDEO || group in audioCodecsByGroup) continue
+            MediaCodecNames.audioCodecString(item.codecs)?.let { audioCodecsByGroup[group] = it }
+        }
+        return results.map { item ->
+            if (item.kind == MediaKind.AUDIO && item.codecs == null) {
+                item.copy(codecs = item.mediaGroupId?.let { audioCodecsByGroup[it] })
+            } else item
+        }
     }
 
     private fun parseIso8601Duration(s: String): Double? {
@@ -188,6 +202,9 @@ object MediaManifestParser {
             var currentAdaptationCodecs: String? = null
             var currentAdaptationLang: String? = null
             var currentAdaptationIsMain: Boolean = false
+            var currentAdaptationFrameRate: String? = null
+            var currentAdaptationChannels: Int? = null
+            var inRepresentation = false
 
             while (eventType != XmlPullParser.END_DOCUMENT) {
                 if (eventType == XmlPullParser.START_TAG) {
@@ -203,11 +220,25 @@ object MediaManifestParser {
                             currentAdaptationCodecs = parser.getAttributeValue(null, "codecs")
                             currentAdaptationLang = parser.getAttributeValue(null, "lang")
                             currentAdaptationIsMain = false
+                            currentAdaptationFrameRate = parser.getAttributeValue(null, "frameRate")
+                            currentAdaptationChannels = null
+                            inRepresentation = false
+                        }
+                        "AudioChannelConfiguration" -> {
+                            val count = parser.getAttributeValue(null, "value")?.trim()?.toIntOrNull()
+                            if (count != null) {
+                                if (inRepresentation && results.isNotEmpty()) {
+                                    results[results.lastIndex] = results.last().copy(channels = count)
+                                } else {
+                                    currentAdaptationChannels = count
+                                }
+                            }
                         }
                         "Role" -> {
                             if (parser.getAttributeValue(null, "value") == "main") currentAdaptationIsMain = true
                         }
                         "Representation" -> {
+                            inRepresentation = true
                             val width = parser.getAttributeValue(null, "width")?.toIntOrNull()
                             val height = parser.getAttributeValue(null, "height")?.toIntOrNull()
                             val bandwidth = parser.getAttributeValue(null, "bandwidth")?.toLongOrNull()
@@ -240,10 +271,17 @@ object MediaManifestParser {
                                 groupUrl = manifestUrl,
                                 language = currentAdaptationLang,
                                 isDefaultTrack = currentAdaptationIsMain,
-                                representationId = repId
+                                representationId = repId,
+                                codecs = codecs,
+                                frameRate = MediaCodecNames.parseFrameRate(
+                                    parser.getAttributeValue(null, "frameRate") ?: currentAdaptationFrameRate
+                                ),
+                                channels = if (kind == MediaKind.AUDIO) currentAdaptationChannels else null
                             )
                         }
                     }
+                } else if (eventType == XmlPullParser.END_TAG && parser.name == "Representation") {
+                    inRepresentation = false
                 }
                 eventType = parser.next()
             }

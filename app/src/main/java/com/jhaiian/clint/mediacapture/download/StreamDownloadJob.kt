@@ -8,11 +8,15 @@ import com.jhaiian.clint.downloads.DownloadItem
 import com.jhaiian.clint.downloads.DownloadNotificationHelper
 import com.jhaiian.clint.downloads.DownloadStatus
 import com.jhaiian.clint.downloads.DownloadWorker
+import com.jhaiian.clint.downloads.StreamStage
 import com.jhaiian.clint.R
 import java.io.File
+import kotlin.coroutines.cancellation.CancellationException
+import org.json.JSONObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
@@ -25,6 +29,26 @@ object StreamDownloadJob {
         if (activeStartedAt > 0L) {
             copy(activeElapsedMs = activeElapsedMs + (System.currentTimeMillis() - activeStartedAt), activeStartedAt = 0L)
         } else this
+
+    private fun readStage(workDir: File, name: String): Pair<File, String>? {
+        val marker = File(workDir, "$name.done")
+        if (!marker.isFile) return null
+        val info = runCatching { JSONObject(marker.readText()) }.getOrNull() ?: return null
+        val extension = info.optString("ext", "").takeIf { it.isNotBlank() } ?: return null
+        val size = info.optLong("size", -1L)
+        val file = File(workDir, "${name}_track.$extension")
+        return if (file.isFile && size > 0L && file.length() == size) file to extension else null
+    }
+
+    private fun writeStage(workDir: File, name: String, file: File, extension: String) {
+        val marker = File(workDir, "$name.done")
+        val temp = File(workDir, "$name.done.tmp")
+        temp.writeText(JSONObject().put("ext", extension).put("size", file.length()).toString())
+        if (!temp.renameTo(marker)) {
+            marker.writeText(temp.readText())
+            temp.delete()
+        }
+    }
 
     suspend fun run(context: Context, initialItem: DownloadItem) {
         if (initialItem.streamFormat == STREAM_FORMAT_HLS_SUBTITLE) {
@@ -49,17 +73,246 @@ object StreamDownloadJob {
             val isLiveCapture = current.streamIsLive
             val videoWorkDir = File(workDir, "video")
             val audioWorkDir = File(workDir, "audio")
+            val companionAudioUrl = current.streamAudioUrl
+            val isCombination = companionAudioUrl != null && !current.streamPrimaryIsAudio
 
-            val videoTrack: ResolvedTrack
-            val audioTrack: ResolvedTrack?
-            val videoSegments: List<DownloadedSegment>
-            val audioSegments: List<DownloadedSegment>
+            val locationMode = current.locationMode
+            val customLocationUri = current.customLocationUri
+            val directCustomDir = DownloadFileHelper.resolveDirectCustomDir(context, current)
+            val safMode = DownloadFileHelper.isSafCustomMode(context, current) && directCustomDir == null
+            val rawDestDir = directCustomDir
+                ?: if (safMode) DownloadFileHelper.tempDownloadDir(context) else DownloadFileHelper.resolveDownloadDir()
+            val directMoveAllowed = !safMode &&
+                DownloadFileHelper.isCustomLocationAccessible(context, locationMode, customLocationUri) &&
+                DownloadFileHelper.canWriteSharedStorageDirectly(context)
+            val assembleDirectly = directMoveAllowed && companionAudioUrl == null
+            var directAssembledFile: File? = null
+
+            var lastTransformNotifyAt = 0L
+            fun onTransformProgress(pct: Int) {
+                publishProgress { it.copy(muxProgress = pct.coerceIn(0, 99)) }
+                val now = System.currentTimeMillis()
+                if (now - lastTransformNotifyAt > 800) {
+                    lastTransformNotifyAt = now
+                    DownloadNotificationHelper.showProgressNotification(context, current)
+                }
+            }
+
+            fun planOutput(trackExtension: String): StreamOutputPlan {
+                val hasAudio = companionAudioUrl != null
+                val userExtension = current.filename.substringAfterLast('.', "").trim().takeIf { it.isNotBlank() }
+                val isTs = trackExtension.equals("ts", ignoreCase = true)
+                val wantsTsConversion = current.streamConvertTsToMp4 && !hasAudio && !current.streamPrimaryIsAudio && isTs
+                val wantsAacConversion = current.streamConvertTsToMp4 && !hasAudio && current.streamPrimaryIsAudio && isTs
+                val audioFragmented = current.streamPrimaryIsAudio && !hasAudio && trackExtension == "mp4"
+                val extension = when {
+                    hasAudio -> "mp4"
+                    audioFragmented && userExtension.equals("aac", ignoreCase = true) -> "m4a"
+                    userExtension != null -> userExtension
+                    wantsTsConversion -> "mp4"
+                    wantsAacConversion -> "aac"
+                    audioFragmented -> "m4a"
+                    trackExtension == "mp4" -> "mp4"
+                    else -> "ts"
+                }
+                return StreamOutputPlan(
+                    extension,
+                    wantsTsConversion && !extension.equals("ts", ignoreCase = true),
+                    wantsAacConversion && extension.equals("aac", ignoreCase = true)
+                )
+            }
+
+            fun reserveDirectTarget(extension: String): File? {
+                val targetName = "${baseName(current.filename)}.$extension"
+                val dir = DownloadCategories.resolveDir(current.categorizeEnabled, rawDestDir, targetName)
+                return runCatching {
+                    dir.mkdirs()
+                    if (dir.isDirectory) DownloadFileHelper.uniqueFile(dir, targetName).takeIf { it.isFile } else null
+                }.getOrNull()
+            }
+
+            suspend fun placeTrack(source: File, target: File, onProgress: (Int) -> Unit) {
+                if (directMoveAllowed && DownloadFileHelper.moveFileDirect(source, target)) return
+                copyFileWithProgress(source, target, onProgress)
+            }
+
+            suspend fun finalizeTrack(name: String, segments: List<DownloadedSegment>, extension: String): File {
+                val encryptedTotal = segments.count { it.key != null }
+                if (encryptedTotal > 0) {
+                    publishProgress { it.copy(status = DownloadStatus.DECRYPTING, segmentsCompleted = 0, segmentsTotal = encryptedTotal) }
+                    DownloadNotificationHelper.showProgressNotification(context, current)
+                    var decryptCompleted = 0
+                    StreamTrackDownloader.decryptSegments(
+                        segments, current.streamPageUrl, "", current.userAgent, ::isCancelled, current.streamHeaders
+                    ) { _, _ ->
+                        decryptCompleted++
+                        publishProgress { it.copy(segmentsCompleted = decryptCompleted) }
+                    }
+                }
+
+                if (assembleDirectly && name == "video") {
+                    val plan = planOutput(extension)
+                    if (!plan.convertTsToMp4 && !plan.convertTsToAac) {
+                        val assembled = reserveDirectTarget(plan.extension)
+                        if (assembled != null) {
+                            publishProgress {
+                                it.copy(
+                                    status = DownloadStatus.MUXING, streamStage = StreamStage.NONE,
+                                    muxProgress = 0, speedBytesPerSec = 0L
+                                )
+                            }
+                            DownloadNotificationHelper.showProgressNotification(context, current)
+                            try {
+                                withContext(Dispatchers.IO) {
+                                    StreamTrackDownloader.concatenateMoving(segments, assembled, { ensureActive() }) { pct ->
+                                        onTransformProgress(pct)
+                                    }
+                                }
+                            } catch (e: Throwable) {
+                                runCatching { assembled.delete() }
+                                throw e
+                            }
+                            directAssembledFile = assembled
+                            return assembled
+                        }
+                    }
+                }
+
+                publishProgress { it.copy(status = DownloadStatus.COPYING_TEMP, copyProgress = 0) }
+                DownloadNotificationHelper.showCopyingTempNotification(context, current)
+
+                val partFile = File(workDir, "${name}_track.part")
+                val trackFile = File(workDir, "${name}_track.$extension")
+                var lastCopyNotifyAt = 0L
+                withContext(Dispatchers.IO) {
+                    StreamTrackDownloader.concatenate(segments, partFile) { pct ->
+                        publishProgress { it.copy(copyProgress = pct) }
+                        val now = System.currentTimeMillis()
+                        if (now - lastCopyNotifyAt > 800) {
+                            lastCopyNotifyAt = now
+                            DownloadNotificationHelper.showCopyingTempNotification(context, current)
+                        }
+                    }
+                    trackFile.delete()
+                    if (!partFile.renameTo(trackFile)) throw java.io.IOException("Failed to finalize $name track")
+                }
+                StreamTrackDownloader.cleanup(segments)
+                writeStage(workDir, name, trackFile, extension)
+                return trackFile
+            }
+
+            var baseSegDone = 0
+            var baseSegTotal = 0
+            var baseSegBytes = 0L
+
+            suspend fun runTrackStage(
+                name: String,
+                stage: StreamStage,
+                segmentsDir: File,
+                url: String,
+                kind: TrackKind,
+                width: Int?,
+                height: Int?,
+                bandwidth: Long?,
+                representationId: String?
+            ): Pair<File, String> {
+                readStage(workDir, name)?.let { finished ->
+                    val savedTotal = runCatching { File(workDir, "$name.total").readText().trim().toInt() }.getOrDefault(0)
+                    baseSegDone += savedTotal
+                    baseSegTotal += savedTotal
+                    baseSegBytes += finished.first.length()
+                    return finished
+                }
+
+                publishProgress {
+                    it.withClockStarted().copy(
+                        status = DownloadStatus.DOWNLOADING, streamStage = stage, segmentsCompleted = 0, segmentsTotal = 0,
+                        bytesDownloaded = 0L, speedBytesPerSec = 0L, copyProgress = 0,
+                        streamSegDone = baseSegDone, streamSegTotal = baseSegTotal, streamSegBytes = baseSegBytes
+                    )
+                }
+                DownloadNotificationHelper.showProgressNotification(context, current)
+
+                fun resolveNow(): ResolvedTrack? = resolveTrack(
+                    format, url, current.streamPageUrl, current.userAgent, kind, width, height, bandwidth,
+                    current.streamHeaders, representationId
+                )
+
+                val track = resolveNow()
+                    ?: throw java.io.IOException(context.getString(R.string.download_error_playlist_unavailable))
+                val totalSegments = track.segments.size + if (track.initSegment != null) 1 else 0
+                runCatching {
+                    workDir.mkdirs()
+                    File(workDir, "$name.total").writeText(totalSegments.toString())
+                }
+                val existing = loadExistingSegments(segmentsDir, track)
+                val bytesAtStart = existing.values.sumOf { it.file.length() }
+
+                publishProgress {
+                    it.copy(
+                        segmentsCompleted = existing.size, segmentsTotal = totalSegments, bytesDownloaded = bytesAtStart,
+                        streamSegDone = baseSegDone + existing.size, streamSegTotal = baseSegTotal + totalSegments,
+                        streamSegBytes = baseSegBytes + bytesAtStart,
+                        totalBytes = if (existing.isNotEmpty()) (bytesAtStart.toDouble() / existing.size * totalSegments).toLong() else -1L
+                    )
+                }
+                DownloadNotificationHelper.showProgressNotification(context, current)
+
+                var completed = existing.size
+                var bytesTotal = bytesAtStart
+                var lastNotifyAt = 0L
+                var lastSpeedBytes = bytesAtStart
+                var lastSpeedTime = System.currentTimeMillis()
+
+                fun onSegmentComplete(segmentBytes: Long) {
+                    completed++
+                    bytesTotal += segmentBytes
+                    val now = System.currentTimeMillis()
+                    val elapsed = now - lastSpeedTime
+                    val speed = if (elapsed >= 500) {
+                        val delta = bytesTotal - lastSpeedBytes
+                        lastSpeedBytes = bytesTotal
+                        lastSpeedTime = now
+                        if (elapsed > 0) delta * 1000L / elapsed else 0L
+                    } else current.speedBytesPerSec
+                    val projectedTotal = (bytesTotal.toDouble() / completed * totalSegments).toLong()
+                    publishProgress {
+                        it.copy(
+                            segmentsCompleted = completed, bytesDownloaded = bytesTotal, speedBytesPerSec = speed, totalBytes = projectedTotal,
+                            streamSegDone = baseSegDone + completed, streamSegBytes = baseSegBytes + bytesTotal
+                        )
+                    }
+                    if (now - lastNotifyAt > 800) {
+                        lastNotifyAt = now
+                        DownloadNotificationHelper.showProgressNotification(context, current)
+                    }
+                }
+
+                val segments = downloadTrackResilient(
+                    track, segmentsDir, current.streamPageUrl, current.userAgent, current.streamHeaders, ::isCancelled,
+                    { resolveNow() },
+                    initialDownloaded = existing,
+                    speedLimiter = ClintDownloadManager.activeSpeedLimiters[current.id],
+                    concurrentSegments = current.streamConcurrentSegments
+                ) { _, _, segBytes -> onSegmentComplete(segBytes) }
+
+                baseSegDone += totalSegments
+                baseSegTotal += totalSegments
+                baseSegBytes += bytesTotal
+
+                val extension = track.containerHintExtension
+                return finalizeTrack(name, segments, extension) to extension
+            }
+
+            val videoTrackFile: File
+            val videoExtension: String
+            val audioTrackFile: File?
 
             if (isLiveCapture) {
                 publishProgress {
                     it.withClockStarted().copy(
                         status = DownloadStatus.DOWNLOADING, segmentsCompleted = 0, segmentsTotal = 0, bytesDownloaded = 0L,
-                        activeElapsedMs = 0L
+                        activeElapsedMs = 0L, streamSegDone = 0, streamSegTotal = 0, streamSegBytes = 0L
                     )
                 }
                 DownloadNotificationHelper.showProgressNotification(context, current)
@@ -81,7 +334,12 @@ object StreamDownloadJob {
                         lastSpeedTime = now
                         if (elapsed > 0) delta * 1000L / elapsed else 0L
                     } else current.speedBytesPerSec
-                    publishProgress { it.copy(segmentsCompleted = liveCompleted, bytesDownloaded = liveBytes, speedBytesPerSec = speed) }
+                    publishProgress {
+                        it.copy(
+                            segmentsCompleted = liveCompleted, bytesDownloaded = liveBytes, speedBytesPerSec = speed,
+                            streamSegDone = liveCompleted, streamSegBytes = liveBytes
+                        )
+                    }
                     if (now - lastNotifyAt > 800) {
                         lastNotifyAt = now
                         DownloadNotificationHelper.showProgressNotification(context, current)
@@ -90,8 +348,8 @@ object StreamDownloadJob {
 
                 videoWorkDir.deleteRecursively()
                 audioWorkDir.deleteRecursively()
-
-                val liveAudioUrl = if (!current.streamNoAudio) current.streamAudioUrl else null
+                File(workDir, "video.done").delete()
+                File(workDir, "audio.done").delete()
 
                 val results = coroutineScope {
                     val videoDeferred = async {
@@ -103,10 +361,10 @@ object StreamDownloadJob {
                             current.streamConcurrentSegments, ::onLiveSegment
                         )
                     }
-                    val audioDeferred = if (liveAudioUrl != null) {
+                    val audioDeferred = if (companionAudioUrl != null) {
                         async {
                             recordLiveTrack(
-                                format, liveAudioUrl, current.streamPageUrl, current.userAgent, current.streamHeaders,
+                                format, companionAudioUrl, current.streamPageUrl, current.userAgent, current.streamHeaders,
                                 audioWorkDir, TrackKind.AUDIO, null, null,
                                 current.streamAudioBandwidth, current.streamAudioRepresentationId,
                                 ::isCancelled, ClintDownloadManager.activeSpeedLimiters[current.id],
@@ -117,222 +375,99 @@ object StreamDownloadJob {
                     videoDeferred.await() to audioDeferred?.await()
                 }
 
-                videoTrack = results.first.second
-                audioTrack = results.second?.second
-                videoSegments = results.first.first
-                audioSegments = results.second?.first ?: emptyList()
+                publishProgress { it.withClockStopped().copy(streamSegTotal = liveCompleted) }
+                videoExtension = results.first.second.containerHintExtension
+                videoTrackFile = finalizeTrack("video", results.first.first, videoExtension)
+                audioTrackFile = results.second?.let { finalizeTrack("audio", it.first, it.second.containerHintExtension) }
             } else {
-                val resolvedVideoTrack = resolveTrack(
-                    format, current.streamVideoUrl, current.streamPageUrl, current.userAgent, primaryKind,
-                    current.streamVideoWidth, current.streamVideoHeight, current.streamVideoBandwidth, current.streamHeaders,
-                    current.streamVideoRepresentationId
-                ) ?: run {
-                    DownloadWorker.fail(context, current.withClockStopped(), context.getString(R.string.download_error_playlist_unavailable))
-                    return
-                }
-                videoTrack = resolvedVideoTrack
-
-                val audioTrackResolved = if (current.streamNoAudio) null else current.streamAudioUrl?.let { url ->
-                    resolveTrack(
-                        format, url, current.streamPageUrl, current.userAgent, TrackKind.AUDIO, null, null,
-                        current.streamAudioBandwidth, current.streamHeaders, current.streamAudioRepresentationId
-                    )
-                }
-                audioTrack = audioTrackResolved
-
-                val videoCount = videoTrack.segments.size + if (videoTrack.initSegment != null) 1 else 0
-                val audioCount = audioTrack?.let { it.segments.size + if (it.initSegment != null) 1 else 0 } ?: 0
-                val totalSegments = videoCount + audioCount
-
-                val existingVideoSegments = loadExistingSegments(videoWorkDir, videoTrack)
-                val existingAudioSegments = audioTrack?.let { loadExistingSegments(audioWorkDir, it) } ?: emptyMap()
-                val alreadyCompleted = existingVideoSegments.size + existingAudioSegments.size
-                val bytesAtStart = existingVideoSegments.values.sumOf { it.file.length() } +
-                    existingAudioSegments.values.sumOf { it.file.length() }
-
-                publishProgress {
-                    it.withClockStarted().copy(
-                        status = DownloadStatus.DOWNLOADING, segmentsCompleted = alreadyCompleted, segmentsTotal = totalSegments,
-                        bytesDownloaded = bytesAtStart,
-                        totalBytes = if (alreadyCompleted > 0) (bytesAtStart.toDouble() / alreadyCompleted * totalSegments).toLong() else it.totalBytes
-                    )
-                }
-                DownloadNotificationHelper.showProgressNotification(context, current)
-
-                var overallCompleted = alreadyCompleted
-                var bytesTotal = bytesAtStart
-                var lastNotifyAt = 0L
-                var lastSpeedBytes = bytesAtStart
-                var lastSpeedTime = System.currentTimeMillis()
-
-                fun onSegmentComplete(segmentBytes: Long) {
-                    overallCompleted++
-                    bytesTotal += segmentBytes
-                    val now = System.currentTimeMillis()
-                    val elapsed = now - lastSpeedTime
-                    val speed = if (elapsed >= 500) {
-                        val delta = bytesTotal - lastSpeedBytes
-                        lastSpeedBytes = bytesTotal
-                        lastSpeedTime = now
-                        if (elapsed > 0) delta * 1000L / elapsed else 0L
-                    } else current.speedBytesPerSec
-                    val projectedTotal = if (overallCompleted > 0) (bytesTotal.toDouble() / overallCompleted * totalSegments).toLong() else bytesTotal
-                    publishProgress {
-                        it.copy(
-                            segmentsCompleted = overallCompleted, bytesDownloaded = bytesTotal, speedBytesPerSec = speed,
-                            totalBytes = projectedTotal
-                        )
-                    }
-                    if (now - lastNotifyAt > 800) {
-                        lastNotifyAt = now
-                        DownloadNotificationHelper.showProgressNotification(context, current)
-                    }
-                }
-
-                videoSegments = downloadTrackResilient(
-                    videoTrack, videoWorkDir, current.streamPageUrl, current.userAgent, current.streamHeaders, ::isCancelled,
-                    {
-                        resolveTrack(
-                            format, current.streamVideoUrl, current.streamPageUrl, current.userAgent, primaryKind,
-                            current.streamVideoWidth, current.streamVideoHeight, current.streamVideoBandwidth, current.streamHeaders,
-                            current.streamVideoRepresentationId
-                        )
-                    },
-                    initialDownloaded = existingVideoSegments,
-                    speedLimiter = ClintDownloadManager.activeSpeedLimiters[current.id],
-                    concurrentSegments = current.streamConcurrentSegments
-                ) { _, _, segBytes -> onSegmentComplete(segBytes) }
-
-                audioSegments = audioTrack?.let { initialAudioTrack ->
-                    downloadTrackResilient(
-                        initialAudioTrack, audioWorkDir, current.streamPageUrl, current.userAgent, current.streamHeaders, ::isCancelled,
-                        {
-                            current.streamAudioUrl?.let { url ->
-                                resolveTrack(
-                                    format, url, current.streamPageUrl, current.userAgent, TrackKind.AUDIO, null, null,
-                                    current.streamAudioBandwidth, current.streamHeaders, current.streamAudioRepresentationId
-                                )
-                            }
-                        },
-                        initialDownloaded = existingAudioSegments,
-                        speedLimiter = ClintDownloadManager.activeSpeedLimiters[current.id],
-                        concurrentSegments = current.streamConcurrentSegments
-                    ) { _, _, segBytes -> onSegmentComplete(segBytes) }
-                } ?: emptyList()
+                val videoStage = runTrackStage(
+                    "video", if (isCombination) StreamStage.VIDEO else StreamStage.NONE, videoWorkDir,
+                    current.streamVideoUrl, primaryKind, current.streamVideoWidth, current.streamVideoHeight,
+                    current.streamVideoBandwidth, current.streamVideoRepresentationId
+                )
+                videoTrackFile = videoStage.first
+                videoExtension = videoStage.second
+                audioTrackFile = if (companionAudioUrl != null) {
+                    runTrackStage(
+                        "audio", StreamStage.AUDIO, audioWorkDir, companionAudioUrl, TrackKind.AUDIO, null, null,
+                        current.streamAudioBandwidth, current.streamAudioRepresentationId
+                    ).first
+                } else null
+                publishProgress { it.withClockStopped() }
             }
-
-            publishProgress { it.withClockStopped() }
-
-            val anyEncrypted = (videoSegments + audioSegments).any { it.key != null }
-            if (anyEncrypted) {
-                val encryptedTotal = (videoSegments + audioSegments).count { it.key != null }
-                publishProgress { it.copy(status = DownloadStatus.DECRYPTING, segmentsCompleted = 0, segmentsTotal = encryptedTotal) }
-                DownloadNotificationHelper.showProgressNotification(context, current)
-
-                var decryptCompleted = 0
-                fun onDecryptProgress() {
-                    decryptCompleted++
-                    publishProgress { it.copy(segmentsCompleted = decryptCompleted) }
-                }
-                StreamTrackDownloader.decryptSegments(
-                    videoSegments, current.streamPageUrl, "", current.userAgent, ::isCancelled, current.streamHeaders
-                ) { _, _ -> onDecryptProgress() }
-                StreamTrackDownloader.decryptSegments(
-                    audioSegments, current.streamPageUrl, "", current.userAgent, ::isCancelled, current.streamHeaders
-                ) { _, _ -> onDecryptProgress() }
-            }
-
-            publishProgress { it.copy(status = DownloadStatus.COPYING_TEMP, copyProgress = 0) }
-            DownloadNotificationHelper.showCopyingTempNotification(context, current)
-
-            var lastCopyNotifyAt = 0L
-            fun onCombineProgress(pct: Int) {
-                publishProgress { it.copy(copyProgress = pct) }
-                val now = System.currentTimeMillis()
-                if (now - lastCopyNotifyAt > 800) {
-                    lastCopyNotifyAt = now
-                    DownloadNotificationHelper.showCopyingTempNotification(context, current)
-                }
-            }
-
-            val videoTrackFile = File(workDir, "video_track.${videoTrack.containerHintExtension}")
-            StreamTrackDownloader.concatenate(videoSegments, videoTrackFile, ::onCombineProgress)
-            val audioTrackFile = audioTrack?.let {
-                val f = File(workDir, "audio_track.${it.containerHintExtension}")
-                StreamTrackDownloader.concatenate(audioSegments, f, ::onCombineProgress)
-                f
-            }
-            publishProgress { it.copy(copyProgress = 100) }
-
-            StreamTrackDownloader.cleanup(videoSegments)
-            StreamTrackDownloader.cleanup(audioSegments)
 
             val needsMux = audioTrackFile != null
-            val userExtension = current.filename.substringAfterLast('.', "").trim().takeIf { it.isNotBlank() }
-            val wantsTsConversion = current.streamConvertTsToMp4 && !needsMux && !current.streamPrimaryIsAudio &&
-                videoTrack.containerHintExtension.equals("ts", ignoreCase = true)
-            val wantsAacConversion = current.streamConvertTsToMp4 && !needsMux && current.streamPrimaryIsAudio &&
-                videoTrack.containerHintExtension.equals("ts", ignoreCase = true)
-            val audioFragmented = current.streamPrimaryIsAudio && !needsMux && videoTrack.containerHintExtension == "mp4"
-            val outExtension = when {
-                audioFragmented && userExtension.equals("aac", ignoreCase = true) -> "m4a"
-                userExtension != null -> userExtension
-                needsMux || wantsTsConversion -> "mp4"
-                wantsAacConversion -> "aac"
-                audioFragmented -> "m4a"
-                videoTrack.containerHintExtension == "mp4" -> "mp4"
-                else -> "ts"
-            }
-            val convertTsToMp4 = wantsTsConversion && !outExtension.equals("ts", ignoreCase = true)
-            val convertTsToAac = wantsAacConversion && outExtension.equals("aac", ignoreCase = true)
+            val outputPlan = planOutput(videoExtension)
+            val outExtension = outputPlan.extension
+            val convertTsToMp4 = outputPlan.convertTsToMp4
+            val convertTsToAac = outputPlan.convertTsToAac
 
+            val mergeInputBytes = videoTrackFile.length() + (audioTrackFile?.length() ?: 0L)
             publishProgress {
-                it.copy(status = if (convertTsToMp4 || convertTsToAac) DownloadStatus.CONVERTING else DownloadStatus.MUXING, muxProgress = 0)
+                it.copy(
+                    status = if (convertTsToMp4 || convertTsToAac) DownloadStatus.CONVERTING else DownloadStatus.MUXING,
+                    streamStage = if (needsMux) StreamStage.MERGING else StreamStage.NONE,
+                    muxProgress = 0, segmentsCompleted = 0, segmentsTotal = 0, speedBytesPerSec = 0L,
+                    bytesDownloaded = mergeInputBytes, totalBytes = mergeInputBytes
+                )
             }
             DownloadNotificationHelper.showProgressNotification(context, current)
 
-            var lastTransformNotifyAt = 0L
-            fun onTransformProgress(pct: Int) {
-                publishProgress { it.copy(muxProgress = pct.coerceIn(0, 99)) }
-                val now = System.currentTimeMillis()
-                if (now - lastTransformNotifyAt > 800) {
-                    lastTransformNotifyAt = now
-                    DownloadNotificationHelper.showProgressNotification(context, current)
-                }
-            }
-
             val inputFiles = listOfNotNull(videoTrackFile, audioTrackFile)
 
-            val locationMode = current.locationMode
-            val customLocationUri = current.customLocationUri
             if (!DownloadFileHelper.isCustomLocationAccessible(context, locationMode, customLocationUri)) {
-                DownloadWorker.fail(context, current.withClockStopped(), context.getString(R.string.download_location_invalid_message))
-                workDir.deleteRecursively()
+                directAssembledFile?.let { runCatching { it.delete() } }
+                DownloadWorker.fail(
+                    context, current.withClockStopped().copy(streamStage = StreamStage.NONE),
+                    context.getString(R.string.download_location_invalid_message), scheduleRetry = false
+                )
                 return
             }
-            val directCustomDir = DownloadFileHelper.resolveDirectCustomDir(context, current)
-            val safMode = DownloadFileHelper.isSafCustomMode(context, current) && directCustomDir == null
-            val rawDestDir = directCustomDir
-                ?: if (safMode) DownloadFileHelper.tempDownloadDir(context) else DownloadFileHelper.resolveDownloadDir()
-
+            val assembledFile = directAssembledFile
             val guessedFinalName = "${baseName(current.filename)}.$outExtension"
-            val destDir = if (safMode) rawDestDir else DownloadCategories.resolveDir(current.categorizeEnabled, rawDestDir, guessedFinalName)
+            val destDir = when {
+                assembledFile != null -> assembledFile.parentFile ?: rawDestDir
+                safMode -> rawDestDir
+                else -> DownloadCategories.resolveDir(current.categorizeEnabled, rawDestDir, guessedFinalName)
+            }
             destDir.mkdirs()
-            val finalFilename = DownloadFileHelper.uniqueFile(destDir, guessedFinalName).name
-            var finalFile = File(destDir, finalFilename)
+            val finalFilename = assembledFile?.name ?: DownloadFileHelper.uniqueFile(destDir, guessedFinalName).name
+            var finalFile = assembledFile ?: File(destDir, finalFilename)
 
             if (needsMux) {
-                val result = MediaRemuxer.remux(
-                    context,
-                    inputFiles.map { it.path },
-                    finalFile.path
-                ) { pct -> onTransformProgress(pct) }
+                val result = try {
+                    MediaRemuxer.remux(
+                        context,
+                        inputFiles.map { it.path },
+                        finalFile.path,
+                        current.streamAudioLanguage
+                    ) { pct -> onTransformProgress(pct) }
+                } catch (e: CancellationException) {
+                    runCatching { finalFile.delete() }
+                    throw e
+                }
                 if (!result.success) {
+                    runCatching { finalFile.delete() }
                     val message = result.errorMessage?.let {
                         context.getString(R.string.download_error_mux_failed_detail, it)
                     } ?: context.getString(R.string.download_error_mux_failed)
-                    DownloadWorker.fail(context, current.withClockStopped(), message)
-                    workDir.deleteRecursively()
+                    DownloadWorker.fail(
+                        context, current.withClockStopped().copy(streamStage = StreamStage.NONE), message, scheduleRetry = false
+                    )
+                    return
+                }
+                val verification = MediaRemuxer.verify(finalFile.path, expectVideo = true, expectAudio = true)
+                if (verification != MuxVerification.OK) {
+                    runCatching { finalFile.delete() }
+                    val messageRes = when (verification) {
+                        MuxVerification.MISSING_VIDEO -> R.string.download_error_mux_missing_video
+                        MuxVerification.MISSING_AUDIO -> R.string.download_error_mux_missing_audio
+                        else -> R.string.download_error_mux_unreadable
+                    }
+                    DownloadWorker.fail(
+                        context, current.withClockStopped().copy(streamStage = StreamStage.NONE),
+                        context.getString(messageRes), scheduleRetry = false
+                    )
                     return
                 }
             } else if (convertTsToAac) {
@@ -343,7 +478,7 @@ object StreamDownloadJob {
                 if (!converted) {
                     runCatching { finalFile.delete() }
                     finalFile = DownloadFileHelper.uniqueFile(destDir, "${baseName(finalFilename)}.ts")
-                    videoTrackFile.copyTo(finalFile, overwrite = true)
+                    placeTrack(videoTrackFile, finalFile) { }
                 }
             } else if (convertTsToMp4) {
                 val conversionTarget = finalFile
@@ -353,10 +488,15 @@ object StreamDownloadJob {
                 if (!converted) {
                     runCatching { finalFile.delete() }
                     finalFile = DownloadFileHelper.uniqueFile(destDir, "${baseName(finalFilename)}.ts")
-                    videoTrackFile.copyTo(finalFile, overwrite = true)
+                    placeTrack(videoTrackFile, finalFile) { }
                 }
-            } else {
-                videoTrackFile.copyTo(finalFile, overwrite = true)
+            } else if (assembledFile == null) {
+                try {
+                    placeTrack(videoTrackFile, finalFile) { pct -> onTransformProgress(pct) }
+                } catch (e: CancellationException) {
+                    runCatching { finalFile.delete() }
+                    throw e
+                }
             }
 
             publishProgress { it.copy(muxProgress = 100) }
@@ -376,6 +516,7 @@ object StreamDownloadJob {
             current = current.withClockStopped().copy(
                 filename = finalFile.name,
                 file = finalFile,
+                streamStage = StreamStage.NONE,
                 totalBytes = finalFile.length(),
                 bytesDownloaded = finalFile.length()
             )
@@ -406,6 +547,28 @@ object StreamDownloadJob {
         }
     }
 
+    private class StreamOutputPlan(val extension: String, val convertTsToMp4: Boolean, val convertTsToAac: Boolean)
+
+    private suspend fun copyFileWithProgress(source: File, target: File, onProgress: (Int) -> Unit) {
+        withContext(Dispatchers.IO) {
+            val total = source.length().coerceAtLeast(1L)
+            var copied = 0L
+            source.inputStream().use { input ->
+                target.outputStream().use { output ->
+                    val buffer = ByteArray(256 * 1024)
+                    while (true) {
+                        ensureActive()
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        output.write(buffer, 0, read)
+                        copied += read
+                        onProgress((copied * 100 / total).toInt())
+                    }
+                }
+            }
+        }
+    }
+
     private const val MAX_RESOLVE_ATTEMPTS = 5
 
     private suspend fun downloadTrackResilient(
@@ -418,7 +581,7 @@ object StreamDownloadJob {
         resolve: () -> ResolvedTrack?,
         initialDownloaded: Map<Int, DownloadedSegment> = emptyMap(),
         speedLimiter: com.jhaiian.clint.downloads.SpeedLimiter? = null,
-        concurrentSegments: Int = 6,
+        concurrentSegments: Int = 12,
         onProgress: (completed: Int, total: Int, segmentBytes: Long) -> Unit
     ): List<DownloadedSegment> {
         var track = initialTrack
@@ -467,6 +630,25 @@ object StreamDownloadJob {
     private fun baseName(filename: String): String {
         val dot = filename.lastIndexOf('.')
         return if (dot > 0) filename.substring(0, dot) else filename
+    }
+
+    internal fun savedSegmentTotal(context: Context, id: Int, name: String): Int? {
+        val dir = File(context.filesDir, "stream_downloads/$id")
+        if (File(dir, "$name.done").isFile) return null
+        return File(dir, "$name.total").takeIf { it.isFile }?.readText()?.trim()?.toIntOrNull()
+    }
+
+    internal fun probeTrack(item: DownloadItem, url: String, companion: Boolean): ResolvedTrack? {
+        val format = if (item.streamFormat == "DASH") StreamContainerFormat.DASH else StreamContainerFormat.HLS
+        val kind = if (companion || item.streamPrimaryIsAudio) TrackKind.AUDIO else TrackKind.VIDEO
+        return resolveTrack(
+            format, url, item.streamPageUrl, item.userAgent, kind,
+            if (companion) null else item.streamVideoWidth,
+            if (companion) null else item.streamVideoHeight,
+            if (companion) item.streamAudioBandwidth else item.streamVideoBandwidth,
+            item.streamHeaders,
+            if (companion) item.streamAudioRepresentationId else item.streamVideoRepresentationId
+        )
     }
 
     private fun resolveTrack(
@@ -583,7 +765,8 @@ object StreamDownloadJob {
         try {
             publishProgress {
                 it.withClockStarted().copy(
-                    status = DownloadStatus.DOWNLOADING, segmentsCompleted = 0, segmentsTotal = 0, bytesDownloaded = 0L
+                    status = DownloadStatus.DOWNLOADING, segmentsCompleted = 0, segmentsTotal = 0, bytesDownloaded = 0L,
+                    streamSegDone = 0, streamSegTotal = 0, streamSegBytes = 0L
                 )
             }
             DownloadNotificationHelper.showProgressNotification(context, current)
@@ -593,7 +776,12 @@ object StreamDownloadJob {
                 HlsSubtitleResolver.fetch(
                     current.streamVideoUrl, current.streamPageUrl, current.userAgent, current.streamHeaders, ::isCancelled
                 ) { completed, total, bytes ->
-                    publishProgress { it.copy(segmentsCompleted = completed, segmentsTotal = total, bytesDownloaded = bytes) }
+                    publishProgress {
+                        it.copy(
+                            segmentsCompleted = completed, segmentsTotal = total, bytesDownloaded = bytes,
+                            streamSegDone = completed, streamSegTotal = total, streamSegBytes = bytes
+                        )
+                    }
                     val now = System.currentTimeMillis()
                     if (now - lastNotifyAt > 800) {
                         lastNotifyAt = now

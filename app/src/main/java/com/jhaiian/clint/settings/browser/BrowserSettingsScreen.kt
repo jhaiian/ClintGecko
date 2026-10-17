@@ -1,11 +1,14 @@
 package com.jhaiian.clint.settings.browser
 import com.jhaiian.clint.browser.home.HOMEPAGE_SEARCH_ENGINE
+import com.jhaiian.clint.browser.home.HOMEPAGE_CUSTOM
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.AutoDelete
 import com.jhaiian.clint.tabs.InactiveTabsPolicy
 import androidx.compose.material.icons.filled.Gradient
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
@@ -44,10 +47,11 @@ import com.jhaiian.clint.ui.theme.LocalClintColors
 @Composable
 fun BrowserSettingsScreen(
     state: BrowserSettingsUiState,
-    onHomepageConfirmed: (String) -> Unit,
+    onHomepageConfirmed: (String, String) -> Unit,
     onHomepageDesignConfirmed: (String) -> Unit,
     onHomepageImageRowClicked: () -> Unit,
     onHomepageShowFavoritesClicked: () -> Unit,
+    onHomepageShowQuickActionsClicked: () -> Unit,
     onHomepageShowRecentClicked: () -> Unit,
     onHomepageCenterContentClicked: () -> Unit,
     onDeleteInactiveTabsConfirmed: (String) -> Unit,
@@ -57,6 +61,7 @@ fun BrowserSettingsScreen(
     onCustomSearchSuggestionsApiSaved: (name: String, url: String) -> Unit,
     onJavascriptRowClicked: () -> Unit,
     onBackgroundPlaybackRowClicked: () -> Unit,
+    onAboutConfigRowClicked: () -> Unit,
     onShortcutManagerRowClicked: () -> Unit,
     onWebsiteBlockerRowClicked: () -> Unit,
     onIncognitoSearchHistoryRowClicked: () -> Unit,
@@ -64,13 +69,14 @@ fun BrowserSettingsScreen(
     onExtensionsRowClicked: () -> Unit
 ) {
     val colors = LocalClintColors.current
-    val homepageOptionsEnabled = state.homepage != HOMEPAGE_SEARCH_ENGINE
+    val homepageOptionsEnabled = state.homepage != HOMEPAGE_SEARCH_ENGINE && state.homepage != HOMEPAGE_CUSTOM
 
     SettingsScreenScaffold(
         overlay = {
             if (state.homepageDialogOpen) {
                 HomepageDialog(
                     current = state.homepage,
+                    currentCustomUrl = state.homepageCustomUrl,
                     hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
                     onConfirm = onHomepageConfirmed,
                     onDismiss = { state.homepageDialogOpen = false }
@@ -121,7 +127,7 @@ fun BrowserSettingsScreen(
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Home,
                 title = stringResource(R.string.homepage_title),
-                summary = homepageSummaryText(state.homepage),
+                summary = homepageSummaryText(state.homepage, state.homepageCustomUrl),
                 colors = colors,
                 onClick = { state.homepageDialogOpen = true }
             )
@@ -143,6 +149,17 @@ fun BrowserSettingsScreen(
                     onClick = { if (homepageOptionsEnabled) onHomepageImageRowClicked() }
                 )
             }
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Apps,
+                title = stringResource(R.string.homepage_show_quick_actions_title),
+                summary = stringResource(R.string.homepage_show_quick_actions_summary),
+                colors = colors,
+                enabled = homepageOptionsEnabled,
+                onClick = { if (homepageOptionsEnabled) onHomepageShowQuickActionsClicked() },
+                trailing = {
+                    ClintSwitch(checked = state.homepageShowQuickActions && homepageOptionsEnabled)
+                }
+            )
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Bookmark,
                 title = stringResource(R.string.homepage_show_favorites_title),
@@ -255,6 +272,16 @@ fun BrowserSettingsScreen(
                 }
             )
             SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Tune,
+                title = stringResource(R.string.about_config_title),
+                summary = stringResource(R.string.about_config_summary),
+                colors = colors,
+                onClick = onAboutConfigRowClicked,
+                trailing = {
+                    ClintSwitch(checked = state.aboutConfigEnabled)
+                }
+            )
+            SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.AccountCircle,
                 title = stringResource(R.string.profiles_title),
                 summary = stringResource(R.string.profiles_settings_summary),
@@ -301,8 +328,9 @@ private fun deleteInactiveTabsSummaryText(value: String): String = when (value) 
 }
 
 @Composable
-private fun homepageSummaryText(homepage: String): String = when (homepage) {
+private fun homepageSummaryText(homepage: String, customUrl: String): String = when (homepage) {
     HOMEPAGE_SEARCH_ENGINE -> stringResource(R.string.homepage_search_engine)
+    HOMEPAGE_CUSTOM -> customUrl.ifBlank { stringResource(R.string.homepage_custom) }
     else -> stringResource(R.string.homepage_clint)
 }
 

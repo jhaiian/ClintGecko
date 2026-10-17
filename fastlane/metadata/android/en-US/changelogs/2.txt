@@ -1,0 +1,8 @@
+• Custom theme editor with live preview
+• Merge muted video with separate audio in Media Capture
+• Segment details and real muxing progress in downloads
+• Privacy: tracking protection, App lock, Block screenshots, Clear data on exit, Secure DNS
+• Custom homepage URL and optional about:config
+• Better battery life and memory use
+• Engine crashes in Debug & Crash Reports
+• Fixed Android 10 storage, clipboard, autofill, notifications

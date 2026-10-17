@@ -298,7 +298,7 @@ fun DownloadSettingsScreen(
                 title = stringResource(R.string.download_concurrent_segments_title),
                 description = stringResource(R.string.download_concurrent_segments_desc),
                 value = state.concurrentSegments,
-                valueRange = 1..8,
+                valueRange = 1..24,
                 summary = pluralStringResource(R.plurals.download_concurrent_segments_value, state.concurrentSegments, state.concurrentSegments),
                 colors = colors,
                 onValueChange = onConcurrentSegmentsChange

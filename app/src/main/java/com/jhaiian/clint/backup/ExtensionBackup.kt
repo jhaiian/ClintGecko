@@ -45,7 +45,7 @@ object ExtensionBackup {
             val chosen = profiles.firstOrNull { it["Default"] == "1" } ?: profiles.firstOrNull()
             val path = chosen?.get("Path")
             if (!path.isNullOrBlank()) {
-                val dir = if (chosen?.get("IsRelative") == "0") File(path) else File(mozilla, path)
+                val dir = if (chosen["IsRelative"] == "0") File(path) else File(mozilla, path)
                 if (dir.isDirectory) return dir
             }
         }

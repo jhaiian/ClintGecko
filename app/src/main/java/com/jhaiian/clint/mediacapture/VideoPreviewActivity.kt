@@ -69,6 +69,7 @@ import com.jhaiian.clint.ui.theme.LocalClintColors
 
 private const val EXTRA_TAB_ID = "tab_id"
 private const val EXTRA_MEDIA_ID = "media_id"
+private const val EXTRA_AUDIO_MEDIA_ID = "audio_media_id"
 
 private fun orientationFor(width: Int?, height: Int?): Int = when {
     width == null || height == null || width <= 0 || height <= 0 -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -79,11 +80,12 @@ private fun orientationFor(width: Int?, height: Int?): Int = when {
 class VideoPreviewActivity : ClintActivity() {
 
     companion object {
-        fun start(context: Context, tabId: String, mediaId: String) {
+        fun start(context: Context, tabId: String, mediaId: String, audioMediaId: String? = null) {
             context.startActivity(
                 Intent(context, VideoPreviewActivity::class.java)
                     .putExtra(EXTRA_TAB_ID, tabId)
                     .putExtra(EXTRA_MEDIA_ID, mediaId)
+                    .putExtra(EXTRA_AUDIO_MEDIA_ID, audioMediaId)
             )
         }
     }
@@ -95,11 +97,14 @@ class VideoPreviewActivity : ClintActivity() {
 
         val tabId = intent.getStringExtra(EXTRA_TAB_ID)
         val mediaId = intent.getStringExtra(EXTRA_MEDIA_ID)
-        val media = tabId?.let { id -> MediaCaptureStore.observe(id).value.firstOrNull { it.id == mediaId } }
+        val audioMediaId = intent.getStringExtra(EXTRA_AUDIO_MEDIA_ID)
+        val detected = tabId?.let { id -> MediaCaptureStore.observe(id).value }
+        val media = detected?.firstOrNull { it.id == mediaId }
         if (media == null) {
             finish()
             return
         }
+        val audio = audioMediaId?.let { id -> detected.firstOrNull { it.id == id && it.kind == MediaKind.AUDIO } }
 
         requestedOrientation = orientationFor(media.width, media.height)
 
@@ -109,6 +114,7 @@ class VideoPreviewActivity : ClintActivity() {
             ClintComposeTheme(theme = theme) {
                 VideoPreviewPlayer(
                     media = media,
+                    audio = audio,
                     onVideoSizeDetected = { width, height -> requestedOrientation = orientationFor(width, height) },
                     onKeepScreenOnChanged = { keepOn -> setKeepScreenOn(keepOn) },
                     onClose = { finish() }
@@ -169,6 +175,7 @@ private fun PlayerView.applyAccentControls(accent: Int, onAccent: Int) {
 @Composable
 private fun VideoPreviewPlayer(
     media: DetectedMedia,
+    audio: DetectedMedia?,
     onVideoSizeDetected: (Int, Int) -> Unit,
     onKeepScreenOnChanged: (Boolean) -> Unit,
     onClose: () -> Unit
@@ -181,10 +188,9 @@ private fun VideoPreviewPlayer(
     var hasError by remember(media.id) { mutableStateOf(false) }
     var controlsVisible by remember(media.id) { mutableStateOf(false) }
 
-    val player = remember(media.id) {
-        val dataSourceFactory = createMediaPreviewDataSourceFactory(context, media)
+    val player = remember(media.id, audio?.id) {
         ExoPlayer.Builder(context).build().apply {
-            setMediaSource(buildMediaPreviewSource(media, dataSourceFactory))
+            setMediaSource(buildCombinedMediaPreviewSource(context, media, audio))
             prepare()
             playWhenReady = true
         }

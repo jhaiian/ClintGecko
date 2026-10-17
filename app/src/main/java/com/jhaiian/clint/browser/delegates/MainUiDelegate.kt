@@ -223,6 +223,7 @@ internal fun MainActivity.loadUrl(input: String) {
 internal fun MainActivity.formatUrl(input: String): String {
     val t = input.trim()
     return when {
+        t.equals("about:config", ignoreCase = true) && prefs.getBoolean("about_config_enabled", false) -> "about:config"
         t.startsWith("http://") || t.startsWith("https://") || t.startsWith("moz-extension://") -> t
         t.contains(".") && !t.contains(" ") -> {
             val host = t.substringBefore("/").substringBefore(":")
@@ -393,14 +394,14 @@ internal fun MainActivity.updateHomeButtonState() {
 }
 
 internal fun MainActivity.updateSwipeRefreshColors(isIncognito: Boolean) {
-    val resolved = com.jhaiian.clint.ui.theme.resolveClintTheme(
+    val chrome = com.jhaiian.clint.customtheme.resolveThemeChrome(
         this,
         if (com.jhaiian.clint.ui.theme.ThemeMode.isLight(prefs.getString("app_theme", "system") ?: "system")) "light" else "dark",
         prefs.getString("accent_color", "material_you") ?: "material_you",
         prefs.getString("surface_intensity", "soft_tint") ?: "soft_tint"
     )
-    swipeRefreshView.setProgressBackgroundColorSchemeColor(resolved.cardBackground.toArgb())
-    swipeRefreshView.setColorSchemeColors(resolved.primary.toArgb())
+    swipeRefreshView.setProgressBackgroundColorSchemeColor(chrome.cardBackground)
+    swipeRefreshView.setColorSchemeColors(chrome.primary)
 }
 
 internal fun MainActivity.hideKeyboard() {

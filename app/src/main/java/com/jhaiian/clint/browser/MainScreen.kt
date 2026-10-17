@@ -70,6 +70,10 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
     LaunchedEffect(rawStatusBarPx) {
         if (rawStatusBarPx > 0) state.cachedStatusBarInsetPx = rawStatusBarPx
     }
+    LaunchedEffect(rawImePx, state.searchOverlayOpen) {
+        state.imeInsetPx = if (state.searchOverlayOpen) 0 else rawImePx
+        activity.updateMainContentInsets()
+    }
     LaunchedEffect(rawNavBarPx) {
         if (rawNavBarPx > 0) state.navBarInsetPx = rawNavBarPx
     }
@@ -90,7 +94,7 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
             factory = { activity.swipeRefreshView },
             modifier = Modifier.fillMaxSize(),
             update = { view ->
-                view.setPadding(0, state.contentPaddingTopPx, 0, state.contentPaddingBottomPx)
+                view.setPadding(0, state.contentPaddingTopPx, 0, maxOf(state.contentPaddingBottomPx, state.imeInsetPx))
             }
         )
 
@@ -173,7 +177,8 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
                 onClose = { activity.closeSearchOverlay() },
                 onSuggestionClick = { activity.onSuggestionChosen(it) },
                 onSuggestionDelete = { activity.onSuggestionHistoryDelete(it) },
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                incognitoKeyboard = state.isIncognito && com.jhaiian.clint.privacy.IncognitoKeyboard.isEnabled(activity)
             )
         }
 
@@ -242,6 +247,15 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
         }
         state.refreshLinkDialogRequest?.let { req ->
             com.jhaiian.clint.browser.dialogs.RefreshLinkDialog(req, hideStatusBarPref, hideSystemNavigationPref) { state.refreshLinkDialogRequest = null }
+        }
+        state.cookiesControlRequest?.let { req ->
+            com.jhaiian.clint.browser.dialogs.CookiesControlDialog(req, hideStatusBarPref, hideSystemNavigationPref) { state.cookiesControlRequest = null }
+        }
+        state.cookiesControlExportRequest?.let { req ->
+            com.jhaiian.clint.browser.dialogs.CookiesControlExportDialog(req, hideStatusBarPref, hideSystemNavigationPref) { state.cookiesControlExportRequest = null }
+        }
+        state.cookiesControlImportRequest?.let { req ->
+            com.jhaiian.clint.browser.dialogs.CookiesControlImportDialog(req, hideStatusBarPref, hideSystemNavigationPref) { state.cookiesControlImportRequest = null }
         }
         if (state.profilePickerOpen) {
             com.jhaiian.clint.profiles.ProfilePickerDialog(

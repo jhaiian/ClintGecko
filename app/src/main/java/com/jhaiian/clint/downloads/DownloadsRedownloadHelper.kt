@@ -96,6 +96,10 @@ private fun DownloadsActivity.performRedownload(
 ) {
     fun startRedownload(effectiveUnmeteredOnly: Boolean) {
         if (DownloadFileHelper.isCustomLocationAccessible(this, locationMode, customLocationUri)) onDismiss()
+        if (item.isStream) {
+            ClintDownloadManager.enqueueStreamFromItem(this, item, filename, speedLimitBytesPerSec, locationMode, customLocationUri, categorizeEnabled)
+            return
+        }
         ClintDownloadManager.enqueue(this, item.url, filename, item.userAgent, item.referer, item.cookies, retryEnabled, effectiveUnmeteredOnly, splitParts, multithreadingParts, speedLimitBytesPerSec, locationMode, customLocationUri, categorizeEnabled = categorizeEnabled)
     }
     confirmMeteredWarningThenProceed(unmeteredOnly) { effectiveUnmeteredOnly ->

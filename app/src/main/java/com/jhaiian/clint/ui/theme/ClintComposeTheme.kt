@@ -1,5 +1,9 @@
 package com.jhaiian.clint.ui.theme
 
+import com.jhaiian.clint.customtheme.CUSTOM_THEME_REVISION_PREF
+import com.jhaiian.clint.customtheme.isCustomAccent
+import com.jhaiian.clint.customtheme.resolveCustomPalette
+import com.jhaiian.clint.customtheme.toClintColors
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -68,17 +72,25 @@ private fun ClintColors(resolved: ClintResolvedTheme) = ClintColors(
 @Composable
 fun ClintComposeTheme(theme: String, content: @Composable () -> Unit) {
     val context = LocalContext.current
-    val resolvedTheme = if (rememberIsLightTheme(theme)) "light" else "dark"
+    val isLightTheme = rememberIsLightTheme(theme)
+    val resolvedTheme = if (isLightTheme) "light" else "dark"
     val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
     val accent = prefs.getString("accent_color", "material_you") ?: "material_you"
     val intensity = prefs.getString("surface_intensity", "soft_tint") ?: "soft_tint"
 
-    val resolved = remember(resolvedTheme, accent, intensity) {
-        resolveClintTheme(context, resolvedTheme, accent, intensity)
-    }
-    val clintColors = remember(resolved) { ClintColors(resolved) }
+    val revision = prefs.getLong(CUSTOM_THEME_REVISION_PREF, 0L)
 
-    val isLight = resolved.isLight
+    val clintColors = remember(resolvedTheme, accent, intensity, revision) {
+        val palette = resolveCustomPalette(context, accent, isLightTheme)
+        if (palette != null) {
+            palette.toClintColors(isLightTheme)
+        } else {
+            val safeAccent = if (isCustomAccent(accent)) "material_you" else accent
+            ClintColors(resolveClintTheme(context, resolvedTheme, safeAccent, intensity))
+        }
+    }
+
+    val isLight = clintColors.isLight
     val base = if (isLight) lightColorScheme() else darkColorScheme()
     val colorScheme = base.copy(
         primary = clintColors.primary,

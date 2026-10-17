@@ -336,17 +336,7 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
             onPositive = {
                 items.forEach { item ->
                     ClintDownloadManager.remove(this, item.id, true)
-                    ClintDownloadManager.enqueue(
-                        this, item.url, item.filename, item.userAgent,
-                        item.referer, item.cookies,
-                        retryEnabled = item.retryEnabled,
-                        unmeteredOnly = item.unmeteredOnly,
-                        splitParts = item.splitParts,
-                        multithreadingParts = item.multithreadingParts,
-                        speedLimitBytesPerSec = item.speedLimitBytesPerSec,
-                        locationMode = item.locationMode,
-                        customLocationUri = item.customLocationUri
-                    )
+                    ClintDownloadManager.redownloadItem(this, item)
                 }
                 lastRefreshMs = 0L
                 uiState.exitSelectionMode()
@@ -455,17 +445,7 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
             onPositive = {
                 ClintDownloadManager.remove(this, item.id, true)
                 lastRefreshMs = 0L
-                ClintDownloadManager.enqueue(
-                    this, item.url, item.filename, item.userAgent,
-                    item.referer, item.cookies,
-                    retryEnabled = item.retryEnabled,
-                    unmeteredOnly = item.unmeteredOnly,
-                    splitParts = item.splitParts,
-                    multithreadingParts = item.multithreadingParts,
-                    speedLimitBytesPerSec = item.speedLimitBytesPerSec,
-                    locationMode = item.locationMode,
-                    customLocationUri = item.customLocationUri
-                )
+                ClintDownloadManager.redownloadItem(this, item)
             },
             negativeLabel = getString(R.string.action_cancel)
         )

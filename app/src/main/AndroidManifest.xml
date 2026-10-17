@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="28" />
+        android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.CAMERA" />
@@ -55,6 +55,7 @@
     <application
         android:name=".app.ClintApplication"
         android:allowBackup="true"
+        android:requestLegacyExternalStorage="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -75,7 +76,7 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
-            android:windowSoftInputMode="stateHidden">
+            android:windowSoftInputMode="stateHidden|adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -158,6 +159,12 @@
 
         <activity
             android:name=".extensions.ExtensionsActivity"
+            android:exported="false"
+            android:configChanges="uiMode|screenSize|smallestScreenSize|screenLayout|orientation"
+            android:parentActivityName=".settings.SettingsActivity" />
+
+        <activity
+            android:name=".customtheme.CustomThemesActivity"
             android:exported="false"
             android:configChanges="uiMode|screenSize|smallestScreenSize|screenLayout|orientation"
             android:parentActivityName=".settings.SettingsActivity" />
@@ -247,10 +254,23 @@
             android:name=".downloads.DownloadCustomScheduleReceiver"
             android:exported="false" />
 
+        <activity
+            android:name=".privacy.AppLockActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:configChanges="uiMode|screenSize|smallestScreenSize|screenLayout|orientation"
+            android:windowSoftInputMode="stateHidden" />
+
         <service
             android:name=".downloads.DownloadForegroundService"
             android:exported="false"
             android:foregroundServiceType="dataSync|mediaProcessing" />
+
+        <service
+            android:name=".crash.GeckoCrashService"
+            android:exported="false"
+            android:process=":crash"
+            android:foregroundServiceType="shortService" />
 
         <service
             android:name=".media.MediaPlaybackService"

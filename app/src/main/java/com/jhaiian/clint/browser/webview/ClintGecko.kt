@@ -35,6 +35,12 @@ object ClintGecko {
     private const val BG_APP = "clintBg"
     const val CONTENT_APP = "clint"
     private const val READY_TIMEOUT_MS = 8000L
+    private const val MAX_PENDING_BINDINGS = 64
+    private const val RUNNING_CRITICAL = 15
+    private const val TRIM_MEMORY_BACKGROUND_LEVEL = 40
+    private const val TRIM_MEMORY_MODERATE_LEVEL = 60
+    private const val TRIM_DEBOUNCE_MS = 5000L
+    private const val COOKIE_OP_TIMEOUT_MS = 8000L
 
     private lateinit var appContext: Context
     private var runtimeRef: GeckoRuntime? = null
@@ -56,13 +62,14 @@ object ClintGecko {
         private set
     private var bgPort: WebExtension.Port? = null
 
-    private val views = Collections.synchronizedMap(WeakHashMap<GeckoSession, ClintWebView>())
+    private val views = Collections.synchronizedMap(WeakHashMap<GeckoSession, WeakReference<ClintWebView>>())
     private val pendingNonces = ConcurrentHashMap<String, WeakReference<ClintWebView>>()
     private val pendingTabs = ConcurrentHashMap<String, Pair<Int, String>>()
     private val tabByExt = ConcurrentHashMap<Int, WeakReference<ClintWebView>>()
     private val storeByProfile = ConcurrentHashMap<String, String>()
     private val cookieWaiters = ConcurrentHashMap<Int, (String) -> Unit>()
     private val cookieSeq = AtomicInteger()
+    private val cookieOpWaiters = ConcurrentHashMap<Int, (Any?) -> Unit>()
 
     @Volatile var foregroundView: WeakReference<ClintWebView>? = null
 
@@ -75,14 +82,13 @@ object ClintGecko {
     private val specRefs = ConcurrentHashMap<String, WeakReference<Any>>()
     private var bundleSeq = 0
     private var bundleScheduled = false
-    private var runtimeJs: String? = null
+    @Volatile private var runtimeJs: String? = null
+    @Volatile private var lastTrimAt = 0L
     @Volatile private var bundleInFlight = false
     private val syncWaiters = ArrayList<() -> Unit>()
 
     private val kinds = mapOf(
         "ClintNotificationBridge.getPermissionState" to "p",
-        "ClintClipboardBridge.getPermissionState" to "p",
-        "ClintClipboardBridge.readClipboardText" to "a",
         "ClintDataSaverBridge.isExcepted" to "x"
     )
 
@@ -92,25 +98,48 @@ object ClintGecko {
         }.getOrDefault("159.0")
     }
 
-    fun defaultUserAgent(): String {
+    fun nativeUserAgent(): String {
         val major = geckoVersion.substringBefore('.')
         return "Mozilla/5.0 (Android ${Build.VERSION.RELEASE}; Mobile; rv:$major.0) Gecko/$major.0 Firefox/$major.0"
     }
 
+    fun genericUserAgent(): String {
+        val major = geckoVersion.substringBefore('.')
+        return "Mozilla/5.0 (Android 10; Mobile; rv:$major.0) Gecko/$major.0 Firefox/$major.0"
+    }
+
+    fun isGenericUserAgentEnabled(): Boolean {
+        if (!::appContext.isInitialized) return true
+        val context = appContext
+        return runCatching {
+            androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean("custom_user_agent", true)
+        }.getOrDefault(true)
+    }
+
+    fun defaultUserAgent(): String =
+        if (isGenericUserAgentEnabled()) genericUserAgent() else nativeUserAgent()
+
     fun init(context: Context) {
         if (runtimeRef != null) return
         appContext = context.applicationContext
+        val aboutConfigEnabled = androidx.preference.PreferenceManager.getDefaultSharedPreferences(appContext)
+            .getBoolean("about_config_enabled", false)
         val settings = GeckoRuntimeSettings.Builder()
             .javaScriptEnabled(true)
-            .aboutConfigEnabled(false)
+            .aboutConfigEnabled(aboutConfigEnabled)
             .remoteDebuggingEnabled(false)
             .extensionsWebAPIEnabled(true)
             .consoleOutput((appContext.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0)
+            .crashHandler(com.jhaiian.clint.crash.GeckoCrashService::class.java)
             .build()
         runCatching { com.jhaiian.clint.backup.ExtensionBackup.applyPending(appContext) }
         runCatching { com.jhaiian.clint.backup.CookieBackup.applyPending(appContext) }
         runtimeRef = GeckoRuntime.create(appContext, settings)
         disableTelemetry()
+        SecureDns.apply(appContext)
+        com.jhaiian.clint.privacy.PrivacyPrefs.applyGeckoPrefs(appContext)
+        com.jhaiian.clint.privacy.PrivacyGuard.onRuntimeReady(appContext)
         com.jhaiian.clint.extensions.ClintExtensions.init(appContext, runtime)
         installExtension()
         main.postDelayed({ markReady() }, READY_TIMEOUT_MS)
@@ -178,7 +207,7 @@ object ClintGecko {
                 if (ext != null) {
                     extension = ext
                     ext.setMessageDelegate(backgroundDelegate, BG_APP)
-                    synchronized(views) { views.values.toList() }.forEach { it.attachExtension(ext) }
+                    synchronized(views) { views.values.toList() }.forEach { it.get()?.attachExtension(ext) }
                 } else {
                     markReady()
                 }
@@ -231,6 +260,7 @@ object ClintGecko {
                 markReady()
             }
             "cookiesRes" -> cookieWaiters.remove(msg.optInt("id"))?.invoke(msg.optString("cookie"))
+            "ckRes" -> cookieOpWaiters.remove(msg.optInt("id"))?.invoke(msg.opt("res")?.takeIf { it !== JSONObject.NULL })
         }
     }
 
@@ -239,7 +269,7 @@ object ClintGecko {
     }
 
     fun registerView(view: ClintWebView) {
-        views[view.session] = view
+        views[view.session] = WeakReference(view)
         com.jhaiian.clint.extensions.ClintExtensions.onSessionCreated(view.session)
         extension?.let { view.attachExtension(it) }
     }
@@ -250,7 +280,36 @@ object ClintGecko {
         pendingNonces.entries.removeAll { it.value.get() === view || it.value.get() == null }
     }
 
-    fun viewFor(session: GeckoSession?): ClintWebView? = session?.let { views[it] }
+    fun setForeground(view: ClintWebView) {
+        if (foregroundView?.get() !== view) foregroundView = WeakReference(view)
+    }
+
+    fun clearForeground(view: ClintWebView) {
+        if (foregroundView?.get() === view) foregroundView = null
+    }
+
+    private fun <V : Any> ConcurrentHashMap<String, V>.capAt(limit: Int) {
+        var excess = size - limit
+        if (excess <= 0) return
+        val iter = keys.iterator()
+        while (excess > 0 && iter.hasNext()) {
+            remove(iter.next())
+            excess--
+        }
+    }
+
+    fun trimMemory(level: Int) {
+        val rt = runtimeRef ?: return
+        val severe = level >= TRIM_MEMORY_MODERATE_LEVEL || level == RUNNING_CRITICAL
+        if (level >= TRIM_MEMORY_BACKGROUND_LEVEL) runtimeJs = null
+        if (!severe) return
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastTrimAt < TRIM_DEBOUNCE_MS) return
+        lastTrimAt = now
+        runCatching { rt.storageController.clearData(StorageController.ClearFlags.IMAGE_CACHE) }
+    }
+
+    fun viewFor(session: GeckoSession?): ClintWebView? = session?.let { views[it]?.get() }
 
     fun noteNonce(nonce: String, view: ClintWebView) {
         val tab = pendingTabs.remove(nonce)
@@ -258,12 +317,18 @@ object ClintGecko {
             bindTab(tab.first, tab.second, view)
         } else {
             pendingNonces[nonce] = WeakReference(view)
+            pendingNonces.capAt(MAX_PENDING_BINDINGS)
         }
     }
 
     private fun onTabInfo(nonce: String, tabId: Int, storeId: String) {
         val view = pendingNonces.remove(nonce)?.get()
-        if (view != null) bindTab(tabId, storeId, view) else pendingTabs[nonce] = tabId to storeId
+        if (view != null) {
+            bindTab(tabId, storeId, view)
+        } else {
+            pendingTabs[nonce] = tabId to storeId
+            pendingTabs.capAt(MAX_PENDING_BINDINGS)
+        }
     }
 
     private fun bindTab(tabId: Int, storeId: String, view: ClintWebView) {
@@ -277,7 +342,9 @@ object ClintGecko {
     private fun resolveView(tabId: Int, pageUrl: String): ClintWebView? {
         tabByExt[tabId]?.get()?.let { return it }
         if (pageUrl.isNotEmpty()) {
-            val match = synchronized(views) { views.values.firstOrNull { it.url == pageUrl || it.rawUrl == pageUrl } }
+            val match = synchronized(views) {
+                views.values.firstNotNullOfOrNull { ref -> ref.get()?.takeIf { it.url == pageUrl || it.rawUrl == pageUrl } }
+            }
             if (match != null) return match
         }
         return foregroundView?.get()
@@ -415,6 +482,16 @@ object ClintGecko {
         main.postDelayed({ cookieWaiters.remove(id)?.invoke("") }, 3000)
     }
 
+    fun cookieOpAsync(op: String, url: String, storeId: String?, payload: JSONObject?, callback: (Any?) -> Unit) {
+        val id = cookieSeq.incrementAndGet()
+        cookieOpWaiters[id] = callback
+        val msg = JSONObject().put("k", "ck").put("id", id).put("op", op).put("url", url)
+        if (!storeId.isNullOrEmpty()) msg.put("storeId", storeId)
+        payload?.keys()?.forEach { key -> msg.put(key, payload.get(key)) }
+        postToBackground(msg)
+        main.postDelayed({ cookieOpWaiters.remove(id)?.invoke(null) }, COOKIE_OP_TIMEOUT_MS)
+    }
+
     fun cookieStoreFor(profileId: String?): String? = storeByProfile[profileId ?: ""]
 
     fun cookiesBlocking(url: String, profileId: String? = null): String {
@@ -431,6 +508,15 @@ object ClintGecko {
 
     fun clearAllData() {
         runtime.storageController.clearData(StorageController.ClearFlags.ALL)
+    }
+
+    fun isRuntimeReady(): Boolean = runtimeRef != null
+
+    fun clearData(flags: Long, onDone: () -> Unit) {
+        val started = runCatching {
+            runtime.storageController.clearData(flags).accept({ onDone() }, { onDone() })
+        }
+        if (started.isFailure) onDone()
     }
 
     fun clearCache() {

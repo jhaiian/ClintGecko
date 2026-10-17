@@ -42,6 +42,15 @@ Ginawa ang Clint Gecko gamit ang Material 3 at Jetpack Compose, at madaling i-cu
 • 5 antas ng surface intensity
 • Sa kabuuan, 500 posibleng kombinasyon ng theme
 
+<b>PRIVACY AT SEGURIDAD</b>
+• Tracking protection, fingerprinting protection, Global Privacy Control, trimmed referrer, at WebRTC leak protection
+• Secure DNS over HTTPS (Cloudflare, Google, Quad9, o custom)
+• App lock gamit ang fingerprint, mukha, o screen lock
+• Block screenshots at incognito keyboard
+• Auto-clear ng clipboard at pag-clear ng data sa paglabas
+• Strict certificate checking
+• Walang backend, analytics, o pangongolekta ng data
+
 <b>WEBSITE BLOCKER</b>
 • Hinaharangan ang porn, sugal, at iba pang ayaw mong makita
 • Mga filter list ayon sa kategorya (abuse, ads, crypto, droga, panloloko, sugal, at iba pa)
