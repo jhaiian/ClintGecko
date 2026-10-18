@@ -25,9 +25,10 @@ internal fun MainActivity.onShowFileChooser(
                 negativeLabel = getString(com.jhaiian.clint.R.string.action_not_now),
                 onNegative = {
                     val cb = pendingFileChooserCallback
+                    val pending = pendingFileChooserParams
                     pendingFileChooserCallback = null
                     pendingFileChooserParams = null
-                    cb?.onReceiveValue(null)
+                    if (cb != null && pending != null && !launchFileChooser(cb, pending)) cb.onReceiveValue(null)
                 }
             )
         } else {
@@ -52,7 +53,11 @@ internal fun MainActivity.launchFileChooser(
 
     val extraIntents = mutableListOf<android.content.Intent>()
 
-    if (!isVideoOnly) {
+    val canUseCamera = androidx.core.content.ContextCompat.checkSelfPermission(
+        this, android.Manifest.permission.CAMERA
+    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    if (!isVideoOnly && canUseCamera) {
         try {
             val values = android.content.ContentValues().apply {
                 put(android.provider.MediaStore.Images.Media.TITLE, "clint_capture_${System.currentTimeMillis()}")
@@ -70,7 +75,7 @@ internal fun MainActivity.launchFileChooser(
 
     if (!isImageOnly) {
         try { extraIntents.add(android.content.Intent(android.provider.MediaStore.Audio.Media.RECORD_SOUND_ACTION)) } catch (_: Exception) {}
-        try { extraIntents.add(android.content.Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE)) } catch (_: Exception) {}
+        if (canUseCamera) extraIntents.add(android.content.Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE))
     }
 
     val mimeType = when {

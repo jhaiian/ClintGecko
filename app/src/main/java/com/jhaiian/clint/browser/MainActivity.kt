@@ -156,11 +156,7 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
         val params = pendingFileChooserParams
         pendingFileChooserCallback = null
         pendingFileChooserParams = null
-        if (granted && cb != null && params != null) {
-            launchFileChooser(cb, params)
-        } else if (cb != null) {
-            cb.onReceiveValue(null)
-        }
+        if (cb != null && params != null && !launchFileChooser(cb, params)) cb.onReceiveValue(null)
     }
 
     internal val microphonePermissionLauncher = registerForActivityResult(
@@ -249,9 +245,9 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
                 else -> null
             }
         } else {
-            cameraImageUri?.let { contentResolver.delete(it, null, null) }
             null
         }
+        cameraImageUri?.takeIf { uris?.contains(it) != true }?.let { runCatching { contentResolver.delete(it, null, null) } }
         filePathCallback?.onReceiveValue(uris)
         filePathCallback = null
         cameraImageUri = null

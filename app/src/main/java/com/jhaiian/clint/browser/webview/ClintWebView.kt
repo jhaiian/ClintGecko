@@ -982,10 +982,16 @@ class ClintWebView(
             val client = webChromeClient
             val multiple = prompt.type == GeckoSession.PromptDelegate.FilePrompt.Type.MULTIPLE
             val callback = ValueCallback<Array<Uri>> { uris ->
-                when {
-                    uris == null || uris.isEmpty() -> result.complete(prompt.dismiss())
-                    multiple -> result.complete(prompt.confirm(context, uris))
-                    else -> result.complete(prompt.confirm(context, uris[0]))
+                if (uris == null || uris.isEmpty()) {
+                    result.complete(prompt.dismiss())
+                    return@ValueCallback
+                }
+                UploadCache.copyAsync(context, uris) { files ->
+                    when {
+                        files.isEmpty() -> result.complete(prompt.dismiss())
+                        multiple -> result.complete(prompt.confirm(context, files))
+                        else -> result.complete(prompt.confirm(context, files[0]))
+                    }
                 }
             }
             val params = FileChooserParams(
