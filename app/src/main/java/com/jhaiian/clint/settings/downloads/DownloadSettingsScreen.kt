@@ -2,6 +2,7 @@ package com.jhaiian.clint.settings.downloads
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.BatterySaver
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Folder
@@ -89,6 +90,7 @@ fun DownloadSettingsScreen(
     onMultithreadingPartsChange: (Int) -> Unit,
     onConcurrentSegmentsChange: (Int) -> Unit,
     onSpeedLimitConfirm: (amount: Int, unit: String) -> Unit,
+    onTotalSpeedLimitConfirm: (amount: Int, unit: String) -> Unit,
     onRetryEnabledClick: () -> Unit,
     onRetryUnrecoverableClick: () -> Unit,
     onRetryCountConfirm: (Int) -> Unit,
@@ -97,6 +99,7 @@ fun DownloadSettingsScreen(
     onGrantAllFilesAccessClick: () -> Unit,
     onPushNotificationsClick: () -> Unit,
     onKeepScreenOnClick: () -> Unit,
+    onDownloadLogClick: () -> Unit,
     onQuickDownloadClick: () -> Unit,
     onQuickDownloadImagesClick: () -> Unit,
     onDialogUiSelected: (String) -> Unit
@@ -136,6 +139,10 @@ fun DownloadSettingsScreen(
                 DownloadSettingsDialog.SPEED_LIMIT -> SpeedLimitDialog(
                     currentAmount = state.speedLimitAmount, currentUnit = state.speedLimitUnit, hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
                     onConfirm = onSpeedLimitConfirm, onDismiss = { state.openDialog = null }
+                )
+                DownloadSettingsDialog.TOTAL_SPEED_LIMIT -> SpeedLimitDialog(
+                    currentAmount = state.totalSpeedLimitAmount, currentUnit = state.totalSpeedLimitUnit, hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
+                    onConfirm = onTotalSpeedLimitConfirm, onDismiss = { state.openDialog = null }
                 )
                 DownloadSettingsDialog.DOWNLOAD_MANAGER -> DownloadManagerDialog(
                     current = state.downloadManagerApp, hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
@@ -319,6 +326,19 @@ fun DownloadSettingsScreen(
                 colors = colors,
                 onClick = { state.openDialog = DownloadSettingsDialog.SPEED_LIMIT }
             )
+            RowDivider(colors.divider)
+            val totalUnitLabel = stringResource(if (state.totalSpeedLimitUnit == SPEED_LIMIT_UNIT_MB) R.string.speed_limit_unit_mb else R.string.speed_limit_unit_kb)
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Speed,
+                title = stringResource(R.string.download_total_speed_limit_title),
+                summary = if (state.totalSpeedLimitAmount <= 0) {
+                    stringResource(R.string.download_total_speed_limit_unlimited)
+                } else {
+                    stringResource(R.string.download_speed_limit_value, state.totalSpeedLimitAmount, totalUnitLabel)
+                },
+                colors = colors,
+                onClick = { state.openDialog = DownloadSettingsDialog.TOTAL_SPEED_LIMIT }
+            )
         }
 
         SectionLabel(stringResource(R.string.download_section_retry), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
@@ -393,6 +413,15 @@ fun DownloadSettingsScreen(
                 colors = colors,
                 onClick = onKeepScreenOnClick,
                 trailing = { ClintSwitch(checked = state.keepScreenOn) }
+            )
+            RowDivider(colors.divider)
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.BugReport,
+                title = stringResource(R.string.download_log_title),
+                summary = stringResource(R.string.download_log_summary),
+                colors = colors,
+                onClick = onDownloadLogClick,
+                trailing = { ClintSwitch(checked = state.downloadLog) }
             )
         }
 

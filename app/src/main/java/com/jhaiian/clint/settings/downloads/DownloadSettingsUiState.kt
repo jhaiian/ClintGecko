@@ -6,7 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 enum class DownloadSettingsDialog {
-    MEASUREMENT_SYSTEM, RETRY_COUNT, RETRY_INTERVAL, SPEED_LIMIT, DOWNLOAD_MANAGER, DIALOG_UI
+    MEASUREMENT_SYSTEM, RETRY_COUNT, RETRY_INTERVAL, SPEED_LIMIT, TOTAL_SPEED_LIMIT, DOWNLOAD_MANAGER, DIALOG_UI
 }
 
 class DownloadSettingsUiState(
@@ -26,6 +26,8 @@ class DownloadSettingsUiState(
     initialConcurrentSegments: Int,
     initialSpeedLimitAmount: Int,
     initialSpeedLimitUnit: String,
+    initialTotalSpeedLimitAmount: Int,
+    initialTotalSpeedLimitUnit: String,
     initialRetryEnabled: Boolean,
     initialRetryUnrecoverable: Boolean,
     initialRetryCount: Int,
@@ -35,6 +37,7 @@ class DownloadSettingsUiState(
     initialAllFilesAccessGranted: Boolean,
     initialPushNotifications: Boolean,
     initialKeepScreenOn: Boolean,
+    initialDownloadLog: Boolean,
     initialQuickDownload: Boolean,
     initialQuickDownloadImages: Boolean,
     initialHideStatusBar: Boolean,
@@ -59,6 +62,8 @@ initialHideSystemNavigation: Boolean
 
     var speedLimitAmount by mutableStateOf(initialSpeedLimitAmount)
     var speedLimitUnit by mutableStateOf(initialSpeedLimitUnit)
+    var totalSpeedLimitAmount by mutableStateOf(initialTotalSpeedLimitAmount)
+    var totalSpeedLimitUnit by mutableStateOf(initialTotalSpeedLimitUnit)
 
     var retryEnabled by mutableStateOf(initialRetryEnabled)
     var retryUnrecoverable by mutableStateOf(initialRetryUnrecoverable)
@@ -72,6 +77,7 @@ initialHideSystemNavigation: Boolean
 
     var pushNotifications by mutableStateOf(initialPushNotifications)
     var keepScreenOn by mutableStateOf(initialKeepScreenOn)
+    var downloadLog by mutableStateOf(initialDownloadLog)
     var quickDownload by mutableStateOf(initialQuickDownload)
     var quickDownloadImages by mutableStateOf(initialQuickDownloadImages)
     var hideStatusBar by mutableStateOf(initialHideStatusBar)

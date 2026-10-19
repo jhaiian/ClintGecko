@@ -19,15 +19,23 @@ internal fun MainActivity.onShowCustomView(view: View, callback: CustomViewCallb
     val ctrl = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
     ctrl.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
     ctrl.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-    tabManager.activeTab?.webView?.evaluateJavascript(loadJsAsset("video_dimensions.js")) { result ->
+    applyFullscreenOrientation(view, retry = true)
+}
+
+private fun MainActivity.applyFullscreenOrientation(view: View, retry: Boolean) {
+    val webView = tabManager.activeTab?.webView ?: return
+    webView.queryVideoSize { result ->
+        if (fullscreenView !== view) return@queryVideoSize
         val parts = result?.trim('"')?.split(",")
         val vw = parts?.getOrNull(0)?.toIntOrNull() ?: 0
         val vh = parts?.getOrNull(1)?.toIntOrNull() ?: 0
-
+        if ((vw <= 0 || vh <= 0) && retry) {
+            view.postDelayed({ if (fullscreenView === view) applyFullscreenOrientation(view, retry = false) }, 400)
+            return@queryVideoSize
+        }
         requestedOrientation = when {
-            vw > 0 && vh > 0 && vw >= vh -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-            vw > 0 && vh > 0 && vh > vw  -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
-            else                          -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            vw > 0 && vh > 0 && vh > vw -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+            else -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         }
     }
 }

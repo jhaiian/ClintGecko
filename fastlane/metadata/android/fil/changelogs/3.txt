@@ -1,0 +1,9 @@
+• Bagong disenyo ng Download Manager na may Queue at Library
+• Totoong preview ng video, musika, PDF at APK
+• Live na speed graph at segment map
+• Swipe gestures at bagong file details sheet
+• Download Log at Total Speed Limit
+• Mas mabilis at maaasahang download na tuloy kahit isara ang app
+• Ayos sa upload at download sa extensions
+• Ayos sa upload sa ilang device
+• Hindi na natatakpan ng navigation bar ang pages

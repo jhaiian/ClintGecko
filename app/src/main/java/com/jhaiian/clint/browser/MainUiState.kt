@@ -71,6 +71,7 @@ internal class MainUiState {
     var statusBarInsetPx by mutableIntStateOf(0)
     var cachedStatusBarInsetPx by mutableIntStateOf(0)
     var navBarInsetPx by mutableIntStateOf(0)
+    var systemNavInsetPx by mutableIntStateOf(0)
     var hideStatusBar by mutableStateOf(false)
     var hideSystemNavigation by mutableStateOf(false)
 

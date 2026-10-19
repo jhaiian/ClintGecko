@@ -7,7 +7,6 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.GppGood
 import androidx.compose.material.icons.filled.HideImage
 import androidx.compose.material.icons.filled.Keyboard
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.PhonelinkLock
 import androidx.compose.material.icons.filled.Timer
@@ -47,7 +46,6 @@ fun PrivacySettingsScreen(
     onStripTrackingParamsClick: () -> Unit,
     onGlobalPrivacyControlClick: () -> Unit,
     onFingerprintingProtectionClick: () -> Unit,
-    onReferrerTrimmingClick: () -> Unit,
     onWebRtcProtectionClick: () -> Unit,
     onClearOnExitClick: () -> Unit,
     onClearOnExitConfirmed: (history: Boolean, cookies: Boolean, cache: Boolean) -> Unit,
@@ -189,17 +187,6 @@ fun PrivacySettingsScreen(
                 onClick = onGlobalPrivacyControlClick,
                 trailing = {
                     ClintSwitch(checked = state.globalPrivacyControl)
-                }
-            )
-            RowDivider(colors.divider)
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.Link,
-                title = stringResource(R.string.referrer_trimming_title),
-                summary = stringResource(R.string.referrer_trimming_summary),
-                colors = colors,
-                onClick = onReferrerTrimmingClick,
-                trailing = {
-                    ClintSwitch(checked = state.referrerTrimming)
                 }
             )
             RowDivider(colors.divider)

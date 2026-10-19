@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -17,7 +18,11 @@ import androidx.compose.ui.graphics.asImageBitmap
 import com.jhaiian.clint.R
 import com.jhaiian.clint.app.ClintApplication
 import com.jhaiian.clint.browser.MainActivity
+import com.jhaiian.clint.browser.dialogs.JsDialogRequest
+import com.jhaiian.clint.browser.dialogs.JsDialogType
 import com.jhaiian.clint.browser.webview.ClintGecko
+import com.jhaiian.clint.browser.webview.UploadCache
+import com.jhaiian.clint.downloads.ResponseDownloads
 import org.mozilla.geckoview.AllowOrDeny
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoRuntime
@@ -26,6 +31,7 @@ import org.mozilla.geckoview.Image
 import org.mozilla.geckoview.WebExtension
 import org.mozilla.geckoview.WebExtension.InstallException.ErrorCodes
 import org.mozilla.geckoview.WebExtensionController
+import org.mozilla.geckoview.WebResponse
 import java.util.WeakHashMap
 
 object ClintExtensions {
@@ -50,6 +56,10 @@ object ClintExtensions {
     var prompt by mutableStateOf<ExtensionPrompt?>(null)
         private set
     var popup by mutableStateOf<ExtensionPopup?>(null)
+        private set
+    var popupFileRequest by mutableStateOf<ExtensionFileRequest?>(null)
+        private set
+    var popupDialog by mutableStateOf<JsDialogRequest?>(null)
         private set
     private var actionVersion by mutableIntStateOf(0)
 
@@ -604,7 +614,12 @@ object ClintExtensions {
             override fun onCloseRequest(session: GeckoSession) {
                 closePopup()
             }
+
+            override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
+                saveDownload(response)
+            }
         }
+        session.promptDelegate = popupPromptDelegate
         session.navigationDelegate = object : GeckoSession.NavigationDelegate {
             override fun onNewSession(session: GeckoSession, uri: String): GeckoResult<GeckoSession>? {
                 openInTab(uri)
@@ -633,7 +648,114 @@ object ClintExtensions {
     fun closePopup() {
         val current = popup ?: return
         popup = null
+        finishFilePick(emptyList())
+        popupDialog?.cancel()
+        popupDialog = null
         main.postDelayed({ runCatching { current.session.close() } }, 400)
+    }
+
+    fun finishFilePick(uris: List<Uri>) {
+        val request = popupFileRequest ?: return
+        popupFileRequest = null
+        request.onResult(uris)
+    }
+
+    fun dismissPopupDialog(request: JsDialogRequest) {
+        request.cancel()
+        if (popupDialog === request) popupDialog = null
+    }
+
+    private fun pickerMimeTypes(raw: Array<String>?): Array<String> {
+        val types = raw.orEmpty().mapNotNull { token ->
+            val value = token.trim().lowercase()
+            when {
+                value.isEmpty() -> null
+                value.startsWith(".") -> MimeTypeMap.getSingleton().getMimeTypeFromExtension(value.removePrefix(".")) ?: "*/*"
+                value.contains('/') -> value
+                else -> "*/*"
+            }
+        }.distinct()
+        return if (types.isEmpty() || "*/*" in types) arrayOf("*/*") else types.toTypedArray()
+    }
+
+    private fun saveDownload(response: WebResponse) {
+        val uri = response.uri
+        if (!ResponseDownloads.isInline(uri) && (uri.startsWith("http://", true) || uri.startsWith("https://", true))) {
+            runCatching { response.body?.close() }
+            openInTab(uri)
+            return
+        }
+        if (!ResponseDownloads.save(currentActivityContext(), response)) toast(R.string.download_response_failed)
+    }
+
+    private val popupPromptDelegate = object : GeckoSession.PromptDelegate {
+        private fun dialog(
+            session: GeckoSession,
+            type: JsDialogType,
+            message: String?,
+            default: String,
+            onConfirm: (String) -> Unit,
+            onCancel: () -> Unit
+        ) {
+            val current = popup
+            if (current == null || current.session !== session) {
+                onCancel()
+                return
+            }
+            popupDialog?.cancel()
+            popupDialog = JsDialogRequest(type, current.title, message.orEmpty(), default, onConfirm, onCancel)
+        }
+
+        override fun onAlertPrompt(session: GeckoSession, prompt: GeckoSession.PromptDelegate.AlertPrompt): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+            val result = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+            dialog(session, JsDialogType.Alert, prompt.message, "", { result.complete(prompt.dismiss()) }, { result.complete(prompt.dismiss()) })
+            return result
+        }
+
+        override fun onButtonPrompt(session: GeckoSession, prompt: GeckoSession.PromptDelegate.ButtonPrompt): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+            val result = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+            dialog(
+                session, JsDialogType.Confirm, prompt.message, "",
+                { result.complete(prompt.confirm(GeckoSession.PromptDelegate.ButtonPrompt.Type.POSITIVE)) },
+                { result.complete(prompt.confirm(GeckoSession.PromptDelegate.ButtonPrompt.Type.NEGATIVE)) }
+            )
+            return result
+        }
+
+        override fun onTextPrompt(session: GeckoSession, prompt: GeckoSession.PromptDelegate.TextPrompt): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+            val result = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+            dialog(
+                session, JsDialogType.Prompt, prompt.message, prompt.defaultValue.orEmpty(),
+                { value -> result.complete(prompt.confirm(value)) },
+                { result.complete(prompt.dismiss()) }
+            )
+            return result
+        }
+
+        override fun onFilePrompt(session: GeckoSession, prompt: GeckoSession.PromptDelegate.FilePrompt): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+            val current = popup
+            if (current == null || current.session !== session) return GeckoResult.fromValue(prompt.dismiss())
+            val result = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+            val multiple = prompt.type == GeckoSession.PromptDelegate.FilePrompt.Type.MULTIPLE
+            finishFilePick(emptyList())
+            popupFileRequest = ExtensionFileRequest(pickerMimeTypes(prompt.mimeTypes), multiple) { uris ->
+                if (uris.isEmpty()) {
+                    result.complete(prompt.dismiss())
+                } else {
+                    UploadCache.copyAsync(appContext, uris.toTypedArray()) { files ->
+                        when {
+                            files.isEmpty() -> {
+                                toast(R.string.ext_toast_file_failed)
+                                result.complete(prompt.dismiss())
+                            }
+                            multiple -> result.complete(prompt.confirm(appContext, files))
+                            else -> result.complete(prompt.confirm(appContext, files[0]))
+                        }
+                    }
+                }
+            }
+            return result
+        }
     }
 
     fun openInTab(url: String) {

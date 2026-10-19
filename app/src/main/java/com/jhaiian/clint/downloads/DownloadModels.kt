@@ -70,6 +70,8 @@ data class DownloadItem(
     @Transient val activeStartedAt: Long = 0L,
     @Transient val parallelRateLimited: Boolean = false,
     val completedAt: Long = 0L,
+    val queueOrder: Long = System.currentTimeMillis(),
+    @Transient val partProgress: List<Float> = emptyList(),
     val retryEnabled: Boolean = true,
     val lastErrorWasServerError: Boolean = false,
     val unmeteredOnly: Boolean = false,
@@ -84,6 +86,10 @@ data class DownloadItem(
     val completedPartsMask: Long = 0L,
 
     val partOffsets: String = "",
+
+    val partMap: String = "",
+    val etag: String? = null,
+    val lastModified: String? = null,
 
     val isStream: Boolean = false,
     val streamVideoUrl: String = "",

@@ -3,6 +3,7 @@
     <external-path name="downloads" path="Download/" />
     <root-path name="external_root" path="." />
     <external-files-path name="external_files" path="." />
+    <files-path name="download_logs" path="download_logs/" />
     <cache-path name="apk_updates" path="updates/" />
     <cache-path name="camera_uploads" path="uploads/" />
     <cache-path name="image_cache" path="image_cache/" />

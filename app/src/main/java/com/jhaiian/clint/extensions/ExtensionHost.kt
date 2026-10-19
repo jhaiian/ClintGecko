@@ -2,6 +2,8 @@ package com.jhaiian.clint.extensions
 
 import android.content.Context
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -47,6 +49,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
+import com.jhaiian.clint.browser.dialogs.JsDialog
 import com.jhaiian.clint.ui.ClintDialog
 import com.jhaiian.clint.ui.ClintDialogActionFooter
 import com.jhaiian.clint.ui.ClintSwitch
@@ -72,6 +75,29 @@ fun ExtensionHost() {
     }
     ClintExtensions.popup?.let { popup ->
         ExtensionPopupDialog(popup)
+    }
+    ClintExtensions.popupDialog?.let { request ->
+        JsDialog(request, hideStatusBar, hideSystemNavigation) { ClintExtensions.dismissPopupDialog(request) }
+    }
+    ExtensionFilePicker()
+}
+
+@Composable
+private fun ExtensionFilePicker() {
+    val single = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        ClintExtensions.finishFilePick(listOfNotNull(uri))
+    }
+    val multiple = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        ClintExtensions.finishFilePick(uris)
+    }
+    val request = ClintExtensions.popupFileRequest
+    LaunchedEffect(request) {
+        if (request == null || request.launched) return@LaunchedEffect
+        request.launched = true
+        val launched = runCatching {
+            if (request.multiple) multiple.launch(request.mimeTypes) else single.launch(request.mimeTypes)
+        }.isSuccess
+        if (!launched) ClintExtensions.finishFilePick(emptyList())
     }
 }
 

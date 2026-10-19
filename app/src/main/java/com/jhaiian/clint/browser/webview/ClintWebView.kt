@@ -234,6 +234,13 @@ class ClintWebView(
         dispatchToPage(JSONObject().put("k", "eval").put("code", script).put("id", id))
     }
 
+    fun queryVideoSize(callback: (String?) -> Unit) {
+        val id = evalSeq.incrementAndGet().toString()
+        pendingEval[id] = callback
+        ClintGecko.main.postDelayed({ pendingEval.remove(id)?.invoke(null) }, 5000)
+        dispatchToPage(JSONObject().put("k", "videoSize").put("id", id))
+    }
+
     fun extractReaderContent(callback: (String?) -> Unit) {
         val id = evalSeq.incrementAndGet().toString()
         pendingEval[id] = callback
@@ -707,6 +714,12 @@ class ClintWebView(
         override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
             val headers = response.headers
             fun header(name: String): String? = headers.entries.firstOrNull { it.key.equals(name, true) }?.value
+            if (com.jhaiian.clint.downloads.ResponseDownloads.isInline(response.uri)) {
+                if (!com.jhaiian.clint.downloads.ResponseDownloads.save(context, response)) {
+                    android.widget.Toast.makeText(context, R.string.download_response_failed, android.widget.Toast.LENGTH_SHORT).show()
+                }
+                return
+            }
             runCatching { response.body?.close() }
             if (com.jhaiian.clint.extensions.ClintExtensions.isXpiMime(
                     header("Content-Type")?.substringBefore(';')?.trim(),

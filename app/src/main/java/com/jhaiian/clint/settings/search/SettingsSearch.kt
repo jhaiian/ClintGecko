@@ -45,7 +45,6 @@ import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.GppGood
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PhonelinkLock
 import androidx.compose.material.icons.filled.ContentPasteOff
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -360,7 +359,6 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
         item(R.string.strip_tracking_params_title, R.string.strip_tracking_params_summary, R.string.privacy_section_tracking, icon = Icons.Filled.LinkOff)
         item(R.string.fingerprinting_protection_title, R.string.fingerprinting_protection_summary, R.string.privacy_section_tracking, icon = Icons.Filled.Fingerprint)
         item(R.string.global_privacy_control_title, R.string.global_privacy_control_summary, R.string.privacy_section_tracking, icon = Icons.Filled.GppGood)
-        item(R.string.referrer_trimming_title, R.string.referrer_trimming_summary, R.string.privacy_section_tracking, icon = Icons.Filled.Link)
         item(R.string.webrtc_protection_title, R.string.webrtc_protection_summary, R.string.privacy_section_tracking, icon = Icons.Filled.Videocam)
         item(R.string.app_lock_title, R.string.app_lock_summary, R.string.privacy_section_device, icon = Icons.Filled.PhonelinkLock)
         item(R.string.screenshot_blocking_title, R.string.screenshot_blocking_summary, R.string.privacy_section_device, icon = Icons.Filled.HideImage)

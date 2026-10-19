@@ -98,7 +98,7 @@ Clint Gecko is built with **Material 3** and **Jetpack Compose**, with a highly 
 
 ### 🔒 Privacy & Security
 
-- Tracking protection: strip tracking parameters, fingerprinting protection, Global Privacy Control, trimmed referrer, and WebRTC leak protection
+- Tracking protection: strip tracking parameters, fingerprinting protection, Global Privacy Control, and WebRTC leak protection
 - Secure DNS over HTTPS with Cloudflare, Google, Quad9, or your own provider
 - App lock with your fingerprint, face, or screen lock
 - Block screenshots and screen recording

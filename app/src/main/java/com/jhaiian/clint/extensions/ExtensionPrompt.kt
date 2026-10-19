@@ -44,3 +44,11 @@ class ExtensionPopup(
     val session: GeckoSession,
     val fullScreen: Boolean
 )
+
+class ExtensionFileRequest(
+    val mimeTypes: Array<String>,
+    val multiple: Boolean,
+    val onResult: (List<android.net.Uri>) -> Unit
+) {
+    var launched = false
+}

@@ -46,7 +46,6 @@ Clint Gecko includes optional settings that limit how much websites can learn ab
 - **Strip tracking parameters.** Removes tracking parameters such as `utm_` and `fbclid` from links before the page loads. This happens on your device. Nothing is sent anywhere to do it.
 - **Fingerprinting protection.** Makes it harder for sites to identify you by your browser and device traits. Some sites may look or behave differently when it's on.
 - **Send Global Privacy Control.** Sends a signal asking websites not to sell or share your data. Websites may choose to ignore it.
-- **Trim referrer.** Shares only the site address, not the full page link, with the next site when you follow a link.
 - **WebRTC leak protection.** Stops websites from finding your real IP address through video call features. Some calls may not connect when it's on.
 
 These are requests and restrictions applied inside your browser. They reduce tracking but cannot guarantee that you won't be tracked, and websites may use other techniques that these settings don't cover.

@@ -31,6 +31,9 @@ object DownloadSettingsKeys {
     const val DEFAULT_STREAM_CONCURRENT_SEGMENTS = 12
     const val PREF_SPEED_LIMIT_AMOUNT      = "download_speed_limit_amount"
     const val DEFAULT_SPEED_LIMIT_AMOUNT   = 0
+    const val PREF_TOTAL_SPEED_LIMIT_AMOUNT = "download_total_speed_limit_amount"
+    const val DEFAULT_TOTAL_SPEED_LIMIT_AMOUNT = 0
+    const val PREF_TOTAL_SPEED_LIMIT_UNIT  = "download_total_speed_limit_unit"
     const val PREF_SPEED_LIMIT_UNIT        = "download_speed_limit_unit"
     const val PREF_PUSH_NOTIFICATIONS      = "download_push_notifications"
     const val DEFAULT_PUSH_NOTIFICATIONS   = true
@@ -38,6 +41,8 @@ object DownloadSettingsKeys {
     const val DEFAULT_QUICK_DOWNLOAD       = false
     const val PREF_QUICK_DOWNLOAD_IMAGES   = "download_quick_download_images"
     const val DEFAULT_QUICK_DOWNLOAD_IMAGES = false
+    const val PREF_DOWNLOAD_LOG            = "download_log_enabled"
+    const val DEFAULT_DOWNLOAD_LOG         = false
     const val PREF_KEEP_SCREEN_ON          = "download_keep_screen_on"
     const val DEFAULT_KEEP_SCREEN_ON       = false
     const val PREF_DOWNLOAD_MANAGER        = "download_manager_app"

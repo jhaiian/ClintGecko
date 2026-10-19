@@ -1,8 +1,0 @@
-• Custom theme editor na may live preview
-• Pagsamahin ang video na walang tunog at hiwalay na audio sa Media Capture
-• Detalye ng segment at totoong progress ng muxing sa downloads
-• Privacy: tracking protection, App lock, Block screenshots, Clear data on exit, Secure DNS
-• Custom na URL ng homepage at opsyonal na about:config
-• Mas matagal na baterya, mas kaunting memory
-• Mga crash ng engine sa Debug & Crash Reports
-• Mga ayos sa Android 10, clipboard at notification

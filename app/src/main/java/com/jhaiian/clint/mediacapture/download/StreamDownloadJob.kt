@@ -5,6 +5,7 @@ import com.jhaiian.clint.downloads.ClintDownloadManager
 import com.jhaiian.clint.downloads.DownloadCategories
 import com.jhaiian.clint.downloads.DownloadFileHelper
 import com.jhaiian.clint.downloads.DownloadItem
+import com.jhaiian.clint.downloads.DownloadLog
 import com.jhaiian.clint.downloads.DownloadNotificationHelper
 import com.jhaiian.clint.downloads.DownloadStatus
 import com.jhaiian.clint.downloads.DownloadWorker
@@ -56,6 +57,18 @@ object StreamDownloadJob {
             return
         }
         var current = initialItem
+        DownloadLog.section(current.id, "Starting stream download attempt") {
+            listOf(
+                "File" to current.filename,
+                "Format" to current.streamFormat,
+                "Page" to current.streamPageUrl.ifBlank { null },
+                "Video URL" to current.streamVideoUrl.ifBlank { null },
+                "Audio URL" to current.streamAudioUrl,
+                "Live" to current.streamIsLive,
+                "Segment workers" to current.streamConcurrentSegments,
+                "Retry attempt" to current.retryAttempt.takeIf { it > 0 }
+            )
+        }
         val workDir = File(context.filesDir, "stream_downloads/${current.id}")
 
         fun isCancelled(): Boolean =
@@ -226,7 +239,7 @@ object StreamDownloadJob {
 
                 publishProgress {
                     it.withClockStarted().copy(
-                        status = DownloadStatus.DOWNLOADING, streamStage = stage, segmentsCompleted = 0, segmentsTotal = 0,
+                        status = DownloadStatus.DOWNLOADING, streamStage = stage, segmentsCompleted = 0, segmentsTotal = 0, partProgress = emptyList(),
                         bytesDownloaded = 0L, speedBytesPerSec = 0L, copyProgress = 0,
                         streamSegDone = baseSegDone, streamSegTotal = baseSegTotal, streamSegBytes = baseSegBytes
                     )
@@ -247,6 +260,20 @@ object StreamDownloadJob {
                 }
                 val existing = loadExistingSegments(segmentsDir, track)
                 val bytesAtStart = existing.values.sumOf { it.file.length() }
+                DownloadLog.i(current.id, "PLAYLIST") {
+                    buildString {
+                        append("Resolved $name track \u00B7 ${track.segments.size} segments")
+                        if (track.initSegment != null) append(" + init segment")
+                        track.durationSeconds?.let { append(" \u00B7 duration ${com.jhaiian.clint.downloads.formatElapsed(it.toLong())}") }
+                        track.targetDurationSeconds?.let { append(" \u00B7 target ${it}s per segment") }
+                        append(" \u00B7 container ${track.containerHintExtension}")
+                        if (track.segments.any { it.key != null }) append(" \u00B7 encrypted")
+                        if (existing.isNotEmpty()) append(" \u00B7 resuming with ${existing.size} segments already on disk")
+                        append("\nPlaylist: $url")
+                        track.segments.firstOrNull()?.let { append("\nFirst segment: ${it.url}") }
+                        track.segments.lastOrNull()?.let { append("\nLast segment: ${it.url}") }
+                    }
+                }
 
                 publishProgress {
                     it.copy(
@@ -293,7 +320,9 @@ object StreamDownloadJob {
                     { resolveNow() },
                     initialDownloaded = existing,
                     speedLimiter = ClintDownloadManager.activeSpeedLimiters[current.id],
-                    concurrentSegments = current.streamConcurrentSegments
+                    concurrentSegments = current.streamConcurrentSegments,
+                    logId = current.id,
+                    onSegmentMap = { map -> publishProgress { it.copy(partProgress = map) } }
                 ) { _, _, segBytes -> onSegmentComplete(segBytes) }
 
                 baseSegDone += totalSegments
@@ -358,7 +387,7 @@ object StreamDownloadJob {
                             videoWorkDir, primaryKind, current.streamVideoWidth, current.streamVideoHeight,
                             current.streamVideoBandwidth, current.streamVideoRepresentationId,
                             ::isCancelled, ClintDownloadManager.activeSpeedLimiters[current.id],
-                            current.streamConcurrentSegments, ::onLiveSegment
+                            current.streamConcurrentSegments, ::onLiveSegment, logId = current.id
                         )
                     }
                     val audioDeferred = if (companionAudioUrl != null) {
@@ -368,7 +397,7 @@ object StreamDownloadJob {
                                 audioWorkDir, TrackKind.AUDIO, null, null,
                                 current.streamAudioBandwidth, current.streamAudioRepresentationId,
                                 ::isCancelled, ClintDownloadManager.activeSpeedLimiters[current.id],
-                                current.streamConcurrentSegments, ::onLiveSegment
+                                current.streamConcurrentSegments, ::onLiveSegment, logId = current.id
                             )
                         }
                     } else null
@@ -543,6 +572,7 @@ object StreamDownloadJob {
                 ClintDownloadManager.tryDequeueNext(context)
             }
         } catch (e: Throwable) {
+            DownloadLog.error(current.id, "ERROR", "Stream attempt failed: ${e.javaClass.simpleName}: ${e.message}", e)
             DownloadWorker.fail(context, current.withClockStopped(), e.message ?: context.getString(R.string.download_error_unknown))
         }
     }
@@ -582,6 +612,8 @@ object StreamDownloadJob {
         initialDownloaded: Map<Int, DownloadedSegment> = emptyMap(),
         speedLimiter: com.jhaiian.clint.downloads.SpeedLimiter? = null,
         concurrentSegments: Int = 12,
+        logId: Int = DownloadLog.GLOBAL_ID,
+        onSegmentMap: ((List<Float>) -> Unit)? = null,
         onProgress: (completed: Int, total: Int, segmentBytes: Long) -> Unit
     ): List<DownloadedSegment> {
         var track = initialTrack
@@ -592,7 +624,8 @@ object StreamDownloadJob {
             if (isCancelled()) throw StreamCancelledException()
             try {
                 downloaded = StreamTrackDownloader.downloadSegments(
-                    track, workDir, pageUrl, "", userAgent, isCancelled, downloaded, extraHeaders, speedLimiter, concurrentSegments, onProgress
+                    track, workDir, pageUrl, "", userAgent, isCancelled, downloaded, extraHeaders, speedLimiter, concurrentSegments,
+                    logId = logId, onSegmentMap = onSegmentMap, onProgress = onProgress
                 )
                 val total = (listOfNotNull(track.initSegment) + track.segments).size
                 if (downloaded.size >= total) {
@@ -603,6 +636,9 @@ object StreamDownloadJob {
             } catch (e: Throwable) {
                 lastError = e
                 downloaded = downloaded + loadExistingSegments(workDir, track)
+                DownloadLog.w(logId, "PLAYLIST") {
+                    "Segment pass ${attempt + 1}/$MAX_RESOLVE_ATTEMPTS stopped: ${e.message} \u00B7 ${downloaded.size} segments kept \u00B7 refreshing the playlist"
+                }
             }
             attempt++
             if (attempt >= MAX_RESOLVE_ATTEMPTS) break
@@ -685,7 +721,8 @@ object StreamDownloadJob {
         isCancelled: () -> Boolean,
         speedLimiter: com.jhaiian.clint.downloads.SpeedLimiter?,
         concurrentSegments: Int,
-        onSegment: (segmentBytes: Long) -> Unit
+        onSegment: (segmentBytes: Long) -> Unit,
+        logId: Int = DownloadLog.GLOBAL_ID
     ): Pair<List<DownloadedSegment>, ResolvedTrack> {
         workDir.mkdirs()
         val seenUrls = mutableSetOf<String>()
@@ -718,7 +755,7 @@ object StreamDownloadJob {
                 val syntheticTrack = ResolvedTrack(kind, null, newSpecs, null, containerHint)
                 val downloaded = StreamTrackDownloader.downloadSegments(
                     syntheticTrack, batchDir, pageUrl, "", userAgent, isCancelled, emptyMap(), extraHeaders,
-                    speedLimiter, concurrentSegments
+                    speedLimiter, concurrentSegments, logId = logId
                 ) { _, _, segBytes -> onSegment(segBytes) }
                 for (i in newSpecs.indices) {
                     downloaded[i]?.let { ordered += it }
@@ -838,6 +875,7 @@ object StreamDownloadJob {
                 ClintDownloadManager.tryDequeueNext(context)
             }
         } catch (e: Throwable) {
+            DownloadLog.error(current.id, "ERROR", "Stream attempt failed: ${e.javaClass.simpleName}: ${e.message}", e)
             DownloadWorker.fail(context, current.withClockStopped(), e.message ?: context.getString(R.string.download_error_unknown))
         }
     }

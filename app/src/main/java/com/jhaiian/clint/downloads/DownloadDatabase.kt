@@ -38,7 +38,11 @@ internal class DownloadDatabase(context: Context) :
                 $COL_SCHEDULED_START_AT INTEGER NOT NULL DEFAULT 0,
                 $COL_WAITING_CUSTOM_SCHEDULE INTEGER NOT NULL DEFAULT 0,
                 $COL_SPEED_LIMIT_BPS   INTEGER NOT NULL DEFAULT 0,
-                $COL_STREAM_JSON       TEXT
+                $COL_STREAM_JSON       TEXT,
+                $COL_QUEUE_ORDER       INTEGER NOT NULL DEFAULT 0,
+                $COL_PART_MAP          TEXT    NOT NULL DEFAULT '',
+                $COL_ETAG              TEXT,
+                $COL_LAST_MODIFIED     TEXT
             )"""
         )
     }
@@ -63,11 +67,19 @@ internal class DownloadDatabase(context: Context) :
         if (oldVersion < 7) {
             db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_CATEGORIZE_ENABLED INTEGER NOT NULL DEFAULT 0")
         }
+        if (oldVersion < 8) {
+            db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_QUEUE_ORDER INTEGER NOT NULL DEFAULT 0")
+        }
+        if (oldVersion < 9) {
+            db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_PART_MAP TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_ETAG TEXT")
+            db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_LAST_MODIFIED TEXT")
+        }
     }
 
     companion object {
         const val DB_NAME                = "clint_downloads.db"
-        const val DB_VERSION             = 7
+        const val DB_VERSION             = 9
         const val TABLE                  = "downloads"
         const val COL_ID                 = "id"
         const val COL_URL                = "url"
@@ -98,5 +110,9 @@ internal class DownloadDatabase(context: Context) :
         const val COL_WAITING_CUSTOM_SCHEDULE = "waiting_custom_schedule"
         const val COL_SPEED_LIMIT_BPS    = "speed_limit_bps"
         const val COL_STREAM_JSON        = "stream_json"
+        const val COL_QUEUE_ORDER        = "queue_order"
+        const val COL_PART_MAP           = "part_map"
+        const val COL_ETAG               = "etag"
+        const val COL_LAST_MODIFIED      = "last_modified"
     }
 }

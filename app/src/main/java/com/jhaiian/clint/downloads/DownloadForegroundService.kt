@@ -33,6 +33,7 @@ class DownloadForegroundService : LifecycleService() {
         )
 
         fun start(context: Context) {
+            if (DownloadTransferJobService.ensureRunning(context)) return
             runCatching {
                 val intent = Intent(context, DownloadForegroundService::class.java)
                 androidx.core.content.ContextCompat.startForegroundService(context, intent)

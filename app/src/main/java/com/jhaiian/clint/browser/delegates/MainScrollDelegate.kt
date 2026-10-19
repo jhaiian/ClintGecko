@@ -32,7 +32,7 @@ internal fun MainActivity.updateMainContentInsets() {
     val topCollapsed = uiState.topBarFraction > 0f || uiState.topBarAnimating
     val bottomCollapsed = uiState.bottomBarFraction > 0f || uiState.bottomBarAnimating
     val visibleTop = uiState.statusBarInsetPx + if (topCollapsed) 0 else contentBarHeight
-    val visibleBottom = if (bottomCollapsed) 0 else uiState.bottomBarFullHeightPx
+    val visibleBottom = maxOf(if (bottomCollapsed) 0 else uiState.bottomBarFullHeightPx, uiState.systemNavInsetPx)
     uiState.contentPaddingTopPx = visibleTop
     uiState.contentPaddingBottomPx = visibleBottom
     swipeRefreshView.setPadding(0, visibleTop, 0, maxOf(visibleBottom, uiState.imeInsetPx))

@@ -7,8 +7,17 @@ import com.jhaiian.clint.ui.listscreen.ListSortOrder
 
 enum class DownloadSortKey { NAME, DATE, SIZE, STATUS }
 
+enum class DownloadsSection { QUEUE, LIBRARY }
+
 class DownloadsUiState {
-    var currentTab by mutableStateOf(DownloadsTabType.ALL)
+    var section by mutableStateOf(DownloadsSection.QUEUE)
+    var sectionInitialized by mutableStateOf(false)
+    var libraryKind by mutableStateOf<DownloadFileKind?>(null)
+    var libraryGrid by mutableStateOf(true)
+    var expandedIds by mutableStateOf<Set<Int>>(emptySet())
+    var sheetItemId by mutableStateOf<Int?>(null)
+    var logViewerId by mutableStateOf<Int?>(null)
+    var selectionSheetOpen by mutableStateOf(false)
 
     var searchQuery by mutableStateOf("")
     var isSearchMode by mutableStateOf(false)
@@ -39,8 +48,13 @@ class DownloadsUiState {
 
     val selectedCount get() = selectedIds.size
 
+    fun toggleExpanded(id: Int) {
+        expandedIds = if (id in expandedIds) expandedIds - id else expandedIds + id
+    }
+
     fun toggleSelection(id: Int) {
         selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+        if (selectedIds.isEmpty()) isInSelectionMode = false
     }
 
     fun enterSelectionWith(id: Int) {

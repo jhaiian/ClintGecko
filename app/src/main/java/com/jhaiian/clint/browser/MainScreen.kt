@@ -83,6 +83,11 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
         rawStatusBarPx.takeIf { it > 0 } ?: state.cachedStatusBarInsetPx
     }
     val effectiveNavBarPx = if (hideSystemNavigation) 0 else state.navBarInsetPx
+    val systemNavPx = if (hideSystemNavigation || state.isFullscreen) 0 else rawNavBarPx
+    LaunchedEffect(systemNavPx) {
+        state.systemNavInsetPx = systemNavPx
+        activity.updateMainContentInsets()
+    }
     LaunchedEffect(effectiveStatusBarPx) {
         state.statusBarInsetPx = effectiveStatusBarPx
         activity.updateMainContentInsets()
@@ -99,7 +104,6 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
         )
 
         if (state.isHomePage && !state.isFullscreen) {
-            val homeBottomExtraPx = if (state.addressBarPosition == AddressBarPosition.TOP) effectiveNavBarPx else 0
             ClintHomeScreen(
                 activity = activity,
                 state = state,
@@ -107,7 +111,7 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
                     .fillMaxSize()
                     .padding(
                         top = with(density) { state.contentPaddingTopPx.toDp() },
-                        bottom = with(density) { (state.contentPaddingBottomPx + homeBottomExtraPx).toDp() }
+                        bottom = with(density) { state.contentPaddingBottomPx.toDp() }
                     )
             )
         }

@@ -16,7 +16,6 @@ object PrivacyPrefs {
     const val SCREENSHOT_BLOCKING = "screenshot_blocking"
     const val INCOGNITO_KEYBOARD = "incognito_keyboard"
     const val CLIPBOARD_CLEAR_SECONDS = "clipboard_auto_clear_seconds"
-    const val REFERRER_TRIMMING = "referrer_trimming"
     const val WEBRTC_PROTECTION = "webrtc_protection"
     const val GLOBAL_PRIVACY_CONTROL = "global_privacy_control"
     const val FINGERPRINTING_PROTECTION = "fingerprinting_protection"
@@ -33,7 +32,6 @@ object PrivacyPrefs {
     const val DEFAULT_SCREENSHOT_BLOCKING = false
     const val DEFAULT_INCOGNITO_KEYBOARD = true
     const val DEFAULT_CLIPBOARD_CLEAR_SECONDS = 0
-    const val DEFAULT_REFERRER_TRIMMING = true
     const val DEFAULT_WEBRTC_PROTECTION = true
     const val DEFAULT_GLOBAL_PRIVACY_CONTROL = true
     const val DEFAULT_FINGERPRINTING_PROTECTION = true
@@ -47,22 +45,15 @@ object PrivacyPrefs {
         val fingerprinting = prefs.getBoolean(FINGERPRINTING_PROTECTION, DEFAULT_FINGERPRINTING_PROTECTION)
         val webrtc = prefs.getBoolean(WEBRTC_PROTECTION, DEFAULT_WEBRTC_PROTECTION)
         val gpc = prefs.getBoolean(GLOBAL_PRIVACY_CONTROL, DEFAULT_GLOBAL_PRIVACY_CONTROL)
-        val referrer = prefs.getBoolean(REFERRER_TRIMMING, DEFAULT_REFERRER_TRIMMING)
         setBoolean("privacy.fingerprintingProtection", fingerprinting)
         setBoolean("privacy.trackingprotection.fingerprinting.enabled", fingerprinting)
         setBoolean("media.peerconnection.ice.default_address_only", webrtc)
         setBoolean("media.peerconnection.ice.no_host", webrtc)
         setBoolean("privacy.globalprivacycontrol.enabled", gpc)
         setBoolean("privacy.globalprivacycontrol.functionality.enabled", gpc)
-        setInt("network.http.referer.trimmingPolicy", if (referrer) 2 else 0)
-        setInt("network.http.referer.XOriginTrimmingPolicy", 2)
     }
 
     private fun setBoolean(pref: String, value: Boolean) {
-        runCatching { GeckoPreferenceController.setGeckoPref(pref, value, GeckoPreferenceController.PREF_BRANCH_USER) }
-    }
-
-    private fun setInt(pref: String, value: Int) {
         runCatching { GeckoPreferenceController.setGeckoPref(pref, value, GeckoPreferenceController.PREF_BRANCH_USER) }
     }
 }

@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatSize
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Tune
@@ -81,7 +83,9 @@ fun DownloadsOverflowMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
     onResumeAll: () -> Unit,
-    onPauseAll: () -> Unit
+    onPauseAll: () -> Unit,
+    onSettings: () -> Unit,
+    onDownloadLog: (() -> Unit)? = null
 ) {
     val colors = LocalClintColors.current
     DropdownMenu(
@@ -93,6 +97,11 @@ fun DownloadsOverflowMenu(
     ) {
         ListMenuItem(androidx.compose.material.icons.Icons.Filled.PlayArrow, stringResource(R.string.downloads_resume_all), false) { onDismiss(); onResumeAll() }
         ListMenuItem(androidx.compose.material.icons.Icons.Filled.Pause, stringResource(R.string.downloads_pause_all), false) { onDismiss(); onPauseAll() }
+        HorizontalDivider(color = colors.divider)
+        if (onDownloadLog != null) {
+            ListMenuItem(androidx.compose.material.icons.Icons.Filled.BugReport, stringResource(R.string.download_log_title), false) { onDismiss(); onDownloadLog() }
+        }
+        ListMenuItem(androidx.compose.material.icons.Icons.Filled.Settings, stringResource(R.string.download_settings_title), false) { onDismiss(); onSettings() }
     }
 }
 

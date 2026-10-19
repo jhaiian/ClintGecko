@@ -16,6 +16,11 @@ internal object DownloadPersistence {
 
     @Volatile private var db: DownloadDatabase? = null
 
+    private val RECOVERABLE_STATUSES = setOf(
+        DownloadStatus.CONNECTING, DownloadStatus.RETRYING, DownloadStatus.ALLOCATING, DownloadStatus.DOWNLOADING,
+        DownloadStatus.DECRYPTING, DownloadStatus.MUXING, DownloadStatus.CONVERTING
+    )
+
     private fun db(context: Context): DownloadDatabase {
         return db ?: synchronized(this) {
             db ?: DownloadDatabase(context.applicationContext).also {
@@ -72,16 +77,19 @@ internal object DownloadPersistence {
                 val statusStr = it.getString(it.getColumnIndexOrThrow(DownloadDatabase.COL_STATUS))
                 var status = runCatching { DownloadStatus.valueOf(statusStr) }
                     .getOrDefault(DownloadStatus.FAILED)
-                if (status == DownloadStatus.COPYING_TEMP
-                    || status == DownloadStatus.DELETING_TEMP
-                    || status == DownloadStatus.CONNECTING
-                    || status == DownloadStatus.RETRYING
-                    || status == DownloadStatus.ALLOCATING
-                    || status == DownloadStatus.DOWNLOADING
-                    || status == DownloadStatus.DECRYPTING
-                    || status == DownloadStatus.MUXING
-                    || status == DownloadStatus.CONVERTING
-                ) status = DownloadStatus.FAILED
+                val isStreamRow = it.getColumnIndex(DownloadDatabase.COL_STREAM_JSON).let { idx -> idx >= 0 && !it.isNull(idx) }
+                if (status == DownloadStatus.COPYING_TEMP || status == DownloadStatus.DELETING_TEMP) {
+                    if (isStreamRow) {
+                        DownloadLog.i(id, "RECOVER") { "Interrupted while ${statusStr.lowercase()}; the app was closed or killed. Re-queued to finish" }
+                        status = DownloadStatus.QUEUED
+                    } else {
+                        DownloadLog.w(id, "RECOVER") { "Interrupted while ${statusStr.lowercase()}; marked as failed" }
+                        status = DownloadStatus.FAILED
+                    }
+                } else if (status in RECOVERABLE_STATUSES) {
+                    DownloadLog.i(id, "RECOVER") { "Interrupted while ${statusStr.lowercase()}; the app was closed or killed. Re-queued to resume" }
+                    status = DownloadStatus.QUEUED
+                }
                 val filePath = it.getString(it.getColumnIndexOrThrow(DownloadDatabase.COL_FILE_PATH))
                 val resumableIdx = it.getColumnIndex(DownloadDatabase.COL_RESUMABLE)
                 val resumable = if (resumableIdx >= 0) it.getInt(resumableIdx) != 0 else false
@@ -111,6 +119,14 @@ internal object DownloadPersistence {
                 val scheduledStartAtMillis = if (scheduledStartAtIdx >= 0) it.getLong(scheduledStartAtIdx) else 0L
                 val waitingCustomScheduleIdx = it.getColumnIndex(DownloadDatabase.COL_WAITING_CUSTOM_SCHEDULE)
                 val waitingForCustomSchedule = if (waitingCustomScheduleIdx >= 0) it.getInt(waitingCustomScheduleIdx) != 0 else false
+                val queueOrderIdx = it.getColumnIndex(DownloadDatabase.COL_QUEUE_ORDER)
+                val queueOrder = if (queueOrderIdx >= 0) it.getLong(queueOrderIdx) else 0L
+                val partMapIdx = it.getColumnIndex(DownloadDatabase.COL_PART_MAP)
+                val partMap = if (partMapIdx >= 0) it.getString(partMapIdx) ?: "" else ""
+                val etagIdx = it.getColumnIndex(DownloadDatabase.COL_ETAG)
+                val etag = if (etagIdx >= 0) it.getString(etagIdx) else null
+                val lastModifiedIdx = it.getColumnIndex(DownloadDatabase.COL_LAST_MODIFIED)
+                val lastModified = if (lastModifiedIdx >= 0) it.getString(lastModifiedIdx) else null
                 val item = DownloadItem(
                     id = id,
                     url = it.getString(it.getColumnIndexOrThrow(DownloadDatabase.COL_URL)),
@@ -145,7 +161,11 @@ internal object DownloadPersistence {
                     completedPartsMask = completedPartsMask,
                     partOffsets = partOffsets,
                     scheduledStartAtMillis = scheduledStartAtMillis,
-                    waitingForCustomSchedule = waitingForCustomSchedule
+                    waitingForCustomSchedule = waitingForCustomSchedule,
+                    queueOrder = queueOrder,
+                    partMap = partMap,
+                    etag = etag,
+                    lastModified = lastModified
                 )
                 val streamJsonIdx = it.getColumnIndex(DownloadDatabase.COL_STREAM_JSON)
                 val streamJson = if (streamJsonIdx >= 0) it.getString(streamJsonIdx) else null
@@ -191,6 +211,10 @@ internal object DownloadPersistence {
                 put(DownloadDatabase.COL_PART_OFFSETS, item.partOffsets)
                 put(DownloadDatabase.COL_SCHEDULED_START_AT, item.scheduledStartAtMillis)
                 put(DownloadDatabase.COL_WAITING_CUSTOM_SCHEDULE, if (item.waitingForCustomSchedule) 1 else 0)
+                put(DownloadDatabase.COL_QUEUE_ORDER, item.queueOrder)
+                put(DownloadDatabase.COL_PART_MAP, item.partMap)
+                if (item.etag != null) put(DownloadDatabase.COL_ETAG, item.etag) else putNull(DownloadDatabase.COL_ETAG)
+                if (item.lastModified != null) put(DownloadDatabase.COL_LAST_MODIFIED, item.lastModified) else putNull(DownloadDatabase.COL_LAST_MODIFIED)
                 if (item.isStream) put(DownloadDatabase.COL_STREAM_JSON, encodeStreamState(item))
                 else putNull(DownloadDatabase.COL_STREAM_JSON)
             }
@@ -270,12 +294,13 @@ internal object DownloadPersistence {
         )
     }
 
-    fun checkpointProgress(context: Context, id: Int, bytesDownloaded: Long, completedPartsMask: Long, partOffsets: String) {
+    fun checkpointProgress(context: Context, id: Int, bytesDownloaded: Long, completedPartsMask: Long, partOffsets: String, partMap: String) {
         runCatching {
             val values = ContentValues().apply {
                 put(DownloadDatabase.COL_BYTES_DOWNLOADED, bytesDownloaded)
                 put(DownloadDatabase.COL_COMPLETED_PARTS_MASK, completedPartsMask)
                 put(DownloadDatabase.COL_PART_OFFSETS, partOffsets)
+                put(DownloadDatabase.COL_PART_MAP, partMap)
             }
             db(context).writableDatabase.update(
                 DownloadDatabase.TABLE, values, "${DownloadDatabase.COL_ID} = ?", arrayOf(id.toString())
