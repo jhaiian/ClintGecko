@@ -8,8 +8,8 @@ import com.jhaiian.clint.browser.MainActivity
 
 import android.annotation.SuppressLint
 import android.content.SharedPreferences
-import android.webkit.URLUtil
 import com.jhaiian.clint.downloads.ClintDownloadManager
+import com.jhaiian.clint.downloads.DownloadFilenameResolver
 import com.jhaiian.clint.mediacapture.MEDIA_CAPTURE_ENABLED_PREF
 import com.jhaiian.clint.mediacapture.MediaCaptureDetector
 import com.jhaiian.clint.mediacapture.MediaCaptureStore
@@ -51,7 +51,7 @@ internal fun MainActivity.createClintWebView(isIncognito: Boolean, profileId: St
         if (tabManager.activeTab?.webView !== webView) return@ClintDownloadListener
         val mimetype = mimeType ?: ""
         if (url.startsWith("blob:")) {
-            val filename = URLUtil.guessFileName(url, contentDisposition, mimetype.ifEmpty { null })
+            val filename = DownloadFilenameResolver.resolve(url, contentDisposition, mimetype)
             val safeUrl = url.replace("\\", "\\\\").replace("'", "\\'")
             val safeFilename = filename.replace("\\", "\\\\").replace("'", "\\'")
             val safeMime = mimetype.replace("\\", "\\\\").replace("'", "\\'")
@@ -72,16 +72,8 @@ internal fun MainActivity.createClintWebView(isIncognito: Boolean, profileId: St
             """.trimIndent(), null)
             return@ClintDownloadListener
         }
-        var filename = URLUtil.guessFileName(url, contentDisposition, mimetype.ifEmpty { null })
-        if (filename.endsWith(".bin")) {
-            val urlPath = url.substringBefore("?").substringBefore("#")
-            val urlExt = urlPath.substringAfterLast(".", "")
-            if (urlExt.isNotEmpty() && urlExt.length in 1..10 && urlExt != "bin" && !urlExt.contains("/")) {
-                filename = filename.removeSuffix(".bin") + ".$urlExt"
-            }
-        }
+        val finalName = DownloadFilenameResolver.resolve(url, contentDisposition, mimetype)
         val referer = webView.url ?: ""
-        val finalName = filename
         WebProfiles.cookieForAsync(webView, url) { cookies ->
             val session = refreshLinkSession
             if (session != null && tabManager.activeTab?.isRefreshLinkTab == true && isRelatedToSession(url, referer, session)) {
@@ -246,6 +238,45 @@ internal fun MainActivity.addDesktopScript(tab: BrowserTab? = null) {
 }
 
 internal fun MainActivity.removeDesktopScript(tab: BrowserTab? = null) {}
+
+internal fun MainActivity.isDesktopModeSaveStateEnabled(): Boolean =
+    prefs.getString(
+        com.jhaiian.clint.settings.desktopmode.DesktopModeActivity.PREF_DESKTOP_MODE_SAVE_STATE,
+        com.jhaiian.clint.settings.desktopmode.DesktopModeActivity.VALUE_SAVE_STATE
+    ) == com.jhaiian.clint.settings.desktopmode.DesktopModeActivity.VALUE_SAVE_STATE
+
+internal fun MainActivity.applyDesktopModeToTabs() {
+    val ua = buildUserAgent()
+    tabManager.tabs.forEach { tab ->
+        tab.webView.settings.userAgentString = ua
+        applyUserAgentMetadata(tab.webView)
+    }
+    addDesktopScript()
+}
+
+internal fun MainActivity.syncDesktopModeForUrl(url: String): Boolean {
+    if (!url.startsWith("http") || com.jhaiian.clint.browser.home.isClintHomeUrl(url)) return false
+    val host = runCatching { android.net.Uri.parse(url).host }.getOrNull()?.takeIf { it.isNotEmpty() } ?: return false
+    val shouldSaveState = isDesktopModeSaveStateEnabled()
+    val domain = registeredDomain(host)
+    val optedOut = tabManager.activeTab?.isIncognito == true && domain in desktopModeOptOutDomains
+    val isSaved = shouldSaveState && !optedOut &&
+        com.jhaiian.clint.settings.sitepermissions.SitePermissionManager.getState(
+            this, host, com.jhaiian.clint.settings.sitepermissions.SitePermissionDatabase.TYPE_DESKTOP_MODE
+        ) != null
+    val lockedHost = desktopModeHost
+    val enable = when {
+        isSaved -> true
+        !isDesktopMode -> false
+        !shouldSaveState || lockedHost == null || lockedHost == com.jhaiian.clint.browser.home.CLINT_HOME_HOST -> true
+        else -> registeredDomain(lockedHost) == domain
+    }
+    desktopModeHost = if (enable) host else null
+    if (enable == isDesktopMode) return false
+    isDesktopMode = enable
+    applyDesktopModeToTabs()
+    return true
+}
 
 internal fun MainActivity.getHomepageUrl(): String {
     val homepage = prefs.getString(com.jhaiian.clint.browser.home.PREF_HOMEPAGE, com.jhaiian.clint.browser.home.HOMEPAGE_CLINT)

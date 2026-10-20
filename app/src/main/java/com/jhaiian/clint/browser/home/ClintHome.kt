@@ -1,14 +1,17 @@
 package com.jhaiian.clint.browser.home
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -28,7 +31,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Mic
@@ -81,13 +91,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jhaiian.clint.R
-import com.jhaiian.clint.bookmarks.BookmarkManager
 import com.jhaiian.clint.browser.AddressBarPosition
 import com.jhaiian.clint.browser.MainActivity
 import com.jhaiian.clint.browser.MainUiState
 import com.jhaiian.clint.browser.customSearchEngineName
 import com.jhaiian.clint.browser.delegates.handleVoiceSearchTap
 import com.jhaiian.clint.browser.delegates.loadUrl
+import com.jhaiian.clint.browser.delegates.openNewTab
 import com.jhaiian.clint.browser.delegates.openSearchOverlay
 import com.jhaiian.clint.browser.delegates.switchToTabMode
 import com.jhaiian.clint.browser.engineDisplayName
@@ -118,8 +128,8 @@ internal const val CLINT_HOME_HOST = "appassets.androidplatform.net"
 internal const val CLINT_HOME_PATH = "/clint/home"
 internal const val CLINT_HOME_URL = "https://$CLINT_HOME_HOST$CLINT_HOME_PATH"
 
-private const val FAVORITES_LOAD_LIMIT = 12
 private const val RECENT_LIMIT = 5
+private const val RECENT_LOAD_LIMIT = 20
 private val ContentMaxWidth = 640.dp
 private val DesktopContentMaxWidth = 960.dp
 
@@ -137,23 +147,18 @@ private fun hostOf(url: String): String =
 
 private fun labelOf(site: HomeSite): String = site.title.ifBlank { hostOf(site.url) }.ifBlank { site.url }
 
-private suspend fun loadHomeSites(context: Context): Pair<List<HomeSite>, List<HomeSite>> =
+private suspend fun loadRecentSites(context: Context): List<HomeSite> =
     withContext(Dispatchers.IO) {
-        val marks = runCatching { BookmarkManager.getAll(context) }.getOrElse { emptyList() }
-        val favs = marks
-            .filter { it.url.startsWith("http") }
-            .sortedByDescending { maxOf(it.lastVisit, it.addedAt) }
-            .take(FAVORITES_LOAD_LIMIT)
-            .map { HomeSite(it.url, it.title, it.faviconUrl) }
-        val favUrls = marks.map { it.url }.toSet()
         val history = runCatching { SearchHistoryManager.getAll(context) }.getOrElse { emptyList() }
-        val recents = history
-            .filter { it.query.startsWith("http") && !isClintHomeUrl(it.query) && it.query !in favUrls }
+        history
+            .filter { it.query.startsWith("http") && !isClintHomeUrl(it.query) }
             .distinctBy { hostOf(it.query) }
-            .take(RECENT_LIMIT)
+            .take(RECENT_LOAD_LIMIT)
             .map { HomeSite(it.query, it.title, "") }
-        favs to recents
     }
+
+private suspend fun loadHomeTiles(context: Context): List<HomeTile> =
+    withContext(Dispatchers.IO) { HomeTileStore.load(context) }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -162,8 +167,13 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
     val context = LocalContext.current
     val isIncognito = state.isIncognito
     val isDesktop = state.isDesktopMode
-    var favorites by remember { mutableStateOf<List<HomeSite>>(emptyList()) }
+    var tiles by remember { mutableStateOf<List<HomeTile>>(emptyList()) }
     var recent by remember { mutableStateOf<List<HomeSite>>(emptyList()) }
+    var iconVersion by remember { mutableIntStateOf(0) }
+    var editRequest by remember { mutableStateOf<HomeEditRequest?>(null) }
+    var openFolderId by remember { mutableStateOf<String?>(null) }
+    var renameFolderId by remember { mutableStateOf<String?>(null) }
+    var moveSiteId by remember { mutableStateOf<String?>(null) }
     var revealed by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
     var refreshTick by remember { mutableIntStateOf(0) }
@@ -174,13 +184,12 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
 
     LaunchedEffect(state.activeTabId, isIncognito) {
         if (isIncognito) {
-            favorites = emptyList()
+            tiles = emptyList()
             recent = emptyList()
             return@LaunchedEffect
         }
-        val loaded = loadHomeSites(context)
-        favorites = loaded.first
-        recent = loaded.second
+        tiles = loadHomeTiles(context)
+        recent = loadRecentSites(context)
     }
     LaunchedEffect(Unit) { revealed = true }
     val reveal by animateFloatAsState(
@@ -230,7 +239,7 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
             }
         }
     }
-    LaunchedEffect(state.activeTabId, isIncognito, design, bgImage, favorites, recent, refreshTick, colors.background, state.homepageShowQuickActions) {
+    LaunchedEffect(state.activeTabId, isIncognito, design, bgImage, tiles, recent, iconVersion, refreshTick, colors.background, state.homepageShowQuickActions) {
         delay(800)
         captureThumbnail()
     }
@@ -240,6 +249,62 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
             .filter { !it }
             .collect { captureThumbnail() }
     }
+    val tileUrls = remember(tiles) { tiles.allSites().map { it.url }.toSet() }
+    val recentShown = remember(recent, tileUrls) { recent.filter { it.url !in tileUrls }.take(RECENT_LIMIT) }
+    val hideStatusBar = remember { activity.prefs.getBoolean("hide_status_bar", false) }
+    val hideSystemNavigation = remember { activity.prefs.getBoolean("hide_system_navigation", false) }
+    val defaultFolderName = stringResource(R.string.home_folder_default_name)
+    val openNewTabLabel = stringResource(R.string.link_open_in_new_tab)
+    val editLabel = stringResource(R.string.action_edit)
+    val moveToFolderLabel = stringResource(R.string.home_tile_move_to_folder)
+    val moveOutLabel = stringResource(R.string.home_tile_move_out_of_folder)
+    val removeLabel = stringResource(R.string.home_tile_remove)
+    val renameLabel = stringResource(R.string.home_folder_rename)
+    val ungroupLabel = stringResource(R.string.home_folder_ungroup)
+    val addToFavoritesLabel = stringResource(R.string.home_tile_add_to_favorites)
+
+    fun commitTiles(updated: List<HomeTile>, icon: Pair<String, Bitmap>? = null) {
+        tiles = updated
+        HomeTileStore.saveAsync(context, updated, icon) { if (icon != null) iconVersion++ }
+    }
+
+    fun siteMenu(site: HomeSiteTile): List<HomeMenuEntry> = buildList {
+        add(HomeMenuEntry(Icons.AutoMirrored.Filled.OpenInNew, openNewTabLabel) { activity.openNewTab(false, site.url) })
+        add(HomeMenuEntry(Icons.Filled.Edit, editLabel) { editRequest = HomeEditRequest(site) })
+        if (tiles.folderOf(site.id) != null) {
+            add(HomeMenuEntry(Icons.AutoMirrored.Filled.DriveFileMove, moveOutLabel) { commitTiles(tiles.moveSiteOutOfFolder(site.id)) })
+        } else {
+            add(HomeMenuEntry(Icons.Filled.Folder, moveToFolderLabel) { moveSiteId = site.id })
+        }
+        add(HomeMenuEntry(Icons.Filled.Delete, removeLabel) { commitTiles(tiles.removeSite(site.id)) })
+    }
+
+    fun tileMenu(tile: HomeTile): List<HomeMenuEntry> = when (tile) {
+        is HomeSiteTile -> siteMenu(tile)
+        is HomeFolderTile -> listOf(
+            HomeMenuEntry(Icons.Filled.Edit, renameLabel) { renameFolderId = tile.id },
+            HomeMenuEntry(Icons.Filled.FolderOpen, ungroupLabel) { commitTiles(tiles.ungroup(tile.id)) }
+        )
+    }
+
+    val openTile: (HomeTile) -> Unit = { tile ->
+        when (tile) {
+            is HomeSiteTile -> activity.loadUrl(tile.url)
+            is HomeFolderTile -> openFolderId = tile.id
+        }
+    }
+    val dropTiles: (List<HomeTile>, String, String?) -> Unit = { order, draggedId, targetId ->
+        commitTiles(if (targetId == null) order else order.mergeTiles(draggedId, targetId, defaultFolderName))
+    }
+    val addTile: () -> Unit = { editRequest = HomeEditRequest(null) }
+    val pinRecent: (HomeSite) -> Unit = { site -> commitTiles(tiles + HomeSiteTile(newHomeTileId(), site.url, site.title)) }
+    val recentMenu: (HomeSite) -> List<HomeMenuEntry> = { site ->
+        listOf(
+            HomeMenuEntry(Icons.Filled.Add, addToFavoritesLabel) { pinRecent(site) },
+            HomeMenuEntry(Icons.AutoMirrored.Filled.OpenInNew, openNewTabLabel) { activity.openNewTab(false, site.url) }
+        )
+    }
+
     CompositionLocalProvider(LocalHomeCardAlpha provides cardAlpha) {
     BoxWithConstraints(
         modifier = modifier
@@ -279,7 +344,7 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
         val centered = state.homepageCenterContent
         val showFavorites = state.homepageShowFavorites
         val showQuickActions = state.homepageShowQuickActions
-        val showRecent = state.homepageShowRecent && recent.isNotEmpty()
+        val showRecent = state.homepageShowRecent && recentShown.isNotEmpty()
         val sideBySide = isDesktop && !isIncognito && showFavorites && showRecent && contentWidth >= 800.dp
         val gridWidth = if (sideBySide) (contentWidth - 64.dp) * (1.6f / 2.6f) else contentWidth - 40.dp
         val tileWidth = if (isDesktop) 128.dp else 84.dp
@@ -306,9 +371,8 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
                     isRefreshing = true
                     scope.launch {
                         if (!isIncognito) {
-                            val loaded = loadHomeSites(context)
-                            favorites = loaded.first
-                            recent = loaded.second
+                            tiles = loadHomeTiles(context)
+                            recent = loadRecentSites(context)
                         }
                         refreshTick++
                         delay(450)
@@ -390,19 +454,19 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
                                 horizontalArrangement = Arrangement.spacedBy(24.dp)
                             ) {
                                 Column(modifier = Modifier.weight(1.6f)) {
-                                    HomeFavoritesSection(favorites, columns, isDesktop, openSite)
+                                    HomeTilesSection(tiles, columns, isDesktop, iconVersion, openTile, dropTiles, addTile, { tileMenu(it) })
                                 }
                                 Column(modifier = Modifier.weight(1f)) {
-                                    HomeRecentSection(recent, openSite)
+                                    HomeRecentSection(recentShown, openSite, recentMenu)
                                 }
                             }
                         } else {
                             if (showFavorites) {
-                                HomeFavoritesSection(favorites, columns, isDesktop, openSite)
+                                HomeTilesSection(tiles, columns, isDesktop, iconVersion, openTile, dropTiles, addTile, { tileMenu(it) })
                             }
                             if (showRecent) {
                                 if (showFavorites) Spacer(Modifier.height(if (compact) 20.dp else 32.dp))
-                                HomeRecentSection(recent, openSite)
+                                HomeRecentSection(recentShown, openSite, recentMenu)
                             }
                         }
                     }
@@ -411,6 +475,92 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
             }
         }
     }
+    }
+
+    editRequest?.let { request ->
+        HomeSiteEditDialog(
+            activity = activity,
+            request = request,
+            iconVersion = iconVersion,
+            hideStatusBar = hideStatusBar,
+            hideSystemNavigation = hideSystemNavigation,
+            onDismiss = { editRequest = null }
+        ) { url, title, icon, reset ->
+            val existing = request.site
+            if (existing == null) {
+                val site = HomeSiteTile(newHomeTileId(), url, title, icon != null)
+                commitTiles(tiles + site, icon?.let { site.id to it })
+            } else {
+                val updated = existing.copy(
+                    url = url,
+                    title = title,
+                    customIcon = when {
+                        icon != null -> true
+                        reset -> false
+                        else -> existing.customIcon
+                    }
+                )
+                commitTiles(tiles.replaceSite(updated), icon?.let { existing.id to it })
+            }
+        }
+    }
+
+    openFolderId?.let { folderId ->
+        val folder = tiles.firstOrNull { it.id == folderId } as? HomeFolderTile
+        if (folder == null) {
+            LaunchedEffect(folderId) { openFolderId = null }
+        } else {
+            HomeFolderDialog(
+                folder = folder,
+                iconVersion = iconVersion,
+                hideStatusBar = hideStatusBar,
+                hideSystemNavigation = hideSystemNavigation,
+                onDismiss = { openFolderId = null },
+                onOpen = { site ->
+                    openFolderId = null
+                    activity.loadUrl(site.url)
+                },
+                onReorder = { sites ->
+                    (tiles.firstOrNull { it.id == folderId } as? HomeFolderTile)?.let {
+                        commitTiles(tiles.replaceFolder(it.copy(sites = sites)))
+                    }
+                },
+                onRename = { renameFolderId = folderId },
+                siteMenu = { siteMenu(it) }
+            )
+        }
+    }
+
+    renameFolderId?.let { folderId ->
+        val folder = tiles.firstOrNull { it.id == folderId } as? HomeFolderTile
+        if (folder == null) {
+            LaunchedEffect(folderId) { renameFolderId = null }
+        } else {
+            HomeFolderNameDialog(
+                initialName = folder.name.ifBlank { defaultFolderName },
+                hideStatusBar = hideStatusBar,
+                hideSystemNavigation = hideSystemNavigation,
+                onDismiss = { renameFolderId = null }
+            ) { name ->
+                (tiles.firstOrNull { it.id == folderId } as? HomeFolderTile)?.let {
+                    commitTiles(tiles.replaceFolder(it.copy(name = name)))
+                }
+            }
+        }
+    }
+
+    moveSiteId?.let { siteId ->
+        val currentFolder = tiles.folderOf(siteId)?.id
+        HomeMoveToFolderDialog(
+            folders = tiles.filterIsInstance<HomeFolderTile>().filter { it.id != currentFolder },
+            hideStatusBar = hideStatusBar,
+            hideSystemNavigation = hideSystemNavigation,
+            onDismiss = { moveSiteId = null }
+        ) { folderId ->
+            val target = folderId ?: newHomeTileId()
+            commitTiles(tiles.moveSiteToFolder(siteId, target, defaultFolderName))
+            if (folderId == null) renameFolderId = target
+        }
     }
 }
 
@@ -593,9 +743,10 @@ private fun HomeSectionTitle(text: String) {
 }
 
 @Composable
-private fun HomeEmptyFavorites() {
+private fun HomeEmptyFavorites(onAdd: () -> Unit) {
     val colors = LocalClintColors.current
     Surface(
+        onClick = onAdd,
         color = colors.cardBackground.copy(alpha = LocalHomeCardAlpha.current),
         shape = RoundedCornerShape(20.dp),
         modifier = Modifier.fillMaxWidth()
@@ -605,7 +756,7 @@ private fun HomeEmptyFavorites() {
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 20.dp)
         ) {
             Icon(
-                imageVector = Icons.Filled.Bookmark,
+                imageVector = Icons.Filled.Add,
                 contentDescription = null,
                 tint = colors.primary,
                 modifier = Modifier.size(24.dp)
@@ -620,42 +771,11 @@ private fun HomeEmptyFavorites() {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HomeFavoritesGrid(sites: List<HomeSite>, columns: Int, onOpen: (HomeSite) -> Unit) {
+private fun HomeRecentCard(sites: List<HomeSite>, onOpen: (HomeSite) -> Unit, menuFor: (HomeSite) -> List<HomeMenuEntry>) {
     val colors = LocalClintColors.current
-    Column(modifier = Modifier.fillMaxWidth()) {
-        sites.chunked(columns).forEach { rowSites ->
-            Row(modifier = Modifier.fillMaxWidth()) {
-                rowSites.forEach { site ->
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable { onOpen(site) }
-                            .padding(vertical = 8.dp)
-                    ) {
-                        SiteIcon(site, 56.dp, 28.dp, 18.dp, colors.cardBackground.copy(alpha = LocalHomeCardAlpha.current))
-                        Text(
-                            text = labelOf(site),
-                            color = colors.onSurface,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(top = 6.dp, start = 4.dp, end = 4.dp)
-                        )
-                    }
-                }
-                repeat(columns - rowSites.size) { Spacer(Modifier.weight(1f)) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeRecentCard(sites: List<HomeSite>, onOpen: (HomeSite) -> Unit) {
-    val colors = LocalClintColors.current
+    var menuUrl by remember { mutableStateOf<String?>(null) }
     Surface(
         color = colors.cardBackground.copy(alpha = LocalHomeCardAlpha.current),
         shape = RoundedCornerShape(20.dp),
@@ -663,11 +783,12 @@ private fun HomeRecentCard(sites: List<HomeSite>, onOpen: (HomeSite) -> Unit) {
     ) {
         Column {
             sites.forEachIndexed { index, site ->
+                Box {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onOpen(site) }
+                        .combinedClickable(onClick = { onOpen(site) }, onLongClick = { menuUrl = site.url })
                         .padding(horizontal = 14.dp, vertical = 10.dp)
                 ) {
                     SiteIcon(site, 40.dp, 22.dp, 12.dp, colors.surfaceVariant)
@@ -688,6 +809,10 @@ private fun HomeRecentCard(sites: List<HomeSite>, onOpen: (HomeSite) -> Unit) {
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+                }
+                if (menuUrl == site.url) {
+                    HomeTileMenu(menuFor(site)) { menuUrl = null }
+                }
                 }
                 if (index < sites.lastIndex) {
                     HorizontalDivider(
@@ -730,26 +855,39 @@ private fun SiteIcon(site: HomeSite, boxSize: Dp, iconSize: Dp, corner: Dp, back
 }
 
 @Composable
-private fun HomeFavoritesSection(
-    favorites: List<HomeSite>,
+private fun HomeTilesSection(
+    tiles: List<HomeTile>,
     columns: Int,
     desktop: Boolean,
-    onOpen: (HomeSite) -> Unit
+    iconVersion: Int,
+    onOpen: (HomeTile) -> Unit,
+    onDrop: (List<HomeTile>, String, String?) -> Unit,
+    onAdd: () -> Unit,
+    menuFor: (HomeTile) -> List<HomeMenuEntry>
 ) {
     HomeSectionTitle(stringResource(R.string.home_favorites))
-    if (favorites.isEmpty()) {
-        HomeEmptyFavorites()
-    } else if (desktop) {
-        HomeDesktopFavoritesGrid(favorites.take(columns * 2), columns, onOpen)
+    if (tiles.isEmpty()) {
+        HomeEmptyFavorites(onAdd)
     } else {
-        HomeFavoritesGrid(favorites.take(columns * 2), columns, onOpen)
+        HomeTileGrid(
+            tiles = tiles,
+            columns = columns,
+            desktop = desktop,
+            iconVersion = iconVersion,
+            allowMerge = true,
+            showAdd = true,
+            onOpen = onOpen,
+            onDrop = onDrop,
+            onAdd = onAdd,
+            menu = { tile, dismiss -> HomeTileMenu(menuFor(tile), dismiss) }
+        )
     }
 }
 
 @Composable
-private fun HomeRecentSection(recent: List<HomeSite>, onOpen: (HomeSite) -> Unit) {
+private fun HomeRecentSection(recent: List<HomeSite>, onOpen: (HomeSite) -> Unit, menuFor: (HomeSite) -> List<HomeMenuEntry>) {
     HomeSectionTitle(stringResource(R.string.home_recent))
-    HomeRecentCard(sites = recent, onOpen = onOpen)
+    HomeRecentCard(sites = recent, onOpen = onOpen, menuFor = menuFor)
 }
 
 @Composable
@@ -868,43 +1006,6 @@ private fun HomeDesktopActions(actions: List<HomeAction>, perRow: Int) {
                     }
                 }
                 repeat(perRow - rowActions.size) { Spacer(Modifier.weight(1f)) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeDesktopFavoritesGrid(sites: List<HomeSite>, columns: Int, onOpen: (HomeSite) -> Unit) {
-    val colors = LocalClintColors.current
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        sites.chunked(columns).forEach { rowSites ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                rowSites.forEach { site ->
-                    Surface(
-                        onClick = { onOpen(site) },
-                        color = colors.cardBackground.copy(alpha = LocalHomeCardAlpha.current),
-                        shape = RoundedCornerShape(20.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 16.dp)
-                        ) {
-                            SiteIcon(site, 52.dp, 28.dp, 16.dp, colors.surfaceVariant)
-                            Text(
-                                text = labelOf(site),
-                                color = colors.onSurface,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(top = 10.dp)
-                            )
-                        }
-                    }
-                }
-                repeat(columns - rowSites.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }

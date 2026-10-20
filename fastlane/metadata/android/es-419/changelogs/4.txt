@@ -1,0 +1,11 @@
+• Grupos de pestañas con nombre y color
+• Barra de pestañas estilo escritorio
+• Búsqueda, vista de lista y deslizar para cerrar pestañas
+• Deshacer al cerrar pestañas
+• Cerrar pestañas duplicadas
+• Desliza la barra de direcciones para ver tus pestañas
+• Favoritos de inicio con carpetas y orden libre
+• Íconos más nítidos en toda la app
+• Colores personalizados para perfiles
+• Captura de medios encuentra todas las calidades
+• Arreglo del modo escritorio que se trababa

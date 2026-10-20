@@ -381,24 +381,13 @@ private fun ProfileEditorDialog(
                 fontSize = 13.sp,
                 modifier = Modifier.padding(top = 16.dp, bottom = 10.dp)
             )
-            ProfileRepository.palette.chunked(4).forEach { rowColors ->
-                Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    rowColors.forEach { swatch ->
-                        Box(
-                            Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(Color(swatch))
-                                .clickable { color = swatch },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (swatch == color) {
-                                Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
-                            }
-                        }
-                    }
-                }
-            }
+            com.jhaiian.clint.ui.ClintColorSwatchGrid(
+                presets = ProfileRepository.palette,
+                selected = color,
+                hideStatusBar = hideStatusBar,
+                hideSystemNavigation = hideSystemNavigation,
+                onSelect = { color = it }
+            )
         }
     }
 }

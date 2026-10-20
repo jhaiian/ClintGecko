@@ -103,6 +103,7 @@ internal fun AddressBarRow(
     onSwipeTabChange: (Int) -> Boolean,
     showHomeButton: Boolean = false,
     onHomeClick: () -> Unit = {},
+    openTabsSwipeDirection: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalClintColors.current
@@ -122,6 +123,11 @@ internal fun AddressBarRow(
     var swipeDirection by remember { mutableIntStateOf(0) }
     val swipeThresholdPx = with(density) { 56.dp.toPx() }
     val maxDragPx = with(density) { 72.dp.toPx() }
+    var verticalDrag by remember { mutableFloatStateOf(0f) }
+    val openTabsThresholdPx = with(density) { 40.dp.toPx() }
+    val openTabsFlingPx = with(density) { 600.dp.toPx() }
+    val maxVerticalNudgePx = with(density) { 10.dp.toPx() }
+    val verticalDragState = rememberDraggableState { delta -> verticalDrag += delta }
     LaunchedEffect(addressBarText) {
         if (swipeDirection != 0) {
             kotlinx.coroutines.delay(240)
@@ -187,12 +193,26 @@ internal fun AddressBarRow(
                         }
                     }
                 )
+                .draggable(
+                    orientation = Orientation.Vertical,
+                    enabled = openTabsSwipeDirection != 0,
+                    state = verticalDragState,
+                    onDragStopped = { velocity ->
+                        val distance = verticalDrag * openTabsSwipeDirection
+                        val fling = velocity * openTabsSwipeDirection
+                        verticalDrag = 0f
+                        if (distance >= openTabsThresholdPx || (distance > 0f && fling >= openTabsFlingPx)) onTabCountClick()
+                    }
+                )
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
-                    .graphicsLayer { translationX = dragOffset }
+                    .graphicsLayer {
+                        translationX = dragOffset
+                        translationY = (verticalDrag * openTabsSwipeDirection).coerceIn(0f, maxVerticalNudgePx) * openTabsSwipeDirection
+                    }
             ) {
                 Icon(
                     imageVector = if (addressBarText.isEmpty()) androidx.compose.material.icons.Icons.Filled.Search else if (isSecure) androidx.compose.material.icons.Icons.Filled.Lock else androidx.compose.material.icons.Icons.Filled.LockOpen,

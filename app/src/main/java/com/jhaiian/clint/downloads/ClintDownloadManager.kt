@@ -604,12 +604,11 @@ object ClintDownloadManager {
             var current = item
             try {
                 val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
-                var finalFilename = current.filename
-                if (finalFilename.endsWith(".bin") || !finalFilename.contains(".")) {
-                    val ext = DownloadFileHelper.detectExtFromMagicBytes(bytes.copyOf(minOf(bytes.size, 512)))
-                        ?: android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)
-                    if (ext != null) finalFilename = "${finalFilename.removeSuffix(".bin")}.$ext"
-                }
+                val finalFilename = DownloadFilenameResolver.refine(
+                    current.filename,
+                    mimeType,
+                    bytes.copyOf(minOf(bytes.size, DownloadFilenameResolver.SNIFF_BYTES))
+                )
                 val rawDestDir = directCustomDir
                     ?: if (safMode) DownloadFileHelper.tempDownloadDir(context) else DownloadFileHelper.resolveDownloadDir()
                 val destDir = if (safMode) rawDestDir else DownloadCategories.resolveDir(DownloadCategories.isEnabled(context), rawDestDir, finalFilename)

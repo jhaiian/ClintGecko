@@ -1,9 +1,0 @@
-• Gestor de descargas renovado con Cola y Biblioteca
-• Vistas previas reales de vídeos, música, PDF y APK
-• Gráficas de velocidad y mapa de segmentos en directo
-• Gestos al deslizar y nueva hoja de detalles del archivo
-• Registro de descargas y límite de velocidad total
-• Descargas más rápidas y fiables que siguen aunque cierres la app
-• Arreglos al subir y descargar en extensiones
-• Arreglos al subir archivos en algunos dispositivos
-• La barra de navegación ya no tapa las páginas

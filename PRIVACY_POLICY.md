@@ -1,6 +1,6 @@
 # Privacy Policy for Clint Gecko
 
-*Last updated: October 18, 2026*
+*Last updated: October 20, 2026*
 
 ## Overview
 
@@ -34,6 +34,10 @@ Clint Gecko does not collect, store, transmit, or share any personal data. There
 ## Browsing Data
 
 All browsing data, including history, cookies, cached content, and site storage, is stored locally on your device only. You can clear this data at any time through your device's app settings. Incognito tabs do not save cookies, cached content, or browsing history to your device.
+
+**Tab groups.** Group names, colors, and which tabs belong to each group are stored locally on your device along with your open tabs. Incognito groups are kept in memory only and are gone when you close the app.
+
+**Undo for closed tabs.** When you close tabs, Clint Gecko briefly keeps them in memory so you can tap Undo and bring them back. Nothing is written to storage for this. Incognito tabs are never kept for undo.
 
 Clint Gecko includes an optional **Block third-party cookies** setting and an optional **Do Not Track** signal. These are requests and restrictions applied inside your browser. Websites are free to ignore a Do Not Track request. More protections are described in the Tracking Protection and Data and Device Protection sections below.
 
@@ -149,7 +153,11 @@ Website icons (favicons) are loaded to help identify sites in tabs, history, and
 
 When using the fallback service, only the domain name is sent to retrieve the icon. No personal data or browsing history is included.
 
-You can review DuckDuckGo's privacy policy at https://duckduckgo.com/privacy
+**High-resolution icons.** Favicons in tabs, the tab strip, history, bookmarks, and suggestions, as well as homepage favorites and home screen shortcuts, use larger icons when available. Incognito tabs never look up high-resolution icons. To find one, Clint Gecko first checks the website itself for its larger icons and web app manifest. If the site doesn't offer a large enough icon, Clint Gecko asks Google's favicon service (`t3.gstatic.com`) and then DuckDuckGo's favicon service. Only the site's address without any page path (for example, `https://example.com`) is sent to Google, and only the domain name is sent to DuckDuckGo. Found icons are cached on your device.
+
+If you turn off favicons in Data Saver, none of these requests are made.
+
+You can review DuckDuckGo's privacy policy at https://duckduckgo.com/privacy and Google's privacy policy at https://policies.google.com/privacy
 
 ---
 
@@ -184,7 +192,11 @@ The custom theme editor lets you change the colors used throughout the app. Your
 
 ## Homepage
 
-You can set a custom URL as your homepage and choose whether to show quick actions on it. These choices are stored locally on your device. When you open the homepage, Clint Gecko connects to the address you entered the same way visiting any website would, so that site can see your IP address and may use its own cookies and tracking. Only use a homepage you trust.
+You can set a custom URL as your homepage and choose whether to show quick actions on it. These choices are stored locally on your device.
+
+**Favorites.** The tiles and folders in the homepage's Favorites section, their order, and any custom images you pick for them are stored locally on your device. When you pick a custom image, Android's photo picker gives Clint Gecko only the image you chose, and a copy is saved inside the app. Favorites are never uploaded or synced, and they are only included in a backup if you create one yourself. How tile icons are fetched is described in the Favicons section above.
+
+When you open the homepage, Clint Gecko connects to the address you entered the same way visiting any website would, so that site can see your IP address and may use its own cookies and tracking. Only use a homepage you trust.
 
 ---
 
@@ -198,7 +210,7 @@ Bookmarks are stored locally on your device only using SQLite. They are never sy
 
 ## Backup & Restore
 
-Clint Gecko lets you back up your data into a single file you keep for yourself. You choose which categories to include. Depending on what you select, a backup can contain settings, open tabs, downloads, Website Blocker data, cookies, profiles, bookmarks, search history, site permissions, shortcuts, installed extensions along with the data they store, and update settings. Here's how it actually works, in plain terms:
+Clint Gecko lets you back up your data into a single file you keep for yourself. You choose which categories to include. Depending on what you select, a backup can contain settings, open tabs and tab groups, homepage favorites and their custom images, downloads, Website Blocker data, cookies, profiles, bookmarks, search history, site permissions, shortcuts, installed extensions along with the data they store, and update settings. Here's how it actually works, in plain terms:
 
 - **You choose where it goes.** When you create a backup, Android's own file picker opens and you pick the folder: your device storage, an SD card, wherever. Clint Gecko doesn't send the file anywhere on its own, and there's no cloud sync tied to it.
 - **Password protection is optional, and it's real encryption.** If you set a password, the backup is locked with AES‑256‑GCM, the same kind of encryption used by banks and messaging apps. Your password itself is never used directly. It's run through Argon2id first, which is specifically designed to make password-guessing slow and expensive, even for someone with serious hardware. If you leave the password blank, the backup is saved without encryption, which is convenient but means anyone with the file can read it, so treat it like any other unprotected file.
@@ -213,7 +225,9 @@ In short: your backups never leave your control unless you move them somewhere y
 
 ## Downloads
 
-Files you download are saved directly to your device. Clint Gecko does not upload, scan, or transmit downloaded files.
+Files you download are saved directly to your device. Clint Gecko does not upload or transmit downloaded files.
+
+To give a file the right name and extension, Clint Gecko may read the server's response headers and the first few bytes of the file. This check happens on your device and nothing is sent anywhere.
 
 The download manager can split a download into segments, such as the pieces of a streaming video, and fetch them from the website. The website's server sees those requests and your IP address, the same as any download. The progress, segment counts, and average segment size shown in a download's Properties are kept on your device, and so is the download history. When a download needs to be combined into one file, this is done locally on your device, and its progress is tracked on your device.
 
@@ -221,7 +235,7 @@ The download manager can split a download into segments, such as the pieces of a
 
 ## Media Capture
 
-Media Capture detects media resources used by websites, such as video, audio, subtitles, and streaming formats like HLS/M3U8 and DASH, and lets you download them directly. For example, when a page plays a video, Media Capture inspects the page and its network requests to find available media streams and lists them as downloadable options. Some sites serve video and audio as separate streams, and where supported, Media Capture can combine a video that has no sound with a separate audio track into a single playable file. Combining happens entirely on your device.
+Media Capture detects media resources used by websites, such as video, audio, subtitles, and streaming formats like HLS/M3U8 and DASH, and lets you download them directly. For example, when a page plays a video, Media Capture inspects the page and its network requests to find available media streams and lists them as downloadable options. When Media Capture is turned on, it also reads the page's content, such as media players, links, and player settings, to find every available quality and subtitle, not just the one that is playing. Clint Gecko may contact the website to check a found link's size and format, the same way the page itself would. Some sites serve video and audio as separate streams, and where supported, Media Capture can combine a video that has no sound with a separate audio track into a single playable file. Combining happens entirely on your device.
 
 All of this detection happens locally on your device. Clint Gecko does not intentionally upload captured media, browsing data, or any information about detected media to an external server.
 
@@ -283,6 +297,7 @@ Similarly, the app's pages that show this policy, the Terms of Service, the chan
 Shortcuts let you add a website to your home screen. Here's how they handle your data:
 
 - **Shortcut data is local.** A shortcut's name, URL, icon, frameless setting, and the profile it opens in are stored on your device. They are never uploaded or synced anywhere by Clint Gecko.
+- **Shortcut icons may be fetched in high resolution.** When you add a shortcut, Clint Gecko looks for a sharper icon as described in the Favicons section above.
 - **The home screen icon belongs to your launcher.** Clint Gecko asks Android to place the icon, and your launcher handles it from there.
 - **Opening a shortcut loads the website.** It connects to the site the same way visiting the page normally would.
 - **Deleting a shortcut removes its data from the app.** Its icon may stay on your home screen until you remove it yourself.
@@ -395,7 +410,7 @@ Clint Gecko does not include analytics, advertising, or tracking SDKs.
 However, the search engine or services you choose (such as DuckDuckGo, Brave Search, Ecosia, Google, or a custom one you configure) may collect data according to their own privacy policies. Clint Gecko has no control over those services. Additionally:
 
 - The search suggestions feature uses DuckDuckGo's or Google's public suggestion API, or a custom one you configure, depending on which provider you've selected.
-- The favicon fallback feature uses DuckDuckGo's public API, as described above.
+- The favicon fallback feature uses DuckDuckGo's public API, and high-resolution icons may also use Google's favicon service, as described above.
 - If you turn on Secure DNS, the domain names of the sites you visit are sent to the DNS provider you choose (Cloudflare, Google, Quad9, or a custom one), as described above.
 - Website Blocker list downloads and update checks are fetched from GitHub, as described above.
 - Extensions you install, and Mozilla's Add-ons site when you browse it, are run by third parties with their own privacy policies.

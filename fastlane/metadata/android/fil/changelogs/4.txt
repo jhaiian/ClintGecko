@@ -1,0 +1,11 @@
+• Tab groups na may pangalan, kulay at drag and drop
+• Desktop-style na tab strip na may position settings
+• Search, list view at swipe para isara sa tab menu
+• Undo pagkatapos magsara ng tabs
+• Isara ang mga dobleng tab
+• I-swipe ang address bar para buksan ang tab menu
+• Homepage favorites na may folders at drag para ayusin
+• Mas malinaw na icons sa buong app
+• Custom na kulay para sa profiles
+• Nahahanap na ng Media Capture ang lahat ng quality sa page
+• Ayos sa desktop mode na naiipit

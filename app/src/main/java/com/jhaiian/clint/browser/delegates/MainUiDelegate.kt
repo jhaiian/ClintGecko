@@ -1,7 +1,7 @@
 package com.jhaiian.clint.browser.delegates
 import androidx.compose.ui.graphics.toArgb
-import com.jhaiian.clint.browser.home.CLINT_HOME_HOST
 import com.jhaiian.clint.browser.webview.ClintWebView
+import com.jhaiian.clint.browser.webview.ClintGecko
 import com.jhaiian.clint.browser.home.isClintHomeUrl
 import com.jhaiian.clint.ui.theme.ThemeMode
 import com.jhaiian.clint.browser.*
@@ -251,6 +251,7 @@ internal fun MainActivity.onTabUrlUpdated(webView: ClintWebView, url: String) {
     if (tabManager.activeTab?.webView === webView && !uiState.searchOverlayOpen) {
         updateAddressBar(url)
     }
+    if (uiState.tabStrip != null) refreshTabStrip()
 }
 
 internal fun MainActivity.onPageStarted(url: String) {
@@ -269,50 +270,13 @@ internal fun MainActivity.onPageStarted(url: String) {
         if (url == autoDesktopPendingReload) {
             autoDesktopPendingReload = null
         } else {
-            val host = runCatching { android.net.Uri.parse(url).host }.getOrNull()
-            if (host != null) {
-                val shouldSaveState = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
-                    .getString(
-                        com.jhaiian.clint.settings.desktopmode.DesktopModeActivity.PREF_DESKTOP_MODE_SAVE_STATE,
-                        com.jhaiian.clint.settings.desktopmode.DesktopModeActivity.VALUE_SAVE_STATE
-                    ) == com.jhaiian.clint.settings.desktopmode.DesktopModeActivity.VALUE_SAVE_STATE
-
-                val isSaved = shouldSaveState && com.jhaiian.clint.settings.sitepermissions.SitePermissionManager
-                    .getState(this, host, com.jhaiian.clint.settings.sitepermissions.SitePermissionDatabase.TYPE_DESKTOP_MODE) != null
-
-                val hostDomain = registeredDomain(host)
-                val lockedDomain = desktopModeHost?.let { registeredDomain(it) }
-
-                when {
-                    isSaved && !isDesktopMode -> {
-                        isDesktopMode = true
-                        desktopModeHost = host
-                        tabManager.tabs.forEach { tab ->
-                            tab.webView.settings.userAgentString = buildUserAgent()
-                            applyUserAgentMetadata(tab.webView)
-                            addDesktopScript(tab)
-                        }
-                        tabManager.activeTab?.webView?.let { wv ->
-                            autoDesktopPendingReload = url
-                            wv.reload()
-                        }
-                    }
-                    isSaved && isDesktopMode && host != desktopModeHost -> {
-                        desktopModeHost = host
-                    }
-                    !isSaved && isDesktopMode && host != desktopModeHost -> {
-                        if (hostDomain == lockedDomain || !shouldSaveState || desktopModeHost == CLINT_HOME_HOST) {
-                            desktopModeHost = host
-                        } else {
-                            isDesktopMode = false
-                            desktopModeHost = null
-                            tabManager.tabs.forEach { tab ->
-                                tab.webView.settings.userAgentString = buildUserAgent()
-                                applyUserAgentMetadata(tab.webView)
-                                addDesktopScript(tab)
-                            }
-                            tabManager.activeTab?.webView?.reload()
-                        }
+            autoDesktopPendingReload = null
+            if (syncDesktopModeForUrl(url)) {
+                tabManager.activeTab?.webView?.let { wv ->
+                    autoDesktopPendingReload = url
+                    wv.stopLoading()
+                    ClintGecko.syncThen {
+                        if (tabManager.activeTab?.webView === wv && autoDesktopPendingReload == url) wv.loadUrl(url)
                     }
                 }
             }
@@ -376,6 +340,8 @@ internal fun MainActivity.updateNavigationState() {
 internal fun MainActivity.updateTabCount() {
     val count = tabManager.previews().size
     uiState.tabCountText = if (count > 99) ":D" else count.toString()
+    refreshTabGroupBar()
+    refreshTabStrip()
 }
 
 internal fun MainActivity.updateIncognitoState(isIncognito: Boolean) {
@@ -434,9 +400,6 @@ internal fun MainActivity.handleVoiceSearchTap() {
         )
     }
 }
-
-private fun registeredDomain(host: String): String =
-    com.jhaiian.clint.util.registeredDomain(host)
 
 internal fun MainActivity.launchVoiceSearch() {
     val intent = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {

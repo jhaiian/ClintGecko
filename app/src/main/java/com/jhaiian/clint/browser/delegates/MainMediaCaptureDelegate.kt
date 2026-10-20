@@ -43,6 +43,7 @@ internal fun MainActivity.mountMediaCaptureDialog() {
     val theme = prefs.getString("app_theme", "system") ?: "system"
     val hideStatusBar = prefs.getBoolean("hide_status_bar", false)
     val hideSystemNavigation = prefs.getBoolean("hide_system_navigation", false)
+    tabManager.activeTab?.webView?.rescanMedia()
 
     overlayContent = {
         ClintComposeTheme(theme = theme) {

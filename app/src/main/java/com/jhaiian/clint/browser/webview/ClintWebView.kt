@@ -132,6 +132,7 @@ class ClintWebView(
             val top = runCatching { port.sender.isTopLevel }.getOrDefault(false)
             ports.add(port)
             if (audioState.muted) port.postMessage(muteMessage(true))
+            if (webViewClient?.isMediaCaptureEnabled() == true) port.postMessage(mediaScanMessage(false))
             port.setDelegate(object : WebExtension.PortDelegate {
                 override fun onPortMessage(message: Any, port: WebExtension.Port) {}
                 override fun onDisconnect(port: WebExtension.Port) {
@@ -153,6 +154,10 @@ class ClintWebView(
                 "call" -> handleCall(msg)
                 "evalRes" -> {
                     pendingEval.remove(msg.optString("id"))?.invoke(msg.optString("v"))
+                    null
+                }
+                "media" -> {
+                    webViewClient?.onPageMediaFound(msg)
                     null
                 }
                 "nonce" -> {
@@ -209,6 +214,14 @@ class ClintWebView(
 
     private fun muteMessage(muted: Boolean): JSONObject =
         JSONObject().put("k", "eval").put("code", TabMediaControl.muteScript(muted)).put("id", "")
+
+    private fun mediaScanMessage(full: Boolean): JSONObject =
+        JSONObject().put("k", "mediaScan").put("full", full)
+
+    fun rescanMedia() {
+        val message = mediaScanMessage(true)
+        ArrayList(ports).forEach { runCatching { it.postMessage(message) } }
+    }
 
     fun setAudioMuted(muted: Boolean) {
         audioState.muted = muted

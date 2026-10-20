@@ -32,6 +32,10 @@
 - [@Woallin](https://github.com/Woallin)
 - [@phanimitravadlamani](https://github.com/phanimitravadlamani)
 - [@TheWeaver786](https://github.com/TheWeaver786)
+- [@BunCat09](https://github.com/BunCat09)
+- [@jamestong420](https://github.com/jamestong420)
+- [@akshaymaurya26](https://github.com/akshaymaurya26)
+- [@34NANAKO34](https://github.com/34NANAKO34)
 - [u/Interesting-Stick641](https://www.reddit.com/user/Interesting-Stick641)
 - [u/ManFromUrth](https://www.reddit.com/user/ManFromUrth)
 - Daniel Rioja

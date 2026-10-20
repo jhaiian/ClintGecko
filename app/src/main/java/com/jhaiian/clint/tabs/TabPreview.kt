@@ -8,5 +8,6 @@ data class TabPreview(
     val url: String,
     val isIncognito: Boolean,
     val profileId: String = "default",
-    val audio: TabAudioState? = null
+    val audio: TabAudioState? = null,
+    val groupId: String? = null
 )

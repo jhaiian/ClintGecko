@@ -156,6 +156,9 @@ fun LookAndFeelPane(activity: SettingsActivity) {
             initialHideStatusBar = prefs.getBoolean("hide_status_bar", false),
             initialHideSystemNavigation = prefs.getBoolean("hide_system_navigation", false),
             initialShowHomeButton = prefs.getBoolean("show_home_button", true),
+            initialShowTabStrip = com.jhaiian.clint.tabs.TabStripPrefs.isEnabled(activity, prefs),
+            initialTabStripPosition = com.jhaiian.clint.tabs.TabBarPlacement.normalize(prefs.getString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_STRIP_POSITION, null)),
+            initialTabGroupBarPosition = com.jhaiian.clint.tabs.TabBarPlacement.normalize(prefs.getString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_GROUP_BAR_POSITION, null)),
             initialExitConfirmation = prefs.getString("exit_confirmation", "toast") ?: "toast",
             initialPopupAlertStyle = prefs.getString("popup_alert_style", "dialog") ?: "dialog"
         )
@@ -169,6 +172,9 @@ fun LookAndFeelPane(activity: SettingsActivity) {
         uiState.hideStatusBar = prefs.getBoolean("hide_status_bar", false)
         uiState.hideSystemNavigation = prefs.getBoolean("hide_system_navigation", false)
         uiState.showHomeButton = prefs.getBoolean("show_home_button", true)
+        uiState.showTabStrip = com.jhaiian.clint.tabs.TabStripPrefs.isEnabled(activity, prefs)
+        uiState.tabStripPosition = com.jhaiian.clint.tabs.TabBarPlacement.normalize(prefs.getString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_STRIP_POSITION, null))
+        uiState.tabGroupBarPosition = com.jhaiian.clint.tabs.TabBarPlacement.normalize(prefs.getString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_GROUP_BAR_POSITION, null))
         uiState.exitConfirmation = prefs.getString("exit_confirmation", "toast") ?: "toast"
         uiState.popupAlertStyle = prefs.getString("popup_alert_style", "dialog") ?: "dialog"
         uiState.language = prefs.getString(LocaleHelper.PREF_APP_LANGUAGE, LocaleHelper.LANGUAGE_SYSTEM) ?: LocaleHelper.LANGUAGE_SYSTEM
@@ -237,6 +243,12 @@ fun LookAndFeelPane(activity: SettingsActivity) {
         uiState.showHomeButton = newValue
     }
 
+    fun onShowTabStripRowClicked() {
+        val newValue = !uiState.showTabStrip
+        prefs.edit().putBoolean(com.jhaiian.clint.tabs.TabStripPrefs.PREF_SHOW_TAB_STRIP, newValue).apply()
+        uiState.showTabStrip = newValue
+    }
+
     fun onHideStatusBarRowClicked() {
         val newValue = !uiState.hideStatusBar
         confirmDialog = ConfirmDialogConfig(
@@ -302,6 +314,17 @@ fun LookAndFeelPane(activity: SettingsActivity) {
         onHideStatusBarRowClicked = ::onHideStatusBarRowClicked,
         onHideSystemNavigationRowClicked = ::onHideSystemNavigationRowClicked,
         onShowHomeButtonRowClicked = ::onShowHomeButtonRowClicked,
+        onShowTabStripRowClicked = ::onShowTabStripRowClicked,
+        onTabStripPositionSelected = { value ->
+            prefs.edit().putString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_STRIP_POSITION, value).apply()
+            uiState.tabStripPosition = value
+            uiState.openDialog = null
+        },
+        onTabGroupBarPositionSelected = { value ->
+            prefs.edit().putString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_GROUP_BAR_POSITION, value).apply()
+            uiState.tabGroupBarPosition = value
+            uiState.openDialog = null
+        },
         onCustomizeMenuRowClicked = {
             activity.startActivity(Intent(activity, com.jhaiian.clint.settings.menucustomization.MenuCustomizationActivity::class.java))
         },

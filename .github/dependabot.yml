@@ -1,7 +1,13 @@
 version: 2
+registries:
+  mozilla-maven:
+    type: maven-repository
+    url: https://maven.mozilla.org/maven2
 updates:
   - package-ecosystem: "gradle"
     directory: "/"
+    registries:
+      - mozilla-maven
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 20

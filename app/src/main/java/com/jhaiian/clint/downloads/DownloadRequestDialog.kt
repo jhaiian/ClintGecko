@@ -118,6 +118,7 @@ fun DownloadRequestDialog(
     val dot = initialFilename.lastIndexOf('.')
     var filename by remember { mutableStateOf(if (dot > 0) initialFilename.substring(0, dot) else initialFilename) }
     var extension by remember { mutableStateOf(if (dot > 0) initialFilename.substring(dot + 1) else "") }
+    var nameEdited by remember { mutableStateOf(false) }
 
     var effectiveContentLength by remember { mutableStateOf(contentLengthBytes) }
     var fileSizeText by remember {
@@ -132,8 +133,12 @@ fun DownloadRequestDialog(
     LaunchedEffect(fetchUrl) {
         if (fetchUrl == null) return@LaunchedEffect
         val ua = fetchUserAgent.ifEmpty { "Mozilla/5.0" }
-        val result = withContext(Dispatchers.IO) {
-            tryHeadForSize(fetchUrl, ua).takeIf { it > 0L } ?: tryRangeGetForSize(fetchUrl, ua)
+        val probe = withContext(Dispatchers.IO) { probeDownload(fetchUrl, ua, initialFilename) }
+        val result = probe.size
+        if (!nameEdited && probe.filename != initialFilename) {
+            val refinedDot = probe.filename.lastIndexOf('.')
+            filename = if (refinedDot > 0) probe.filename.substring(0, refinedDot) else probe.filename
+            extension = if (refinedDot > 0) probe.filename.substring(refinedDot + 1) else ""
         }
         effectiveContentLength = result
         fileSizeText = if (result > 0L) context.getString(R.string.download_dialog_file_size_value, formatFileSize(result))
@@ -272,8 +277,8 @@ fun DownloadRequestDialog(
         if (compact) {
             CompactDownloadRequestContent(
                 url = url, onCopyLink = onCopyLink,
-                filename = filename, onFilenameChange = { filename = it },
-                extension = extension, onExtensionChange = { extension = it },
+                filename = filename, onFilenameChange = { filename = it; nameEdited = true },
+                extension = extension, onExtensionChange = { extension = it; nameEdited = true },
                 filenameFocusRequester = filenameFocusRequester,
                 fileSizeText = fileSizeText,
                 locationMode = locationMode, onLocationModeSelected = { selectLocationMode(it) },
@@ -320,12 +325,12 @@ fun DownloadRequestDialog(
                     Column(Modifier.padding(12.dp)) {
                         Row(Modifier.fillMaxWidth()) {
                             ClintOutlinedTextField(
-                                value = filename, onValueChange = { filename = it },
+                                value = filename, onValueChange = { filename = it; nameEdited = true },
                                 modifier = Modifier.weight(1f).focusRequester(filenameFocusRequester),
                                 label = { Text(stringResource(R.string.download_dialog_filename_hint)) }, singleLine = true
                             )
                             ClintOutlinedTextField(
-                                value = extension, onValueChange = { extension = it },
+                                value = extension, onValueChange = { extension = it; nameEdited = true },
                                 modifier = Modifier.width(96.dp).padding(start = 8.dp),
                                 label = { Text(stringResource(R.string.download_dialog_extension_hint), maxLines = 1, overflow = TextOverflow.Ellipsis) }, singleLine = true
                             )
@@ -545,23 +550,49 @@ private fun DialogSectionLabel(text: String) {
     Text(text, color = colors.primary, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
 }
 
-private fun tryHeadForSize(url: String, userAgent: String): Long {
-    return try {
-        val request = okhttp3.Request.Builder().url(url).head().header("User-Agent", userAgent).build()
-        val response = ClintDownloadManager.httpClient.newCall(request).execute()
-        val len = response.header("Content-Length")?.toLongOrNull() ?: -1L
-        response.close()
-        len
-    } catch (_: Throwable) { -1L }
-}
+private class DownloadProbeResult(val size: Long, val filename: String)
 
-private fun tryRangeGetForSize(url: String, userAgent: String): Long {
-    return try {
-        val request = okhttp3.Request.Builder().url(url).get().header("User-Agent", userAgent).header("Range", "bytes=0-0").build()
-        val response = ClintDownloadManager.httpClient.newCall(request).execute()
-        val total = response.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull()
-            ?: response.header("Content-Length")?.toLongOrNull() ?: -1L
-        response.close()
-        total
-    } catch (_: Throwable) { -1L }
+private fun probeDownload(url: String, userAgent: String, initialFilename: String): DownloadProbeResult {
+    var size = -1L
+    var contentType: String? = null
+    var contentDisposition: String? = null
+    try {
+        val request = okhttp3.Request.Builder().url(url).head().header("User-Agent", userAgent).build()
+        ClintDownloadManager.httpClient.newCall(request).execute().use { response ->
+            if (response.isSuccessful) {
+                size = response.header("Content-Length")?.toLongOrNull() ?: -1L
+                contentType = response.header("Content-Type")
+                contentDisposition = response.header("Content-Disposition")
+            }
+        }
+    } catch (_: Throwable) {
+    }
+    var filename = DownloadFilenameResolver.refine(
+        DownloadFilenameResolver.applyContentDisposition(initialFilename, contentDisposition),
+        contentType,
+        null
+    )
+    if (size > 0L && !DownloadFilenameResolver.needsSniffing(filename)) return DownloadProbeResult(size, filename)
+    try {
+        val request = okhttp3.Request.Builder().url(url).get()
+            .header("User-Agent", userAgent)
+            .header("Range", "bytes=0-${DownloadFilenameResolver.SNIFF_BYTES - 1}")
+            .build()
+        ClintDownloadManager.httpClient.newCall(request).execute().use { response ->
+            if (response.isSuccessful) {
+                if (size <= 0L) {
+                    size = response.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull()
+                        ?: response.header("Content-Length")?.toLongOrNull()?.takeIf { response.code == 200 } ?: -1L
+                }
+                val head = runCatching { DownloadFilenameResolver.readHead(response.body.byteStream()) }.getOrNull()
+                filename = DownloadFilenameResolver.refine(
+                    DownloadFilenameResolver.applyContentDisposition(filename, contentDisposition ?: response.header("Content-Disposition")),
+                    contentType ?: response.header("Content-Type"),
+                    head
+                )
+            }
+        }
+    } catch (_: Throwable) {
+    }
+    return DownloadProbeResult(size, filename)
 }

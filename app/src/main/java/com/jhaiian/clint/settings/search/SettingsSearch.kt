@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowDropDownCircle
 import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Bookmark
@@ -302,6 +303,15 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
             extras = listOf(R.string.menu_style_bottom_sheet, R.string.menu_style_popup)
         )
         item(R.string.menu_customization_title, R.string.menu_customization_settings_summary, R.string.pref_category_layout, icon = Icons.Filled.Reorder)
+        item(R.string.pref_tab_strip_title, R.string.pref_tab_strip_summary, R.string.pref_category_layout, icon = Icons.Filled.Tab)
+        item(
+            R.string.pref_tab_strip_position_title, section = R.string.pref_category_layout,
+            extras = listOf(R.string.tab_bar_position_follow, R.string.address_bar_position_top, R.string.address_bar_position_bottom)
+        )
+        item(
+            R.string.pref_tab_group_bar_position_title, section = R.string.pref_category_layout,
+            extras = listOf(R.string.tab_bar_position_follow, R.string.address_bar_position_top, R.string.address_bar_position_bottom)
+        )
         item(R.string.hide_status_bar, R.string.hide_status_bar_summary, R.string.pref_category_layout, icon = Icons.Filled.Fullscreen)
         item(R.string.hide_system_navigation, R.string.hide_system_navigation_summary, R.string.pref_category_layout, icon = Icons.Filled.Fullscreen)
         item(

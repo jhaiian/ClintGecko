@@ -343,6 +343,38 @@ fun AddressBarPositionDialog(
 }
 
 @Composable
+fun TabBarPositionDialog(
+    title: String,
+    current: String,
+    hideStatusBar: Boolean, hideSystemNavigation: Boolean,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = LocalClintColors.current
+    val scrollState = rememberScrollState()
+    ClintDialog(title = title, hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation, onDismiss = onDismiss, scrollState = scrollState) {
+        listOf(
+            Triple(com.jhaiian.clint.tabs.TabBarPlacement.FOLLOW, R.string.tab_bar_position_follow, R.string.tab_bar_position_follow_desc),
+            Triple(com.jhaiian.clint.tabs.TabBarPlacement.TOP, R.string.address_bar_position_top, R.string.tab_bar_position_top_desc),
+            Triple(com.jhaiian.clint.tabs.TabBarPlacement.BOTTOM, R.string.address_bar_position_bottom, R.string.tab_bar_position_bottom_desc)
+        ).forEach { (key, titleRes, descRes) ->
+            SelectableCard(
+                selected = current == key, onClick = { onSelect(key) },
+                cardBackground = colors.surfaceVariant, primary = colors.primary,
+                contentPadding = OptionContentPadding, bottomSpacing = OptionBottomSpacing,
+                modifier = Modifier.scrollToSelection(scrollState, current == key)
+            ) {
+                Column(Modifier.weight(1f).padding(start = 4.dp, end = 8.dp)) {
+                    Text(stringResource(titleRes), color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(descRes), color = colors.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                }
+                CheckSlot(current == key, colors.primary)
+            }
+        }
+    }
+}
+
+@Composable
 fun MenuStyleDialog(
     current: String,
     addressBarPosition: String,

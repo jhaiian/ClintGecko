@@ -430,7 +430,8 @@ object ClintGecko {
     private fun loadRuntime(): String =
         runtimeJs ?: (
             appContext.assets.open("JavaScript/clint_runtime.js").bufferedReader().use { it.readText() } + "\n" +
-                appContext.assets.open("JavaScript/readability.js").bufferedReader().use { it.readText() }
+                appContext.assets.open("JavaScript/readability.js").bufferedReader().use { it.readText() } + "\n" +
+                appContext.assets.open("JavaScript/media_scanner.js").bufferedReader().use { it.readText() }
             ).also { runtimeJs = it }
 
     private fun buildBundle(): String {

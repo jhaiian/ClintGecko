@@ -29,6 +29,13 @@ object MediaCaptureDetector {
     private val enrichmentPermits = Semaphore(3)
     private val UNSUPPORTED_METADATA_FORMATS = setOf("AVI", "FLV", "WMV")
     private val TRANSPORT_STREAM_CONTENT_TYPES = setOf("video/mp2t", "video/vnd.dlna.mpeg-tts")
+    private val MEDIA_DESTS = setOf("video", "audio", "track")
+    private val CONTENT_TYPE_FORMATS = mapOf(
+        "quicktime" to "MOV", "matroska" to "MKV", "msvideo" to "AVI", "ms-wmv" to "WMV", "ms-asf" to "WMV",
+        "ms-wma" to "WMA", "3gpp" to "3GP", "3gpp2" to "3G2", "mp4a-latm" to "AAC", "aacp" to "AAC",
+        "wave" to "WAV", "vnd.wave" to "WAV", "subrip" to "SRT", "mp2t" to "TS"
+    )
+    private const val MAX_LABEL_CHARS = 40
     private const val MAX_MANIFEST_BYTES = 3L * 1024 * 1024
     private const val MAX_MANIFEST_CHARS = MAX_MANIFEST_BYTES.toInt()
     private const val MIN_EXTENSIONLESS_MEDIA_BYTES = 20_000L
@@ -94,6 +101,7 @@ object MediaCaptureDetector {
             .firstOrNull { it.key.equals("Accept", ignoreCase = true) }
             ?.value?.lowercase() ?: ""
         val looksLikeMediaAccept = accept.contains("video/") || accept.contains("audio/")
+        val isMediaDest = dest in MEDIA_DESTS
         val looksLikeNonMediaAccept = accept.contains("application/json") || accept.contains("text/html")
         val safePageUrl = pageUrl ?: ""
         val now = System.currentTimeMillis()
@@ -124,7 +132,54 @@ object MediaCaptureDetector {
             }
             ext.isEmpty() && (looksLikeMediaAccept || (dest !in NON_MEDIA_DESTS && !looksLikeNonMediaAccept)) ->
                 probeUnlessSpam(null, null)
+            isMediaDest || looksLikeMediaAccept -> probeUnlessSpam(null, null)
             else -> Unit
+        }
+    }
+
+    fun onPageMediaFound(
+        tabId: String,
+        pageUrl: String?,
+        frameUrl: String?,
+        userAgent: String?,
+        candidates: List<PageMediaCandidate>
+    ) {
+        val safePageUrl = pageUrl ?: frameUrl ?: ""
+        val referer = frameUrl?.takeIf { it.startsWith("http", ignoreCase = true) } ?: safePageUrl
+        val baseHeaders = LinkedHashMap<String, String>()
+        if (!userAgent.isNullOrBlank()) baseHeaders["User-Agent"] = userAgent
+        if (referer.isNotEmpty()) baseHeaders["Referer"] = referer
+        val headers = com.jhaiian.clint.profiles.WebProfiles.withMarker(baseHeaders, com.jhaiian.clint.profiles.WebProfiles.profileOfTab(tabId))
+        for (candidate in candidates) {
+            val uri = runCatching { Uri.parse(candidate.url) }.getOrNull() ?: continue
+            val scheme = uri.scheme?.lowercase()
+            if (scheme != "http" && scheme != "https") continue
+            val urlString = uri.toString()
+            if (!MediaCaptureStore.markSeen(tabId, urlString)) continue
+            var ext = uri.path?.lowercase()?.substringAfterLast('.', "") ?: ""
+            if (!knownMediaExtension(ext)) ext = extensionFromQuery(uri) ?: ""
+            val label = candidate.label?.trim()?.take(MAX_LABEL_CHARS)?.takeIf { it.isNotEmpty() }
+            when {
+                ext == "m3u8" -> fetchAndParseManifest(tabId, safePageUrl, urlString, ManifestType.HLS, headers)
+                ext == "mpd" -> fetchAndParseManifest(tabId, safePageUrl, urlString, ManifestType.DASH, headers)
+                ext in SUBTITLE_EXTENSIONS -> MediaCaptureStore.add(
+                    tabId,
+                    DetectedMedia(
+                        id = UUID.randomUUID().toString(),
+                        url = urlString,
+                        kind = MediaKind.SUBTITLE,
+                        format = ext.uppercase(),
+                        label = label,
+                        language = candidate.language,
+                        pageUrl = safePageUrl,
+                        detectedAtMillis = System.currentTimeMillis(),
+                        requestHeaders = sanitizeHeaders(headers)
+                    )
+                )
+                ext in VIDEO_EXTENSIONS -> probeAndRecord(tabId, safePageUrl, urlString, headers, MediaKind.VIDEO, ext.uppercase(), label)
+                ext in AUDIO_EXTENSIONS -> probeAndRecord(tabId, safePageUrl, urlString, headers, MediaKind.AUDIO, ext.uppercase(), label)
+                else -> probeAndRecord(tabId, safePageUrl, urlString, headers, null, null, label, candidate.language)
+            }
         }
     }
 
@@ -197,8 +252,14 @@ object MediaCaptureDetector {
     }
 
     private fun formatFromContentType(contentType: String?): String? {
+        val kind = kindFromContentType(contentType) ?: return null
         val ct = contentType?.substringBefore(';')?.trim()?.lowercase() ?: return null
-        return ct.substringAfter('/', "").takeIf { it.isNotEmpty() }?.uppercase()
+        val subtype = ct.substringAfter('/', "").removePrefix("x-").takeIf { it.isNotEmpty() } ?: return null
+        return when {
+            subtype == "mpeg" || subtype == "mp3" -> if (kind == MediaKind.AUDIO) "MP3" else "MPEG"
+            subtype == "vtt" -> "VTT"
+            else -> CONTENT_TYPE_FORMATS[subtype] ?: subtype.uppercase()
+        }
     }
 
     private fun extensionFromContentDisposition(value: String?): String? {
@@ -278,7 +339,9 @@ object MediaCaptureDetector {
         url: String,
         headers: Map<String, String>?,
         extKind: MediaKind?,
-        extFormat: String?
+        extFormat: String?,
+        label: String? = null,
+        language: String? = null
     ) {
         ClintDownloadManager.applicationScope.launch {
             val generation = MediaCaptureStore.beginGeneration(tabId)
@@ -293,7 +356,7 @@ object MediaCaptureDetector {
                     if (extKind == null && contentType != null && contentType in TRANSPORT_STREAM_CONTENT_TYPES) return@launch
                     val cdExt = extensionFromContentDisposition(head?.contentDisposition)
                     var kind = extKind ?: kindFromContentType(contentType) ?: kindFromExtension(cdExt)
-                    var format = extFormat ?: cdExt?.uppercase() ?: formatFromContentType(contentType)
+                    var format = extFormat ?: cdExt?.takeIf { kindFromExtension(it) != null }?.uppercase() ?: formatFromContentType(contentType)
                     if (kind == null) {
                         val leading = sniffLeadingBytes(url, headers, pageUrl)
                         if (leading != null && isHlsPlaylist(leading)) {
@@ -318,6 +381,8 @@ object MediaCaptureDetector {
                         kind = kind,
                         format = format ?: "UNKNOWN",
                         mimeType = head?.contentType,
+                        label = label,
+                        language = language,
                         sizeBytes = head?.contentLength,
                         pageUrl = pageUrl,
                         detectedAtMillis = System.currentTimeMillis(),

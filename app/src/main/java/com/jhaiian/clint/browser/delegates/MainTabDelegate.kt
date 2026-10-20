@@ -35,10 +35,13 @@ internal fun MainActivity.saveTabs() {
                 tabId = tab.id,
                 shortcutId = tab.shortcutId,
                 lastActiveAt = tab.lastActiveAt,
-                profileId = tab.profileId
+                profileId = tab.profileId,
+                groupId = tab.groupId
             )
         }
-    Thread { TabSessionManager.save(this, savedTabs) }.start()
+    val savedGroupIds = savedTabs.mapNotNull { it.groupId }.toSet()
+    val savedGroups = tabManager.groups.filter { !it.isIncognito && it.id in savedGroupIds }
+    Thread { TabSessionManager.save(this, savedTabs, savedGroups) }.start()
     persistAllShortcutTabGroups()
 }
 
@@ -47,10 +50,16 @@ internal fun MainActivity.restoreTabs(): Boolean {
     val savedTabs = TabSessionManager.load(this).filter { it.shortcutId == null }
     if (savedTabs.isEmpty()) return false
     val activeIndex = savedTabs.indexOfFirst { it.isActive }.coerceAtLeast(0)
+    val referencedGroupIds = savedTabs.mapNotNull { it.groupId }.toSet()
+    TabSessionManager.loadGroups(this)
+        .filter { it.id in referencedGroupIds }
+        .forEach { tabManager.restoreGroup(it) }
     savedTabs.forEachIndexed { index, saved ->
-        openNewTabSilent(saved.url, saved.tabId, saved.shortcutId, deferLoad = index != activeIndex, title = saved.title, profileId = saved.profileId)
+        openNewTabSilent(saved.url, saved.tabId, saved.shortcutId, deferLoad = index != activeIndex, title = saved.title, profileId = saved.profileId, groupId = saved.groupId)
     }
-    tabManager.switchTo(activeIndex)
+    tabManager.pruneEmptyGroups()
+    val activeTabId = savedTabs[activeIndex].tabId
+    tabManager.switchTo(tabManager.tabs.indexOfFirst { it.id == activeTabId }.coerceAtLeast(0))
     savedTabs.forEach { saved ->
         tabManager.tabs.firstOrNull { it.id == saved.tabId }?.lastActiveAt = saved.lastActiveAt
     }
@@ -125,10 +134,11 @@ internal fun MainActivity.openNewTabSilent(
     shortcutId: String? = null,
     deferLoad: Boolean = false,
     title: String? = null,
-    profileId: String = WebProfiles.DEFAULT_ID
+    profileId: String = WebProfiles.DEFAULT_ID,
+    groupId: String? = null
 ) {
     val webView = createClintWebView(false, WebProfiles.resolve(this, profileId), deferLoad)
-    val tab = BrowserTab(id = id, url = url, shortcutId = shortcutId, profileId = WebProfiles.profileOf(webView), webView = webView)
+    val tab = BrowserTab(id = id, url = url, shortcutId = shortcutId, profileId = WebProfiles.profileOf(webView), groupId = groupId, webView = webView)
     if (!title.isNullOrBlank()) tab.title = title
     tabManager.add(tab)
     if (isDesktopMode) addDesktopScript(tab)
@@ -153,7 +163,7 @@ internal fun MainActivity.openNewTabSilent(
         isActive = { tabManager.activeTab?.id == tab.id },
         onTitleChanged = { title ->
             tab.title = title
-            if (tabManager.activeTab?.id == tab.id) updateTabCount()
+            if (tabManager.activeTab?.id == tab.id) updateTabCount() else if (uiState.tabStrip != null) refreshTabStrip()
         },
         onProgressChanged = { progress -> if (tabManager.activeTab?.id == tab.id) onProgressChanged(progress) },
         onUrlChanged = { url -> if (tabManager.activeTab?.id == tab.id) updateAddressBar(url) },
@@ -177,7 +187,8 @@ internal fun MainActivity.openNewTabInBackground(url: String, openerTabId: Strin
     val sourceTab = openerTabId?.let { id -> tabManager.tabs.firstOrNull { it.id == id } } ?: tabManager.activeTab
     val sourceProfile = sourceTab?.takeIf { !it.isIncognito }?.profileId ?: WebProfiles.DEFAULT_ID
     val webView = createClintWebView(false, WebProfiles.resolve(this, sourceProfile))
-    val tab = BrowserTab(url = url, openerTabId = openerTabId, profileId = WebProfiles.profileOf(webView), webView = webView)
+    val inheritedGroupId = sourceTab?.takeIf { !it.isIncognito }?.groupId
+    val tab = BrowserTab(url = url, openerTabId = openerTabId, profileId = WebProfiles.profileOf(webView), groupId = inheritedGroupId, webView = webView)
     tabManager.addInBackground(tab)
     if (isDesktopMode) addDesktopScript(tab)
     addAutoplayScript(tab)
@@ -201,7 +212,7 @@ internal fun MainActivity.openNewTabInBackground(url: String, openerTabId: Strin
         isActive = { tabManager.activeTab?.id == tab.id },
         onTitleChanged = { title ->
             tab.title = title
-            if (tabManager.activeTab?.id == tab.id) updateTabCount()
+            if (tabManager.activeTab?.id == tab.id) updateTabCount() else if (uiState.tabStrip != null) refreshTabStrip()
         },
         onProgressChanged = { progress -> if (tabManager.activeTab?.id == tab.id) onProgressChanged(progress) },
         onUrlChanged = { url -> if (tabManager.activeTab?.id == tab.id) updateAddressBar(url) },
@@ -223,8 +234,12 @@ internal fun MainActivity.openNewTabInBackground(url: String, openerTabId: Strin
 internal fun MainActivity.activeProfileId(): String =
     tabManager.activeTab?.takeIf { !it.isIncognito }?.profileId ?: WebProfiles.DEFAULT_ID
 
-internal fun MainActivity.openNewTab(isIncognito: Boolean, url: String = getHomepageUrl(), openerTabId: String? = null, shortcutId: String? = null, previousTabId: String? = null, profileId: String? = null) {
+internal fun MainActivity.openNewTab(isIncognito: Boolean, url: String = getHomepageUrl(), openerTabId: String? = null, shortcutId: String? = null, previousTabId: String? = null, profileId: String? = null, groupId: String? = null) {
     captureActiveTabThumbnail()
+    val resolvedGroupId = groupId ?: openerTabId
+        ?.let { id -> tabManager.tabs.firstOrNull { it.id == id } }
+        ?.takeIf { it.isIncognito == isIncognito && shortcutId == null }
+        ?.groupId
     val requestedProfile = when {
         isIncognito -> WebProfiles.DEFAULT_ID
         profileId != null -> profileId
@@ -235,7 +250,7 @@ internal fun MainActivity.openNewTab(isIncognito: Boolean, url: String = getHome
             ?: WebProfiles.DEFAULT_ID
     }
     val webView = createClintWebView(isIncognito, WebProfiles.resolve(this, requestedProfile))
-    val tab = BrowserTab(isIncognito = isIncognito, openerTabId = openerTabId, shortcutId = shortcutId, previousTabId = previousTabId, profileId = WebProfiles.profileOf(webView), webView = webView)
+    val tab = BrowserTab(isIncognito = isIncognito, openerTabId = openerTabId, shortcutId = shortcutId, previousTabId = previousTabId, profileId = WebProfiles.profileOf(webView), groupId = resolvedGroupId, webView = webView)
     val index = tabManager.add(tab)
     if (isDesktopMode) addDesktopScript(tab)
     addAutoplayScript(tab)
@@ -259,7 +274,7 @@ internal fun MainActivity.openNewTab(isIncognito: Boolean, url: String = getHome
         isActive = { tabManager.activeTab?.id == tab.id },
         onTitleChanged = { title ->
             tab.title = title
-            if (tabManager.activeTab?.id == tab.id) updateTabCount()
+            if (tabManager.activeTab?.id == tab.id) updateTabCount() else if (uiState.tabStrip != null) refreshTabStrip()
         },
         onProgressChanged = { progress -> if (tabManager.activeTab?.id == tab.id) onProgressChanged(progress) },
         onUrlChanged = { url -> if (tabManager.activeTab?.id == tab.id) updateAddressBar(url) },
@@ -302,6 +317,8 @@ internal fun MainActivity.attachActiveWebView() {
         android.view.ViewGroup.LayoutParams.MATCH_PARENT,
         android.view.ViewGroup.LayoutParams.MATCH_PARENT
     ))
+    autoDesktopPendingReload = null
+    syncDesktopModeForUrl(tab.pendingUrl ?: tab.webView.url ?: tab.url)
     tab.pendingUrl?.let { pending ->
         tab.pendingUrl = null
         tab.webView.loadUrl(pending)
@@ -376,7 +393,7 @@ internal fun MainActivity.openRefreshLinkTab(url: String) {
         isActive = { tabManager.activeTab?.id == tab.id },
         onTitleChanged = { title ->
             tab.title = title
-            if (tabManager.activeTab?.id == tab.id) updateTabCount()
+            if (tabManager.activeTab?.id == tab.id) updateTabCount() else if (uiState.tabStrip != null) refreshTabStrip()
         },
         onProgressChanged = { progress -> if (tabManager.activeTab?.id == tab.id) onProgressChanged(progress) },
         onUrlChanged = { u -> if (tabManager.activeTab?.id == tab.id) updateAddressBar(u) },

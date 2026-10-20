@@ -24,11 +24,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
@@ -39,6 +41,7 @@ import com.jhaiian.clint.R
 import com.jhaiian.clint.browser.MainActivity
 import com.jhaiian.clint.browser.delegates.activeProfileId
 import com.jhaiian.clint.browser.delegates.createHomeScreenShortcut
+import com.jhaiian.clint.browser.home.HomeTileIconFetcher
 import com.jhaiian.clint.profiles.ShortcutProfileField
 import com.jhaiian.clint.profiles.shortcutProfileFieldVisible
 import androidx.compose.ui.platform.LocalContext
@@ -67,7 +70,10 @@ internal fun CreateShortcutDialog(
     val context = LocalContext.current
     var customIcon by remember(request) { mutableStateOf<Bitmap?>(null) }
     val faviconBitmap = rememberClintFavicon(pageUrl = request.pageUrl)
-    val displayedIcon = customIcon ?: faviconBitmap
+    val hdIcon by produceState(HomeTileIconFetcher.cached(request.pageUrl), request.pageUrl) {
+        value = HomeTileIconFetcher.load(context, request.pageUrl)
+    }
+    val displayedIcon = customIcon ?: hdIcon ?: faviconBitmap
 
     DisposableEffect(Unit) {
         onDispose { activity.pendingShortcutIconCallback = null }
@@ -117,7 +123,8 @@ internal fun CreateShortcutDialog(
                         bitmap = displayedIcon.asImageBitmap(),
                         contentDescription = null,
                         modifier = Modifier.size(56.dp).clip(CircleShape),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Crop,
+                        filterQuality = FilterQuality.High
                     )
                 } else {
                     Icon(Icons.Filled.Public, contentDescription = null, tint = colors.iconTint)

@@ -369,10 +369,35 @@ class ClintWebViewClient(
         return true
     }
 
+    fun isMediaCaptureEnabled(): Boolean =
+        prefs.getBoolean(com.jhaiian.clint.mediacapture.MEDIA_CAPTURE_ENABLED_PREF, true)
+
     fun onMediaObserved(request: ClintRequest, pageUrl: String?) {
-        if (prefs.getBoolean(com.jhaiian.clint.mediacapture.MEDIA_CAPTURE_ENABLED_PREF, true)) {
+        if (isMediaCaptureEnabled()) {
             MediaCaptureDetector.onRequestObserved(getTabId(), pageUrl ?: cachedPageUrl, request)
         }
+    }
+
+    fun onPageMediaFound(message: org.json.JSONObject) {
+        if (!isMediaCaptureEnabled()) return
+        val items = message.optJSONArray("items") ?: return
+        val candidates = (0 until minOf(items.length(), 200)).mapNotNull { index ->
+            val item = items.optJSONObject(index) ?: return@mapNotNull null
+            val url = item.optString("u").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            com.jhaiian.clint.mediacapture.PageMediaCandidate(
+                url = url,
+                label = item.optString("l").takeIf { it.isNotBlank() },
+                language = item.optString("g").takeIf { it.isNotBlank() }
+            )
+        }
+        if (candidates.isEmpty()) return
+        MediaCaptureDetector.onPageMediaFound(
+            getTabId(),
+            MediaCaptureStore.pageUrlFor(getTabId()) ?: cachedPageUrl,
+            message.optString("f").takeIf { it.isNotBlank() },
+            message.optString("ua").takeIf { it.isNotBlank() },
+            candidates
+        )
     }
 
     fun onAuthRequest(

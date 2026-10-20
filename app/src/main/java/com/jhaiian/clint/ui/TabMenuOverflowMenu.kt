@@ -5,11 +5,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CreateNewFolder
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FilterNone
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -27,7 +34,15 @@ fun TabMenuOverflowMenu(
     onCloseAllTabs: () -> Unit,
     onSelectTabs: () -> Unit,
     showProfileTab: Boolean = false,
-    onNewProfileTab: () -> Unit = {}
+    onNewProfileTab: () -> Unit = {},
+    onNewTabGroup: (() -> Unit)? = null,
+    showGroupBar: Boolean = true,
+    onToggleGroupBar: (() -> Unit)? = null,
+    onCollapseAllGroups: (() -> Unit)? = null,
+    onExpandAllGroups: (() -> Unit)? = null,
+    onCloseDuplicates: (() -> Unit)? = null,
+    listView: Boolean = false,
+    onToggleListView: (() -> Unit)? = null
 ) {
     val colors = LocalClintColors.current
     DropdownMenu(
@@ -48,11 +63,44 @@ fun TabMenuOverflowMenu(
                 onDismiss(); onNewProfileTab()
             }
         }
+        if (onNewTabGroup != null) {
+            ListMenuItem(Icons.Filled.CreateNewFolder, stringResource(R.string.tab_group_new), checked = false) {
+                onDismiss(); onNewTabGroup()
+            }
+        }
         ListMenuItem(Icons.Filled.Close, stringResource(R.string.tab_menu_close_all_tabs), checked = false) {
             onDismiss(); onCloseAllTabs()
         }
+        onCloseDuplicates?.let { action ->
+            ListMenuItem(Icons.Filled.FilterNone, stringResource(R.string.tab_menu_close_duplicates), checked = false) {
+                onDismiss(); action()
+            }
+        }
         ListMenuItem(Icons.Filled.SelectAll, stringResource(R.string.tab_menu_select_mode_desc), checked = false) {
             onDismiss(); onSelectTabs()
+        }
+        if (onCollapseAllGroups != null || onExpandAllGroups != null || onToggleGroupBar != null || onToggleListView != null) {
+            HorizontalDivider(color = colors.divider)
+        }
+        onCollapseAllGroups?.let { action ->
+            ListMenuItem(Icons.Filled.ExpandLess, stringResource(R.string.tab_group_collapse_all), checked = false) {
+                onDismiss(); action()
+            }
+        }
+        onExpandAllGroups?.let { action ->
+            ListMenuItem(Icons.Filled.ExpandMore, stringResource(R.string.tab_group_expand_all), checked = false) {
+                onDismiss(); action()
+            }
+        }
+        onToggleGroupBar?.let { action ->
+            ListMenuItem(Icons.Filled.Tab, stringResource(R.string.tab_group_bar_show), checked = showGroupBar) {
+                onDismiss(); action()
+            }
+        }
+        onToggleListView?.let { action ->
+            ListMenuItem(Icons.AutoMirrored.Filled.ViewList, stringResource(R.string.tab_menu_list_view), checked = listView) {
+                onDismiss(); action()
+            }
         }
     }
 }

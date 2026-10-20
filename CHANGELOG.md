@@ -4,6 +4,138 @@ All notable changes to Clint Gecko are documented here.
 
 ---
 
+# v1.0.3
+
+## What's New
+
+### Tab Groups
+
+You can finally organize your tabs into groups!
+
+- Select some tabs and tap **Group**, then give the group a name and a color. If all the tabs come from the same site, Clint suggests a name for you.
+- Each group sits inside a container tinted with its color. Tap the header to collapse or expand it. A collapsed group shows a small stack of its favicons.
+- Drop a tab onto another tab to create a group with both of them, or drop it onto a grouped tab to add it to that group.
+- Drag a group by its header to move it around. While you drag it, every group collapses so it moves as a single block.
+- The header menu has New Tab in Group, Edit Name and Color, Select Tabs in Group, Ungroup, and Close Group.
+- A row of group chips sits under the New Tab buttons. Tap a chip to jump straight to that group.
+- New tabs opened from a grouped tab join its group. This includes "Open in new tab" and popups.
+- When the current tab is in a group, a **Group Bar** shows the group's tabs as favicons so you can switch between them quickly. You can hide it from the tab menu with **Show Group Bar**.
+- Groups and their colors are saved and restored after a restart. Incognito groups are never saved, and a group never mixes normal and incognito tabs.
+
+> Tbh, I don't know if I did a good job. All I know is I've never used tab groups before, so I didn't really know what the convenient way to implement it was.
+
+(Thanks to @BunCat09 for suggesting this [#11](https://github.com/jhaiian/ClintGecko/issues/11))
+
+---
+
+### Tab Strip
+
+- Every tab shows its favicon, title, and a close button. Tabs share the available width and scroll sideways when they don't fit.
+- Tap `+` at the end to open a new tab. The strip only shows tabs from your current mode, so incognito tabs never appear next to normal ones.
+- Groups appear as colored chips before their tabs. Tap a chip to collapse or expand the group, or long-press it to open the tab menu on that group.
+- Long-press a tab for Close Tab, Close Other Tabs, and group options.
+- Tabs from a non-default profile show a small dot in the profile's color on their favicon.
+- Turn it on or off in Settings › Look and feel › Layout › **Tab strip**. It's on by default on tablets and larger screens and off on phones.
+
+(Thanks to @jamestong420 for suggesting this [#6](https://github.com/jhaiian/ClintGecko/issues/6))
+
+---
+
+### Tab Strip and Group Bar Position
+
+Two new settings in Settings › Look and feel › Layout, **Tab Strip Position** and **Tab Group Bar Position**. Each one can follow the search bar (the default), or always stay at the top or bottom of the screen. Both bars can be shown at the same time, and changes apply right away without a restart.
+
+---
+
+### A Better Tab Menu
+
+- Long-press anywhere on a tab card to drag it. You don't need to aim for the small handle anymore. Long-pressing without moving still starts selection mode.
+- Swipe a tab sideways to close it.
+- Close a tab, a group, a selection, or all your tabs, and an **Undo** button brings them back exactly where they were. Incognito tabs are never kept for undo, for privacy.
+- New **search** button that filters your tabs by title or URL.
+- New **Show as list** option in the menu that switches to compact rows with the favicon, title, site, and profile. On wide screens, the list uses multiple columns.
+
+(Thanks to Daniel Rioja for suggesting this)
+
+- New **Close duplicate tabs** option. It only shows up when you actually have duplicates, and it keeps the tab you're on.
+- Swipe the address bar to open the tab menu, just like Firefox. Swipe down when the address bar is at the top, or up when it's at the bottom. Swiping sideways still switches tabs.
+
+(Thanks to @akshaymaurya26 for suggesting this [#20](https://github.com/jhaiian/ClintGecko/issues/20))
+
+- While dragging a tab, the tab menu now scrolls automatically when you reach the top or bottom.
+- The tab menu is lighter and smoother, especially when you have a lot of tabs.
+
+---
+
+### Homepage Favorites
+
+The Favorites section on the homepage is now yours to manage, like Firefox's shortcuts.
+
+- Long-press a tile and drag it to rearrange your favorites.
+- Drop a tile onto another tile to make a folder. You can rename a folder, ungroup it, or reorder the sites inside it.
+- Long-press a tile for Open in new tab, Edit, Move to folder, and Remove.
+- Long-press a site in Recently visited to add it to your favorites.
+- Use the new **Add** tile to add any site by name and URL.
+- Pick your own image for any tile, or switch back to the site's icon.
+- Your favorites are included in settings backup and restore.
+
+(Thanks to @xmiseggs for suggesting this [#4](https://github.com/jhaiian/ClintGecko/issues/4))
+
+---
+
+### Sharper Icons
+
+Say goodbye to blurry little favicons! Icons across the app are now much sharper. That includes your tabs, the tab strip, the group bar, history, bookmarks, suggestions, and homepage tiles. Clint now looks for the best icon the site offers, including SVG icons. If a site doesn't have a good one, Clint uses a high-resolution icon service instead. That only sends the site's address, it's never used in Incognito, and turning off favicons in Data Saver blocks it completely.
+
+"Add to home screen" shortcuts also use these sharper icons now.
+
+(Thanks to @xmiseggs for suggesting this [#4](https://github.com/jhaiian/ClintGecko/issues/4))
+
+---
+
+### Custom Colors
+
+Profiles now have a **Custom color** swatch next to the preset colors (tab groups get one too). Tap it to open the color picker and choose any color you want.
+
+---
+
+### Media Capture
+
+Media Capture now finds every media link on the page, not just the one that's playing. If a site offers 360p, 480p, and 720p, you'll see all of them without switching the quality by hand.
+
+It looks inside video and audio players, links, embedded players, page settings, and popular players like JW Player, Video.js, and Plyr. It also picks up subtitle tracks. Formats that used to show up as `OCTET-STREAM` now show their real name, like MP4, MKV, or MP3.
+
+(Thanks to @34NANAKO34 for suggesting this [#5](https://github.com/jhaiian/ClintGecko/issues/5))
+
+---
+
+## Improvements
+
+- Downloads from links like `video.php` now get their real file extension instead of being saved as `.php`. Clint checks the server's response and the first bytes of the file to work out what it really is.
+
+(Thanks to @34NANAKO34 for reporting this [#5](https://github.com/jhaiian/ClintGecko/issues/5))
+
+---
+
+## Other Changes
+
+- Updated Privacy Policy.
+
+Since Clint now uses Google's icon service as a fallback for sharper icons, I've added it to the Privacy Policy. I also updated it to cover tab groups, homepage favorites, how downloads detect their file type, and how Media Capture scans the page. As always, everything stays on your device except what's needed to fetch an icon.
+
+---
+
+## Bug Fixes
+
+- Fixed desktop mode getting stuck when Save State is enabled. Pages could keep reloading and never leave the desktop site, or two sites could keep bouncing between each other.
+- Fixed turning off desktop mode sometimes breaking mobile layouts until the next reload.
+- Fixed desktop mode from one tab carrying over to other tabs.
+- Fixed turning off desktop mode on a saved site in Incognito being undone on the next page.
+- Fixed media players that load videos from script links (like `video.php`) being ignored by Media Capture.
+- Fixed closing a tab that came before the current tab sometimes switching you to the wrong tab.
+
+---
+
 # v1.0.2
 
 ## What's New
@@ -321,13 +453,13 @@ But that's not all. Since Clint Gecko is an official fork of Clint Browser, with
 
 ---
 
-## ðŸ”¥ Key Features
+## 🔥 Key Features
 
-- ðŸ¦Š Firefox-based browsing with GeckoView
-- ðŸ§© Browser extension support
-- ðŸŽµ Background playback
-- ðŸ“¥ Built-in Advanced Download Manager (ADM)
-- ðŸŽ¬ Built-in Media Capture
+- 🦊 Firefox-based browsing with GeckoView
+- 🧩 Browser extension support
+- 🎵 Background playback
+- 📥 Built-in Advanced Download Manager (ADM)
+- 🎬 Built-in Media Capture
 
 ---
 
@@ -335,6 +467,6 @@ Clint is no longer limited to one browser engine. You can stick with the origina
 
 And don't worry! The original Clint Browser will continue to be maintained as the lighter version, so you can choose whichever browser suits your needs best.
 
-**Two engines. One Clint. ðŸ’œ**
+**Two engines. One Clint. 💜**
 
 ---

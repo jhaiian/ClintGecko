@@ -31,6 +31,21 @@ class TabMenuUiState {
         if (selectedIds.isEmpty()) selectionMode = false
     }
 
+    fun setSelected(tabIds: List<String>, selected: Boolean) {
+        if (selected) {
+            selectionMode = true
+            tabIds.forEach { if (!selectedIds.contains(it)) selectedIds.add(it) }
+        } else {
+            selectedIds.removeAll(tabIds.toSet())
+            if (selectedIds.isEmpty()) selectionMode = false
+        }
+    }
+
+    fun retainExisting(tabIds: Collection<String>) {
+        val existing = tabIds.toSet()
+        selectedIds.retainAll { it in existing }
+    }
+
     fun exitSelectionMode() {
         selectionMode = false
         selectedIds.clear()

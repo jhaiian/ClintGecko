@@ -2,8 +2,6 @@ package com.jhaiian.clint.downloads
 
 import android.content.Intent
 import android.net.Uri
-import android.webkit.MimeTypeMap
-import android.webkit.URLUtil
 import androidx.documentfile.provider.DocumentFile
 import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
@@ -13,18 +11,8 @@ import com.jhaiian.clint.mediacapture.download.StreamDownloadRequest
 import com.jhaiian.clint.settings.downloads.DownloadSettingsKeys
 import java.io.File
 
-internal fun resolveFilename(url: String, contentDisposition: String, contentType: String): String {
-    if (contentDisposition.isNotBlank()) {
-        val cdFilename = DownloadFileHelper.extractFilenameFromContentDisposition(contentDisposition)
-        if (!cdFilename.isNullOrBlank()) return cdFilename
-    }
-    val guessed = URLUtil.guessFileName(url, contentDisposition, contentType)
-    if (!guessed.isNullOrBlank() && guessed != "downloadfile") return guessed
-    val ext = MimeTypeMap.getSingleton().getExtensionFromMimeType(contentType)
-    val nameFromUrl = url.substringAfterLast('/').substringBefore('?').substringBefore('#')
-        .ifBlank { "download" }
-    return if (ext != null && !nameFromUrl.contains('.')) "$nameFromUrl.$ext" else nameFromUrl
-}
+internal fun resolveFilename(url: String, contentDisposition: String, contentType: String): String =
+    DownloadFilenameResolver.resolve(url, contentDisposition, contentType)
 
 internal fun DownloadsActivity.performManualDownload(
     submission: ManualDownloadSubmission,

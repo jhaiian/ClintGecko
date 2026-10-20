@@ -152,6 +152,10 @@ function onNative(m) {
     if (m.id) post({ k: "evalRes", id: m.id, v: ser(vs) });
     return;
   }
+  if (m.k === "mediaScan") {
+    try { mediaScan(m); } catch (e) {}
+    return;
+  }
   if (m.k === "reader") {
     var rout = "null";
     try {

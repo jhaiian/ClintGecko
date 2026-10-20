@@ -32,6 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -120,6 +121,13 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
             activity.captureActiveTabThumbnail()
             tabSwitcherOpen = true
         }
+        val openTabGroup: (String) -> Unit = { groupId ->
+            state.tabMenuFocusGroupId = groupId
+            openTabSwitcher()
+        }
+        val tabStripAtTop = resolveTabBarAtTop(state.tabStripPosition, state.addressBarPosition)
+        val tabGroupBarAtTop = resolveTabBarAtTop(state.tabGroupBarPosition, state.addressBarPosition)
+        val chromeVisible = !state.isFullscreen && !state.isShortcutFrameless
 
         if (!state.isFullscreen && !state.isShortcutFrameless && (state.addressBarPosition == AddressBarPosition.TOP || state.addressBarPosition == AddressBarPosition.SPLIT)) {
             TopToolbar(
@@ -127,6 +135,9 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
                 state = state,
                 statusBarPaddingPx = effectiveStatusBarPx,
                 onTabCountClick = openTabSwitcher,
+                onOpenTabGroup = openTabGroup,
+                showTabStrip = tabStripAtTop,
+                showTabGroupBar = tabGroupBarAtTop,
                 modifier = Modifier.align(Alignment.TopStart)
             )
         }
@@ -136,6 +147,9 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
                 activity = activity,
                 state = state,
                 navBarPaddingPx = effectiveNavBarPx,
+                showTabStrip = !tabStripAtTop,
+                showTabGroupBar = !tabGroupBarAtTop,
+                onOpenTabGroup = openTabGroup,
                 modifier = Modifier.align(Alignment.BottomStart)
             )
         }
@@ -146,6 +160,33 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
                 state = state,
                 bottomPaddingPx = maxOf(rawImePx, effectiveNavBarPx),
                 onTabCountClick = openTabSwitcher,
+                onOpenTabGroup = openTabGroup,
+                showTabStrip = !tabStripAtTop,
+                showTabGroupBar = !tabGroupBarAtTop,
+                modifier = Modifier.align(Alignment.BottomStart)
+            )
+        }
+
+        if (chromeVisible && state.addressBarPosition == AddressBarPosition.BOTTOM && (tabStripAtTop || tabGroupBarAtTop)) {
+            TopTabBarsAccessory(
+                activity = activity,
+                state = state,
+                statusBarPaddingPx = effectiveStatusBarPx,
+                showTabStrip = tabStripAtTop,
+                showTabGroupBar = tabGroupBarAtTop,
+                onOpenTabGroup = openTabGroup,
+                modifier = Modifier.align(Alignment.TopStart)
+            )
+        }
+
+        if (chromeVisible && state.addressBarPosition == AddressBarPosition.TOP && (!tabStripAtTop || !tabGroupBarAtTop)) {
+            BottomTabBarsAccessory(
+                activity = activity,
+                state = state,
+                navBarPaddingPx = effectiveNavBarPx,
+                showTabStrip = !tabStripAtTop,
+                showTabGroupBar = !tabGroupBarAtTop,
+                onOpenTabGroup = openTabGroup,
                 modifier = Modifier.align(Alignment.BottomStart)
             )
         }
@@ -274,6 +315,21 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
                 onDismiss = { state.profilePickerOpen = false }
             )
         }
+        state.tabStripNewGroupTabId?.let { tabId ->
+            com.jhaiian.clint.tabs.TabGroupEditorDialog(
+                title = stringResource(R.string.tab_group_new),
+                positiveLabel = stringResource(R.string.tab_group_create),
+                initialName = "",
+                initialColor = remember(tabId) { com.jhaiian.clint.tabs.TabGroupColor.next(activity.tabManager.groups.map { it.color }) },
+                hideStatusBar = hideStatusBarPref,
+                hideSystemNavigation = hideSystemNavigationPref,
+                onDismiss = { state.tabStripNewGroupTabId = null },
+                onConfirm = { name, color ->
+                    state.tabStripNewGroupTabId = null
+                    activity.addTabToNewGroup(tabId, name, color)
+                }
+            )
+        }
         state.createShortcutRequest?.let { req ->
             com.jhaiian.clint.browser.dialogs.CreateShortcutDialog(req, activity, hideStatusBarPref, hideSystemNavigationPref) { state.createShortcutRequest = null }
         }
@@ -316,6 +372,9 @@ private fun TopToolbar(
     state: MainUiState,
     statusBarPaddingPx: Int,
     onTabCountClick: () -> Unit,
+    onOpenTabGroup: (String) -> Unit,
+    showTabStrip: Boolean,
+    showTabGroupBar: Boolean,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalClintColors.current
@@ -338,6 +397,7 @@ private fun TopToolbar(
             .background(colors.surface)
             .padding(top = with(density) { statusBarPaddingPx.toDp() })
     ) {
+        if (showTabStrip) TabStripSlot(activity, state, onOpenTabGroup)
         AddressBarRow(
             activity = activity,
             isIncognito = state.isIncognito,
@@ -351,9 +411,144 @@ private fun TopToolbar(
             onMediaCaptureClick = { activity.mountMediaCaptureDialog() },
             showHomeButton = state.showHomeButton,
             onHomeClick = { activity.navGoHome() },
-            onSwipeTabChange = { direction -> activity.onSwipeTabChange(direction) }
+            onSwipeTabChange = { direction -> activity.onSwipeTabChange(direction) },
+            openTabsSwipeDirection = 1
         )
+        if (showTabGroupBar) TabGroupBarSlot(activity, state, onOpenTabGroup)
         PageLoadProgress(state)
+    }
+}
+
+private fun resolveTabBarAtTop(position: String, addressBarPosition: AddressBarPosition): Boolean =
+    when (com.jhaiian.clint.tabs.TabBarPlacement.normalize(position)) {
+        com.jhaiian.clint.tabs.TabBarPlacement.TOP -> true
+        com.jhaiian.clint.tabs.TabBarPlacement.BOTTOM -> false
+        else -> addressBarPosition != AddressBarPosition.BOTTOM
+    }
+
+@Composable
+private fun TopTabBarsAccessory(
+    activity: MainActivity,
+    state: MainUiState,
+    statusBarPaddingPx: Int,
+    showTabStrip: Boolean,
+    showTabGroupBar: Boolean,
+    onOpenTabGroup: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = LocalClintColors.current
+    val density = LocalDensity.current
+    DisposableEffect(Unit) {
+        onDispose {
+            state.topBarFullHeightPx = 0
+            activity.updateMainContentInsets()
+        }
+    }
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                val contentBarHeight = (state.topBarFullHeightPx - state.statusBarInsetPx).toFloat()
+                translationY = -state.topBarFraction * contentBarHeight
+            }
+            .onGloballyPositioned { coordinates ->
+                val h = coordinates.size.height
+                if (state.topBarFullHeightPx != h) {
+                    state.topBarFullHeightPx = h
+                    activity.swipeRefreshView.setProgressViewOffset(false, h + 4, h + 72)
+                    activity.updateMainContentInsets()
+                }
+            }
+            .background(colors.surface)
+            .padding(top = with(density) { statusBarPaddingPx.toDp() })
+    ) {
+        if (showTabStrip) TabStripSlot(activity, state, onOpenTabGroup)
+        if (showTabGroupBar) TabGroupBarSlot(activity, state, onOpenTabGroup)
+    }
+}
+
+@Composable
+private fun BottomTabBarsAccessory(
+    activity: MainActivity,
+    state: MainUiState,
+    navBarPaddingPx: Int,
+    showTabStrip: Boolean,
+    showTabGroupBar: Boolean,
+    onOpenTabGroup: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = LocalClintColors.current
+    val density = LocalDensity.current
+    DisposableEffect(Unit) {
+        onDispose {
+            state.bottomBarFullHeightPx = 0
+            activity.updateMainContentInsets()
+        }
+    }
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .graphicsLayer { translationY = state.bottomBarFraction * state.bottomBarFullHeightPx }
+            .onGloballyPositioned { coordinates ->
+                val h = coordinates.size.height
+                if (state.bottomBarFullHeightPx != h) {
+                    state.bottomBarFullHeightPx = h
+                    activity.updateMainContentInsets()
+                }
+            }
+            .background(colors.surface)
+            .padding(bottom = with(density) { navBarPaddingPx.toDp() })
+    ) {
+        if (showTabGroupBar) TabGroupBarSlot(activity, state, onOpenTabGroup)
+        if (showTabStrip) TabStripSlot(activity, state, onOpenTabGroup)
+    }
+}
+
+@Composable
+private fun TabStripSlot(activity: MainActivity, state: MainUiState, onOpenTabGroup: (String) -> Unit) {
+    val strip = state.tabStrip
+    AnimatedVisibility(
+        visible = strip != null,
+        enter = fadeIn(tween(180)) + expandVertically(tween(220)),
+        exit = fadeOut(tween(140)) + shrinkVertically(tween(200))
+    ) {
+        val lastStrip = remember { mutableStateOf(strip) }
+        if (strip != null) lastStrip.value = strip
+        lastStrip.value?.let { shown ->
+            com.jhaiian.clint.tabs.TabStrip(
+                state = shown,
+                onSelectTab = { id -> activity.focusTabById(id) },
+                onCloseTab = { id -> activity.closeTabFromStrip(id) },
+                onCloseOtherTabs = { id -> activity.closeOtherTabsFromStrip(id) },
+                onNewTab = { activity.openNewTabFromStrip() },
+                onNewTabInGroup = { groupId -> activity.openNewTabInGroup(groupId) },
+                onAddToNewGroup = { id -> state.tabStripNewGroupTabId = id },
+                onRemoveFromGroup = { id -> activity.removeTabFromGroup(id) },
+                onToggleGroup = { groupId -> activity.toggleTabGroupCollapsed(groupId) },
+                onOpenGroup = onOpenTabGroup
+            )
+        }
+    }
+}
+
+@Composable
+private fun TabGroupBarSlot(activity: MainActivity, state: MainUiState, onOpenTabGroup: (String) -> Unit) {
+    val bar = state.tabGroupBar
+    AnimatedVisibility(
+        visible = bar != null,
+        enter = fadeIn(tween(180)) + expandVertically(tween(220)),
+        exit = fadeOut(tween(140)) + shrinkVertically(tween(200))
+    ) {
+        val lastBar = remember { mutableStateOf(bar) }
+        if (bar != null) lastBar.value = bar
+        lastBar.value?.let { shown ->
+            com.jhaiian.clint.tabs.TabGroupBar(
+                state = shown,
+                onSelectTab = { id -> activity.focusTabById(id) },
+                onNewTab = { activity.openNewTabInGroup(shown.group.id) },
+                onOpenGroup = { onOpenTabGroup(shown.group.id) }
+            )
+        }
     }
 }
 
@@ -383,6 +578,9 @@ private fun BottomToolbar(
     state: MainUiState,
     bottomPaddingPx: Int,
     onTabCountClick: () -> Unit,
+    onOpenTabGroup: (String) -> Unit,
+    showTabStrip: Boolean,
+    showTabGroupBar: Boolean,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalClintColors.current
@@ -402,6 +600,8 @@ private fun BottomToolbar(
             .padding(bottom = with(density) { bottomPaddingPx.toDp() })
     ) {
         PageLoadProgress(state)
+        if (showTabGroupBar) TabGroupBarSlot(activity, state, onOpenTabGroup)
+        if (showTabStrip) TabStripSlot(activity, state, onOpenTabGroup)
         AddressBarRow(
             activity = activity,
             isIncognito = state.isIncognito,
@@ -415,7 +615,8 @@ private fun BottomToolbar(
             onMediaCaptureClick = { activity.mountMediaCaptureDialog() },
             showHomeButton = state.showHomeButton,
             onHomeClick = { activity.navGoHome() },
-            onSwipeTabChange = { direction -> activity.onSwipeTabChange(direction) }
+            onSwipeTabChange = { direction -> activity.onSwipeTabChange(direction) },
+            openTabsSwipeDirection = -1
         )
     }
 }
@@ -425,14 +626,15 @@ private fun BottomNavBar(
     activity: MainActivity,
     state: MainUiState,
     navBarPaddingPx: Int,
+    showTabStrip: Boolean,
+    showTabGroupBar: Boolean,
+    onOpenTabGroup: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalClintColors.current
-    val density = LocalDensity.current
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .height(52.dp)
             .graphicsLayer { translationY = state.bottomBarFraction * state.bottomBarFullHeightPx }
             .onGloballyPositioned { coordinates ->
                 val h = coordinates.size.height
@@ -442,6 +644,20 @@ private fun BottomNavBar(
                 }
             }
             .background(colors.surface)
+    ) {
+        if (showTabGroupBar) TabGroupBarSlot(activity, state, onOpenTabGroup)
+        if (showTabStrip) TabStripSlot(activity, state, onOpenTabGroup)
+        BottomNavButtons(activity, state, navBarPaddingPx)
+    }
+}
+
+@Composable
+private fun BottomNavButtons(activity: MainActivity, state: MainUiState, navBarPaddingPx: Int) {
+    val density = LocalDensity.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
             .padding(bottom = with(density) { navBarPaddingPx.toDp() }),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly
     ) {

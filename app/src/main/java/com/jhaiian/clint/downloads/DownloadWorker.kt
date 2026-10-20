@@ -197,28 +197,15 @@ internal object DownloadWorker {
                 ClintDownloadManager.publish(item)
 
                 val peeked = withContext(Dispatchers.IO) {
-                    runInterruptible {
-                        val buf = ByteArray(512)
-                        val read = rawStream.read(buf)
-                        if (read > 0) buf.copyOf(read) else ByteArray(0)
-                    }
+                    runInterruptible { DownloadFilenameResolver.readHead(rawStream) }
                 }
                 peekedBytes = peeked
 
-                var finalFilename = item.filename
-                val looksGeneric = finalFilename.endsWith(".bin") || !finalFilename.substringAfterLast('/').contains(".")
-                if (looksGeneric) {
-                    val contentType = response.header("Content-Type")?.substringBefore(";")?.trim()
-                    val extFromMime = contentType?.let {
-                        android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(it)
-                    }
-                    val extFromMagic = DownloadFileHelper.detectExtFromMagicBytes(peeked)
-                    val ext = extFromMagic ?: extFromMime
-                    if (ext != null) {
-                        val base = finalFilename.substringBeforeLast(".", finalFilename).ifEmpty { "download" }
-                        finalFilename = "$base.$ext"
-                    }
-                }
+                val finalFilename = DownloadFilenameResolver.refine(
+                    item.filename,
+                    response.header("Content-Type"),
+                    peeked
+                )
                 item = item.copy(filename = finalFilename)
 
                 outputFile = withContext(Dispatchers.IO) {

@@ -1,9 +1,0 @@
-• Redesigned Download Manager with Queue and Library
-• Real previews for videos, music, PDFs and APKs
-• Live speed graphs and segment maps
-• Swipe gestures and a new file details sheet
-• Download Log and Total Speed Limit settings
-• Faster, more reliable downloads that resume after the app is closed
-• Fixed uploads and downloads on extensions
-• Fixed uploads on some devices
-• Fixed navigation bar covering pages

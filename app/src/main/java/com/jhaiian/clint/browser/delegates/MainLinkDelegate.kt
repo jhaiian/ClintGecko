@@ -54,7 +54,7 @@ internal fun MainActivity.showLinkLongPressSheet(url: String, linkText: String) 
 }
 
 internal fun MainActivity.handleLinkOpenInNewTab(url: String) {
-    openNewTab(isIncognito = false, url = url, profileId = activeProfileId())
+    openNewTab(isIncognito = false, url = url, profileId = activeProfileId(), groupId = tabManager.activeTab?.takeIf { !it.isIncognito }?.groupId)
 }
 
 internal fun MainActivity.handleLinkOpenIncognito(url: String) {

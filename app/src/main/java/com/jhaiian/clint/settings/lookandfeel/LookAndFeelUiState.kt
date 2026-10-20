@@ -5,7 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 enum class LookAndFeelDialog {
-    THEME, ACCENT, SURFACE_INTENSITY, ADDRESS_BAR_POSITION, MENU_STYLE, SCROLL_HIDE_MODE, EXIT_CONFIRMATION, POPUP_ALERT_STYLE, LANGUAGE
+    THEME, ACCENT, SURFACE_INTENSITY, ADDRESS_BAR_POSITION, MENU_STYLE, SCROLL_HIDE_MODE, EXIT_CONFIRMATION, POPUP_ALERT_STYLE, LANGUAGE,
+    TAB_STRIP_POSITION, TAB_GROUP_BAR_POSITION
 }
 
 class LookAndFeelUiState(
@@ -18,6 +19,9 @@ class LookAndFeelUiState(
     initialMenuStyle: String,
     initialHideStatusBar: Boolean, initialHideSystemNavigation: Boolean,
     initialShowHomeButton: Boolean,
+    initialShowTabStrip: Boolean,
+    initialTabStripPosition: String,
+    initialTabGroupBarPosition: String,
     initialExitConfirmation: String,
     initialPopupAlertStyle: String
 ) {
@@ -32,6 +36,9 @@ class LookAndFeelUiState(
     var hideStatusBar by mutableStateOf(initialHideStatusBar)
     var hideSystemNavigation by mutableStateOf(initialHideSystemNavigation)
     var showHomeButton by mutableStateOf(initialShowHomeButton)
+    var showTabStrip by mutableStateOf(initialShowTabStrip)
+    var tabStripPosition by mutableStateOf(initialTabStripPosition)
+    var tabGroupBarPosition by mutableStateOf(initialTabGroupBarPosition)
 
     var exitConfirmation by mutableStateOf(initialExitConfirmation)
     var popupAlertStyle by mutableStateOf(initialPopupAlertStyle)

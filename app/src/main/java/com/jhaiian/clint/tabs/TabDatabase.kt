@@ -18,7 +18,21 @@ internal class TabDatabase(context: Context) :
                 $COL_TAB_ID   TEXT,
                 $COL_SHORTCUT_ID TEXT,
                 $COL_LAST_ACTIVE INTEGER NOT NULL DEFAULT 0,
-                $COL_PROFILE_ID TEXT NOT NULL DEFAULT 'default'
+                $COL_PROFILE_ID TEXT NOT NULL DEFAULT 'default',
+                $COL_GROUP_ID TEXT
+            )"""
+        )
+        createGroupsTable(db)
+    }
+
+    private fun createGroupsTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS $GROUPS_TABLE (
+                $COL_GROUP_ID        TEXT    PRIMARY KEY,
+                $COL_GROUP_POSITION  INTEGER NOT NULL,
+                $COL_GROUP_NAME      TEXT    NOT NULL DEFAULT '',
+                $COL_GROUP_COLOR     INTEGER NOT NULL,
+                $COL_GROUP_COLLAPSED INTEGER NOT NULL DEFAULT 0
             )"""
         )
     }
@@ -26,22 +40,36 @@ internal class TabDatabase(context: Context) :
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
 
         if (oldVersion < 3) {
-            db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_TAB_ID TEXT")
+            addColumnIfMissing(db, COL_TAB_ID, "TEXT")
         }
         if (oldVersion < 4) {
-            db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_SHORTCUT_ID TEXT")
+            addColumnIfMissing(db, COL_SHORTCUT_ID, "TEXT")
         }
         if (oldVersion < 5) {
-            db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_LAST_ACTIVE INTEGER NOT NULL DEFAULT ${System.currentTimeMillis()}")
+            addColumnIfMissing(db, COL_LAST_ACTIVE, "INTEGER NOT NULL DEFAULT ${System.currentTimeMillis()}")
         }
         if (oldVersion < 6) {
-            db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_PROFILE_ID TEXT NOT NULL DEFAULT 'default'")
+            addColumnIfMissing(db, COL_PROFILE_ID, "TEXT NOT NULL DEFAULT 'default'")
         }
+        if (oldVersion < 7) {
+            addColumnIfMissing(db, COL_GROUP_ID, "TEXT")
+            createGroupsTable(db)
+        }
+    }
+
+    private fun addColumnIfMissing(db: SQLiteDatabase, column: String, definition: String) {
+        val exists = db.rawQuery("PRAGMA table_info($TABLE)", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndex("name")
+            var found = false
+            while (!found && cursor.moveToNext()) found = cursor.getString(nameIndex) == column
+            found
+        }
+        if (!exists) db.execSQL("ALTER TABLE $TABLE ADD COLUMN $column $definition")
     }
 
     companion object {
         const val DB_NAME    = "clint_tabs.db"
-        const val DB_VERSION = 6
+        const val DB_VERSION = 7
         const val TABLE      = "tabs"
         const val COL_ID       = "id"
         const val COL_POSITION = "position"
@@ -52,5 +80,11 @@ internal class TabDatabase(context: Context) :
         const val COL_SHORTCUT_ID = "shortcut_id"
         const val COL_LAST_ACTIVE = "last_active"
         const val COL_PROFILE_ID = "profile_id"
+        const val COL_GROUP_ID = "group_id"
+        const val GROUPS_TABLE = "tab_groups"
+        const val COL_GROUP_POSITION = "position"
+        const val COL_GROUP_NAME = "name"
+        const val COL_GROUP_COLOR = "color"
+        const val COL_GROUP_COLLAPSED = "collapsed"
     }
 }

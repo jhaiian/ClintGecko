@@ -8,6 +8,12 @@ enum class MediaKind { VIDEO, AUDIO, SUBTITLE }
 
 enum class ManifestType { HLS, DASH }
 
+data class PageMediaCandidate(
+    val url: String,
+    val label: String?,
+    val language: String?
+)
+
 data class HlsSegmentEstimate(
     val segmentCount: Int,
     val estimatedBytes: Long?,

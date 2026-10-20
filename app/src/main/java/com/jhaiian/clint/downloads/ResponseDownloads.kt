@@ -2,7 +2,6 @@ package com.jhaiian.clint.downloads
 
 import android.content.Context
 import android.util.Base64
-import android.webkit.URLUtil
 import android.widget.Toast
 import com.jhaiian.clint.R
 import com.jhaiian.clint.browser.MainActivity
@@ -22,7 +21,7 @@ object ResponseDownloads {
             ?: response.uri.takeIf { it.startsWith("data:", true) }
                 ?.substringAfter(':')?.substringBefore(',')?.substringBefore(';')?.trim()?.takeIf { it.contains('/') }
         val source = if (isInline(response.uri)) "" else response.uri
-        val filename = URLUtil.guessFileName(source, header("Content-Disposition"), mime)
+        val filename = DownloadFilenameResolver.resolve(source, header("Content-Disposition"), mime)
         val appContext = context.applicationContext
         ClintGecko.io.execute {
             val encoded = runCatching {
