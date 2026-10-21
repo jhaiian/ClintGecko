@@ -263,12 +263,6 @@ A new **Total Speed Limit** setting (Download Settings › Speed Limit) caps the
 
 ---
 
-## Donation
-
-Thank you to **Daniel Rioja** for donating another $13.48! Thank you so much, sir. This covers two weeks of my expenses going to college. This definitely helps a lot.
-
----
-
 # v1.0.1
 
 ## What's New
