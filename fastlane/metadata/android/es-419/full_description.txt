@@ -43,6 +43,7 @@ Clint Gecko está creado con Material 3 y Jetpack Compose, con una interfaz muy 
 • En total, 500 combinaciones de tema posibles
 
 <b>PRIVACIDAD Y SEGURIDAD</b>
+• Protección mejorada contra rastreo y protección total contra cookies
 • Protección contra rastreo y DNS seguro (DoH)
 • Bloqueo de la app con huella, rostro o bloqueo de pantalla
 • Bloqueo de capturas de pantalla y teclado de incógnito
@@ -67,11 +68,13 @@ Clint Gecko está creado con Material 3 y Jetpack Compose, con una interfaz muy 
 
 <b>NAVEGADOR</b>
 • Navegación con varias pestañas
+• Grupos de pestañas
 • Modo incógnito
 • Modo lectura
 • Modo escritorio
 • Protección contra ventanas emergentes
 • Ahorro de datos
+• Traducción de páginas en el dispositivo
 
 Solo descarga la app y descúbrela por ti mismo.
 

@@ -82,9 +82,9 @@ fun ShortcutSettingsScreen(
 
     Surface(color = colors.background, modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            Surface(color = colors.surface, shadowElevation = 4.dp, modifier = Modifier.statusBarsPadding()) {
+            Surface(color = colors.background, modifier = Modifier.statusBarsPadding()) {
                 Row(
-                    Modifier.fillMaxWidth().height(56.dp).padding(start = 4.dp, end = 8.dp),
+                    Modifier.fillMaxWidth().height(64.dp).padding(start = 4.dp, end = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = onExit) {
@@ -93,8 +93,8 @@ fun ShortcutSettingsScreen(
                     Text(
                         text = stringResource(R.string.shortcut_manager_settings_title),
                         color = colors.onSurface,
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).padding(start = 4.dp)

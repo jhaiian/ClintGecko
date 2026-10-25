@@ -1,14 +1,16 @@
 package com.jhaiian.clint.mediacapture.download
 
 import java.io.File
-import java.io.FileInputStream
 import java.io.InputStream
 
 object TsToMp4Converter {
 
     fun convert(input: File, output: File, isActive: () -> Boolean, onProgress: (Int) -> Unit): Boolean =
+        convert(listOf(input), output, isActive, onProgress)
+
+    fun convert(inputs: List<File>, output: File, isActive: () -> Boolean, onProgress: (Int) -> Unit): Boolean =
         try {
-            TsConversion(input, output, isActive, onProgress).run()
+            TsConversion(inputs, output, isActive, onProgress).run()
         } catch (_: Exception) {
             false
         } catch (_: OutOfMemoryError) {
@@ -86,7 +88,7 @@ private class TsPacketReader(private val input: InputStream) {
 }
 
 private class TsConversion(
-    private val input: File,
+    private val inputs: List<File>,
     private val output: File,
     private val isActive: () -> Boolean,
     private val onProgress: (Int) -> Unit
@@ -129,11 +131,11 @@ private class TsConversion(
     private var audioHasMarker = false
 
     fun run(): Boolean {
-        val totalBytes = input.length().coerceAtLeast(1L)
+        val totalBytes = inputs.sumOf { it.length() }.coerceAtLeast(1L)
         sink = Mp4Sink(output)
         var success = false
         try {
-            FileInputStream(input).use { stream ->
+            SegmentInputStream(inputs).use { stream ->
                 val reader = TsPacketReader(stream)
                 if (!reader.locate()) throw TsUnsupportedException("No transport stream")
                 sink.write(Mp4Boxes.ftyp())

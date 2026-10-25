@@ -1,0 +1,12 @@
+• Rebuilt download engine, faster and more reliable
+• Auto mode for connections and segments
+• On-device page translation
+• Enhanced Tracking Protection
+• Total Cookie Protection by default
+• Site information from the address bar lock
+• New Delete browsing data screen
+• Redesigned settings, history and suggestions
+• New error page with an offline game
+• Hindi, Indonesian and Brazilian Portuguese
+• Website isolation
+• Keyboard, fullscreen and download fixes

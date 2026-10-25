@@ -15,9 +15,18 @@ class DownloadActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getIntExtra(EXTRA_ID, -1)
         if (id == -1) return
-        when (intent.action) {
-            ACTION_PAUSE  -> ClintDownloadManager.pause(context, id)
-            ACTION_RESUME -> ClintDownloadManager.resume(context, id)
+        val action = intent.action
+        val appContext = context.applicationContext
+        val pendingResult = goAsync()
+        ClintDownloadManager.init(appContext).invokeOnCompletion {
+            try {
+                when (action) {
+                    ACTION_PAUSE  -> ClintDownloadManager.pause(appContext, id)
+                    ACTION_RESUME -> ClintDownloadManager.resume(appContext, id)
+                }
+            } finally {
+                pendingResult.finish()
+            }
         }
     }
 }

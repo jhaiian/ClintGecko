@@ -29,8 +29,10 @@ import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowDropDownCircle
 import androidx.compose.material.icons.filled.Backup
 import androidx.compose.material.icons.filled.Tab
+import androidx.compose.material.icons.filled.Workspaces
 import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.BugReport
@@ -139,6 +141,7 @@ import com.jhaiian.clint.settings.DEST_MISC
 import com.jhaiian.clint.settings.DEST_PRIVACY
 import com.jhaiian.clint.settings.DEST_SITE_SETTINGS
 import com.jhaiian.clint.settings.DEST_SUPPORT_CLINT
+import com.jhaiian.clint.settings.DEST_TRANSLATIONS
 import com.jhaiian.clint.settings.DEST_UPDATES
 import com.jhaiian.clint.ui.listscreen.ClintSearchField
 import com.jhaiian.clint.ui.rememberMaxContentWidth
@@ -259,12 +262,12 @@ private val AccentNames = listOf(
 )
 
 internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEntry> = buildList {
-    category(DEST_LOOK_AND_FEEL, R.string.look_and_feel, R.string.look_and_feel_summary, Icons.Filled.Palette)
     category(DEST_BROWSER, R.string.browser_settings, R.string.browser_settings_summary, Icons.Filled.Explore)
+    category(DEST_LOOK_AND_FEEL, R.string.look_and_feel, R.string.look_and_feel_summary, Icons.Filled.Palette)
     category(DEST_PRIVACY, R.string.privacy_settings, R.string.privacy_settings_summary, Icons.Filled.Lock)
     category(DEST_SITE_SETTINGS, R.string.site_settings, R.string.site_settings_summary, Icons.Filled.WebAsset)
-    category(DEST_DATA_SAVER, R.string.data_saver_title, R.string.data_saver_settings_summary, Icons.Filled.DataSaverOn)
     category(DEST_DOWNLOADS, R.string.download_settings_title, R.string.download_settings_summary, Icons.Filled.Download)
+    category(DEST_DATA_SAVER, R.string.data_saver_title, R.string.data_saver_settings_summary, Icons.Filled.DataSaverOn)
     category(DEST_BACKUP_RESTORE, R.string.backup_restore_title, R.string.backup_restore_summary, Icons.Filled.SettingsBackupRestore)
     if (BuildConfig.IS_FOSS) {
         category(DEST_UPDATES, R.string.view_changelog_title, R.string.view_changelog_summary, Icons.Filled.Update)
@@ -291,29 +294,30 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
             )
         )
         item(
-            R.string.pref_nested_scroll_title, section = R.string.pref_category_layout,
+            R.string.pref_nested_scroll_title, section = R.string.pref_category_address_bar,
             extras = listOf(R.string.nested_scroll_off, R.string.nested_scroll_search_bar, R.string.nested_scroll_both)
         )
         item(
-            R.string.pref_address_bar_position_title, section = R.string.pref_category_layout,
+            R.string.pref_address_bar_position_title, section = R.string.pref_category_address_bar,
             extras = listOf(R.string.address_bar_position_top, R.string.address_bar_position_bottom, R.string.address_bar_position_split)
         )
         item(
-            R.string.pref_menu_style_title, section = R.string.pref_category_layout,
+            R.string.pref_menu_style_title, section = R.string.menu,
             extras = listOf(R.string.menu_style_bottom_sheet, R.string.menu_style_popup)
         )
-        item(R.string.menu_customization_title, R.string.menu_customization_settings_summary, R.string.pref_category_layout, icon = Icons.Filled.Reorder)
-        item(R.string.pref_tab_strip_title, R.string.pref_tab_strip_summary, R.string.pref_category_layout, icon = Icons.Filled.Tab)
+        item(R.string.menu_customization_title, R.string.menu_customization_settings_summary, R.string.menu, icon = Icons.Filled.Reorder)
+        item(R.string.pref_tab_strip_title, R.string.pref_tab_strip_summary, R.string.pref_category_tabs, icon = Icons.Filled.Tab)
         item(
-            R.string.pref_tab_strip_position_title, section = R.string.pref_category_layout,
+            R.string.pref_tab_strip_position_title, section = R.string.pref_category_tabs,
             extras = listOf(R.string.tab_bar_position_follow, R.string.address_bar_position_top, R.string.address_bar_position_bottom)
         )
+        item(R.string.pref_tab_groups_title, R.string.pref_tab_groups_summary, R.string.pref_category_tabs, icon = Icons.Filled.Workspaces)
         item(
-            R.string.pref_tab_group_bar_position_title, section = R.string.pref_category_layout,
+            R.string.pref_tab_group_bar_position_title, section = R.string.pref_category_tabs,
             extras = listOf(R.string.tab_bar_position_follow, R.string.address_bar_position_top, R.string.address_bar_position_bottom)
         )
-        item(R.string.hide_status_bar, R.string.hide_status_bar_summary, R.string.pref_category_layout, icon = Icons.Filled.Fullscreen)
-        item(R.string.hide_system_navigation, R.string.hide_system_navigation_summary, R.string.pref_category_layout, icon = Icons.Filled.Fullscreen)
+        item(R.string.hide_status_bar, R.string.hide_status_bar_summary, R.string.pref_category_fullscreen, icon = Icons.Filled.Fullscreen)
+        item(R.string.hide_system_navigation, R.string.hide_system_navigation_summary, R.string.pref_category_fullscreen, icon = Icons.Filled.Fullscreen)
         item(
             R.string.exit_confirmation_title, section = R.string.pref_category_navigation,
             extras = listOf(R.string.exit_confirmation_off, R.string.exit_confirmation_toast, R.string.exit_confirmation_dialog)
@@ -342,6 +346,8 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
             extras = listOf(R.string.engine_google, R.string.engine_duckduckgo, R.string.engine_brave, R.string.engine_ecosia, R.string.engine_custom)
         )
         item(R.string.search_suggestions_api, section = R.string.pref_category_search, icon = Icons.AutoMirrored.Filled.ManageSearch)
+        item(R.string.suggestions_show_history_title, R.string.suggestions_show_history_summary, R.string.pref_category_search, icon = Icons.Filled.History)
+        item(R.string.suggestions_show_bookmarks_title, R.string.suggestions_show_bookmarks_summary, R.string.pref_category_search, icon = Icons.Filled.Bookmark)
         item(
             R.string.delete_inactive_tabs_title, section = R.string.pref_category_tabs,
             extras = listOf(
@@ -351,21 +357,30 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
         )
         item(R.string.website_blocker_title, R.string.website_blocker_settings_summary, R.string.pref_category_protection, icon = Icons.Filled.Shield)
         item(R.string.incognito_search_history_title, R.string.incognito_search_history_summary, R.string.pref_category_incognito, icon = Icons.Filled.VisibilityOff)
-        item(R.string.javascript_enabled, R.string.javascript_enabled_summary, R.string.browser_settings, icon = Icons.Filled.DesktopWindows)
-        item(R.string.background_playback_title, R.string.background_playback_summary, R.string.browser_settings, icon = androidx.compose.material.icons.Icons.Filled.Headphones)
-        item(R.string.profiles_title, R.string.profiles_settings_summary, R.string.browser_settings, icon = androidx.compose.material.icons.Icons.Filled.AccountCircle)
-        item(R.string.ext_title, R.string.ext_settings_summary, R.string.browser_settings, icon = androidx.compose.material.icons.Icons.Filled.Extension)
-        item(R.string.shortcut_manager_title, R.string.shortcut_manager_summary, R.string.pref_category_shortcuts, icon = Icons.AutoMirrored.Filled.AddToHomeScreen)
+        item(R.string.javascript_enabled, R.string.javascript_enabled_summary, R.string.pref_category_web_content, icon = Icons.Filled.DesktopWindows)
+        item(R.string.background_playback_title, R.string.background_playback_summary, R.string.pref_category_web_content, icon = androidx.compose.material.icons.Icons.Filled.Headphones)
+        item(R.string.profiles_title, R.string.profiles_settings_summary, R.string.pref_category_tools, icon = androidx.compose.material.icons.Icons.Filled.AccountCircle)
+        item(R.string.translation_settings_title, R.string.translation_settings_summary, R.string.pref_category_tools, icon = Icons.Filled.Translate)
+        item(R.string.ext_title, R.string.ext_settings_summary, R.string.pref_category_tools, icon = androidx.compose.material.icons.Icons.Filled.Extension)
+        item(R.string.shortcut_manager_title, R.string.shortcut_manager_summary, R.string.pref_category_tools, icon = Icons.AutoMirrored.Filled.AddToHomeScreen)
     }
 
     page(DEST_PRIVACY, R.string.privacy_settings, Icons.Filled.Lock) {
-        item(R.string.block_third_party_cookies, R.string.block_third_party_cookies_summary, R.string.privacy_section_privacy, icon = Icons.Filled.Cookie)
         item(R.string.custom_user_agent, R.string.custom_user_agent_summary, R.string.privacy_section_privacy, icon = Icons.Filled.Language)
         item(R.string.https_only, R.string.https_only_summary, R.string.privacy_section_privacy, icon = Icons.Filled.Lock)
         item(R.string.do_not_track_title, R.string.do_not_track_summary, R.string.privacy_section_privacy, icon = Icons.Filled.VisibilityOff)
         item(R.string.secure_dns_title, section = R.string.privacy_section_privacy, icon = Icons.Filled.Dns)
         item(R.string.secure_dns_provider_title, section = R.string.privacy_section_privacy, icon = Icons.Filled.Dns)
         item(R.string.strict_certificates_title, R.string.strict_certificates_summary, R.string.privacy_section_privacy, icon = Icons.Filled.VerifiedUser)
+        item(R.string.website_isolation_title, R.string.website_isolation_summary, R.string.privacy_section_privacy, icon = Icons.Filled.Security)
+        item(
+            R.string.etp_title, section = R.string.privacy_section_tracking, icon = Icons.Filled.Shield,
+            extras = listOf(R.string.etp_level_standard, R.string.etp_level_strict)
+        )
+        item(
+            R.string.cookie_policy_title, section = R.string.privacy_section_tracking, icon = Icons.Filled.Cookie,
+            extras = listOf(R.string.cookie_policy_allow_all, R.string.cookie_policy_isolate, R.string.block_third_party_cookies)
+        )
         item(R.string.strip_tracking_params_title, R.string.strip_tracking_params_summary, R.string.privacy_section_tracking, icon = Icons.Filled.LinkOff)
         item(R.string.fingerprinting_protection_title, R.string.fingerprinting_protection_summary, R.string.privacy_section_tracking, icon = Icons.Filled.Fingerprint)
         item(R.string.global_privacy_control_title, R.string.global_privacy_control_summary, R.string.privacy_section_tracking, icon = Icons.Filled.GppGood)
@@ -380,6 +395,7 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
             item(R.string.autofill_service_title, section = R.string.privacy_section_autofill, icon = Icons.Filled.ManageAccounts)
         }
         item(R.string.history_title, R.string.history_summary, R.string.privacy_section_history, icon = Icons.Filled.History)
+        item(R.string.delete_data_title, R.string.delete_data_settings_summary, R.string.privacy_section_history, icon = Icons.Filled.DeleteSweep)
     }
 
     page(DEST_SITE_SETTINGS, R.string.site_settings, Icons.Filled.WebAsset) {
@@ -453,6 +469,14 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
         }
     }
 
+    page(DEST_TRANSLATIONS, R.string.translation_settings_title, Icons.Filled.Translate) {
+        item(R.string.translation_offer_title, R.string.translation_offer_summary, R.string.translation_section_general)
+        item(R.string.translation_button_title, R.string.translation_button_summary, R.string.translation_section_general)
+        item(R.string.translation_language_preferences_title, R.string.translation_language_preferences_summary, R.string.translation_section_automatic)
+        item(R.string.translation_never_sites_title, section = R.string.translation_section_automatic, icon = Icons.Filled.Block)
+        item(R.string.translation_delete_all_title, R.string.translation_delete_all_summary, R.string.translation_section_languages, icon = Icons.Filled.Delete)
+    }
+
     page(DEST_MISC, R.string.pref_misc_title, Icons.Filled.Tune) {
         item(R.string.default_browser_title, section = R.string.misc_section_app, icon = Icons.Filled.Language)
         item(R.string.pref_rerun_setup_title, R.string.pref_rerun_setup_summary, R.string.misc_section_setup, icon = Icons.Filled.Refresh)
@@ -517,8 +541,8 @@ fun SettingsSearchToolbar(
     onClose: () -> Unit
 ) {
     val colors = LocalClintColors.current
-    Surface(color = colors.surface, shadowElevation = 4.dp, modifier = Modifier.statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Surface(color = colors.background, modifier = Modifier.statusBarsPadding()) {
+        Row(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onClose) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = colors.onSurface)
             }

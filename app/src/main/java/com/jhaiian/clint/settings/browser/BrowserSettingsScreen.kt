@@ -28,20 +28,18 @@ import androidx.compose.material.icons.automirrored.filled.AddToHomeScreen
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.VerticalAlignCenter
 import androidx.compose.material.icons.filled.VisibilityOff
 
-import androidx.compose.foundation.layout.padding
 import com.jhaiian.clint.ui.ClintSwitch
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.jhaiian.clint.R
 import com.jhaiian.clint.settings.common.SettingsRow
 import com.jhaiian.clint.settings.common.SettingsScreenScaffold
 import com.jhaiian.clint.settings.common.SettingsSection
-import com.jhaiian.clint.setup.SectionLabel
+import com.jhaiian.clint.settings.common.SettingsSectionLabel
 import com.jhaiian.clint.ui.theme.LocalClintColors
 
 @Composable
@@ -59,6 +57,8 @@ fun BrowserSettingsScreen(
     onCustomSearchEngineSaved: (name: String, url: String) -> Unit,
     onSearchSuggestionsApiConfirmed: (String) -> Unit,
     onCustomSearchSuggestionsApiSaved: (name: String, url: String) -> Unit,
+    onSuggestionsShowHistoryClicked: () -> Unit,
+    onSuggestionsShowBookmarksClicked: () -> Unit,
     onJavascriptRowClicked: () -> Unit,
     onBackgroundPlaybackRowClicked: () -> Unit,
     onAboutConfigRowClicked: () -> Unit,
@@ -66,7 +66,8 @@ fun BrowserSettingsScreen(
     onWebsiteBlockerRowClicked: () -> Unit,
     onIncognitoSearchHistoryRowClicked: () -> Unit,
     onProfilesRowClicked: () -> Unit,
-    onExtensionsRowClicked: () -> Unit
+    onExtensionsRowClicked: () -> Unit,
+    onTranslationsRowClicked: () -> Unit
 ) {
     val colors = LocalClintColors.current
     val homepageOptionsEnabled = state.homepage != HOMEPAGE_SEARCH_ENGINE && state.homepage != HOMEPAGE_CUSTOM
@@ -122,7 +123,45 @@ fun BrowserSettingsScreen(
             }
         }
     ) {
-        SectionLabel(stringResource(R.string.pref_category_homepage).uppercase(), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.pref_category_search))
+        SettingsSection(colors.cardBackground) {
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Search,
+                title = stringResource(R.string.search_engine),
+                summary = engineSummaryText(state.searchEngine, state.customSearchEngineName),
+                colors = colors,
+                onClick = { state.searchEngineDialogOpen = true }
+            )
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.AutoMirrored.Filled.ManageSearch,
+                title = stringResource(R.string.search_suggestions_api),
+                summary = if (state.searchSuggestionsApi == "off") stringResource(R.string.suggestions_api_off) else engineSummaryText(state.searchSuggestionsApi, state.customSearchSuggestionsApiName),
+                colors = colors,
+                onClick = { state.searchSuggestionsApiDialogOpen = true }
+            )
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.History,
+                title = stringResource(R.string.suggestions_show_history_title),
+                summary = stringResource(R.string.suggestions_show_history_summary),
+                colors = colors,
+                onClick = onSuggestionsShowHistoryClicked,
+                trailing = {
+                    ClintSwitch(checked = state.suggestionsShowHistory)
+                }
+            )
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Bookmark,
+                title = stringResource(R.string.suggestions_show_bookmarks_title),
+                summary = stringResource(R.string.suggestions_show_bookmarks_summary),
+                colors = colors,
+                onClick = onSuggestionsShowBookmarksClicked,
+                trailing = {
+                    ClintSwitch(checked = state.suggestionsShowBookmarks)
+                }
+            )
+        }
+
+        SettingsSectionLabel(stringResource(R.string.pref_category_homepage))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Home,
@@ -195,25 +234,7 @@ fun BrowserSettingsScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.pref_category_search).uppercase(), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
-        SettingsSection(colors.cardBackground) {
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.Search,
-                title = stringResource(R.string.search_engine),
-                summary = engineSummaryText(state.searchEngine, state.customSearchEngineName),
-                colors = colors,
-                onClick = { state.searchEngineDialogOpen = true }
-            )
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.AutoMirrored.Filled.ManageSearch,
-                title = stringResource(R.string.search_suggestions_api),
-                summary = if (state.searchSuggestionsApi == "off") stringResource(R.string.suggestions_api_off) else engineSummaryText(state.searchSuggestionsApi, state.customSearchSuggestionsApiName),
-                colors = colors,
-                onClick = { state.searchSuggestionsApiDialogOpen = true }
-            )
-        }
-
-        SectionLabel(stringResource(R.string.pref_category_tabs).uppercase(), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.pref_category_tabs))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.AutoDelete,
@@ -224,32 +245,7 @@ fun BrowserSettingsScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.pref_category_protection).uppercase(), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
-        SettingsSection(colors.cardBackground) {
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.Shield,
-                title = stringResource(R.string.website_blocker_title),
-                summary = stringResource(R.string.website_blocker_settings_summary),
-                colors = colors,
-                onClick = onWebsiteBlockerRowClicked
-            )
-        }
-
-        SectionLabel(stringResource(R.string.pref_category_incognito).uppercase(), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
-        SettingsSection(colors.cardBackground) {
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.VisibilityOff,
-                title = stringResource(R.string.incognito_search_history_title),
-                summary = stringResource(R.string.incognito_search_history_summary),
-                colors = colors,
-                onClick = onIncognitoSearchHistoryRowClicked,
-                trailing = {
-                    ClintSwitch(checked = state.incognitoSearchHistory)
-                }
-            )
-        }
-
-        SectionLabel(stringResource(R.string.browser_settings).uppercase(), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.pref_category_web_content))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.DesktopWindows,
@@ -271,15 +267,23 @@ fun BrowserSettingsScreen(
                     ClintSwitch(checked = state.backgroundPlayback)
                 }
             )
+        }
+
+        SettingsSectionLabel(stringResource(R.string.pref_category_tools))
+        SettingsSection(colors.cardBackground) {
             SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.Tune,
-                title = stringResource(R.string.about_config_title),
-                summary = stringResource(R.string.about_config_summary),
+                icon = androidx.compose.material.icons.Icons.Filled.Translate,
+                title = stringResource(R.string.translation_settings_title),
+                summary = stringResource(R.string.translation_settings_summary),
                 colors = colors,
-                onClick = onAboutConfigRowClicked,
-                trailing = {
-                    ClintSwitch(checked = state.aboutConfigEnabled)
-                }
+                onClick = onTranslationsRowClicked
+            )
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Extension,
+                title = stringResource(R.string.ext_title),
+                summary = stringResource(R.string.ext_settings_summary),
+                colors = colors,
+                onClick = onExtensionsRowClicked
             )
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.AccountCircle,
@@ -289,22 +293,50 @@ fun BrowserSettingsScreen(
                 onClick = onProfilesRowClicked
             )
             SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.Extension,
-                title = stringResource(R.string.ext_title),
-                summary = stringResource(R.string.ext_settings_summary),
-                colors = colors,
-                onClick = onExtensionsRowClicked
-            )
-        }
-
-        SectionLabel(stringResource(R.string.pref_category_shortcuts).uppercase(), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
-        SettingsSection(colors.cardBackground) {
-            SettingsRow(
                 icon = androidx.compose.material.icons.Icons.AutoMirrored.Filled.AddToHomeScreen,
                 title = stringResource(R.string.shortcut_manager_title),
                 summary = stringResource(R.string.shortcut_manager_summary),
                 colors = colors,
                 onClick = onShortcutManagerRowClicked
+            )
+        }
+
+        SettingsSectionLabel(stringResource(R.string.pref_category_protection))
+        SettingsSection(colors.cardBackground) {
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Shield,
+                title = stringResource(R.string.website_blocker_title),
+                summary = stringResource(R.string.website_blocker_settings_summary),
+                colors = colors,
+                onClick = onWebsiteBlockerRowClicked
+            )
+        }
+
+        SettingsSectionLabel(stringResource(R.string.pref_category_incognito))
+        SettingsSection(colors.cardBackground) {
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.VisibilityOff,
+                title = stringResource(R.string.incognito_search_history_title),
+                summary = stringResource(R.string.incognito_search_history_summary),
+                colors = colors,
+                onClick = onIncognitoSearchHistoryRowClicked,
+                trailing = {
+                    ClintSwitch(checked = state.incognitoSearchHistory)
+                }
+            )
+        }
+
+        SettingsSectionLabel(stringResource(R.string.settings_group_advanced))
+        SettingsSection(colors.cardBackground) {
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Tune,
+                title = stringResource(R.string.about_config_title),
+                summary = stringResource(R.string.about_config_summary),
+                colors = colors,
+                onClick = onAboutConfigRowClicked,
+                trailing = {
+                    ClintSwitch(checked = state.aboutConfigEnabled)
+                }
             )
         }
     }

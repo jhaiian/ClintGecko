@@ -69,7 +69,7 @@ import com.jhaiian.clint.settings.common.SettingsRow
 import com.jhaiian.clint.settings.common.SettingsScreenScaffold
 import com.jhaiian.clint.settings.common.SettingsSection
 import com.jhaiian.clint.settings.common.settingsSearchHighlight
-import com.jhaiian.clint.setup.SectionLabel
+import com.jhaiian.clint.settings.common.SettingsSectionLabel
 import com.jhaiian.clint.ui.theme.ClintColors
 import com.jhaiian.clint.ui.theme.LocalClintColors
 
@@ -156,7 +156,7 @@ fun DownloadSettingsScreen(
             }
         }
     ) {
-        SectionLabel(stringResource(R.string.download_section_manager), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.download_section_manager))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Apps,
@@ -167,7 +167,7 @@ fun DownloadSettingsScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.download_section_location), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.download_section_location))
         SettingsSection(colors.cardBackground) {
             Column(Modifier.padding(16.dp)) {
                 DownloadLocationDropdown(mode = state.locationMode, colors = colors, onModeSelected = onLocationModeSelected)
@@ -199,18 +199,70 @@ fun DownloadSettingsScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.download_section_measurement), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.download_section_general))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.FormatSize,
-                title = stringResource(R.string.measurement_system_title),
-                summary = stringResource(if (state.measurementSystemDecimal) R.string.measurement_system_summary_decimal else R.string.measurement_system_summary_binary),
+                icon = androidx.compose.material.icons.Icons.Filled.FlashOn,
+                title = stringResource(R.string.download_quick_download_title),
+                summary = stringResource(R.string.download_quick_download_summary),
                 colors = colors,
-                onClick = { state.openDialog = DownloadSettingsDialog.MEASUREMENT_SYSTEM }
+                onClick = onQuickDownloadClick,
+                trailing = { ClintSwitch(checked = state.quickDownload) }
+            )
+            RowDivider(colors.divider)
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Image,
+                title = stringResource(R.string.download_quick_download_images_title),
+                summary = stringResource(R.string.download_quick_download_images_summary),
+                colors = colors,
+                enabled = !state.quickDownload,
+                onClick = { if (!state.quickDownload) onQuickDownloadImagesClick() },
+                trailing = { ClintSwitch(checked = state.quickDownloadImages && !state.quickDownload) }
+            )
+            RowDivider(colors.divider)
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Visibility,
+                title = stringResource(R.string.download_keep_screen_on_title),
+                summary = stringResource(R.string.download_keep_screen_on_summary),
+                colors = colors,
+                onClick = onKeepScreenOnClick,
+                trailing = { ClintSwitch(checked = state.keepScreenOn) }
+            )
+            RowDivider(colors.divider)
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.BugReport,
+                title = stringResource(R.string.download_log_title),
+                summary = stringResource(R.string.download_log_summary),
+                colors = colors,
+                onClick = onDownloadLogClick,
+                trailing = { ClintSwitch(checked = state.downloadLog) }
             )
         }
 
-        SectionLabel(stringResource(R.string.download_section_network), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.download_section_dialog_ui))
+        SettingsSection(colors.cardBackground) {
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.ViewCompact,
+                title = stringResource(R.string.download_dialog_ui_title),
+                summary = stringResource(if (state.dialogUi == DownloadSettingsKeys.DIALOG_UI_COMPACT) R.string.download_dialog_ui_compact else R.string.download_dialog_ui_standard),
+                colors = colors,
+                onClick = { state.openDialog = DownloadSettingsDialog.DIALOG_UI }
+            )
+        }
+
+        SettingsSectionLabel(stringResource(R.string.download_section_notifications))
+        SettingsSection(colors.cardBackground) {
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Notifications,
+                title = stringResource(R.string.download_push_notifications_title),
+                summary = stringResource(R.string.download_push_notifications_summary),
+                colors = colors,
+                onClick = onPushNotificationsClick,
+                trailing = { ClintSwitch(checked = state.pushNotifications) }
+            )
+        }
+
+        SettingsSectionLabel(stringResource(R.string.download_section_network))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Wifi,
@@ -222,7 +274,7 @@ fun DownloadSettingsScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.download_section_scheduling), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.download_section_scheduling))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.DateRange,
@@ -252,7 +304,7 @@ fun DownloadSettingsScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.download_section_concurrent), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.download_section_concurrent))
         SettingsSection(colors.cardBackground) {
             SliderSettingsCard(
                 icon = androidx.compose.material.icons.Icons.Filled.HourglassBottom,
@@ -270,49 +322,49 @@ fun DownloadSettingsScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.download_section_split_parts), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.download_section_split_parts))
         SettingsSection(colors.cardBackground) {
             SliderSettingsCard(
                 icon = androidx.compose.material.icons.Icons.Filled.Splitscreen,
                 title = stringResource(R.string.download_split_parts_title),
-                description = stringResource(R.string.download_split_parts_desc),
-                value = state.splitParts,
-                valueRange = 1..32,
-                summary = pluralStringResource(R.plurals.download_split_parts_value, state.splitParts, state.splitParts),
+                description = stringResource(R.string.download_split_parts_desc) + "\n" + stringResource(R.string.download_setting_auto_hint),
+                value = com.jhaiian.clint.downloads.autoSliderPosition(state.splitParts, 32),
+                valueRange = 1..33,
+                summary = com.jhaiian.clint.downloads.autoOrCountLabel(state.splitParts, R.plurals.download_split_parts_value),
                 colors = colors,
-                onValueChange = onSplitPartsChange
+                onValueChange = { onSplitPartsChange(com.jhaiian.clint.downloads.autoSliderValue(it, 32)) }
             )
         }
 
-        SectionLabel(stringResource(R.string.download_section_multithreading), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.download_section_multithreading))
         SettingsSection(colors.cardBackground) {
             SliderSettingsCard(
                 icon = androidx.compose.material.icons.Icons.Filled.KeyboardDoubleArrowDown,
                 title = stringResource(R.string.download_multithreading_title),
-                description = stringResource(R.string.download_multithreading_desc),
-                value = state.multithreadingParts,
-                valueRange = 1..8,
-                summary = pluralStringResource(R.plurals.download_multithreading_value, state.multithreadingParts, state.multithreadingParts),
+                description = stringResource(R.string.download_multithreading_desc) + "\n" + stringResource(R.string.download_setting_auto_hint),
+                value = com.jhaiian.clint.downloads.autoSliderPosition(state.multithreadingParts, 8),
+                valueRange = 1..9,
+                summary = com.jhaiian.clint.downloads.autoOrCountLabel(state.multithreadingParts, R.plurals.download_multithreading_value),
                 colors = colors,
-                onValueChange = onMultithreadingPartsChange
+                onValueChange = { onMultithreadingPartsChange(com.jhaiian.clint.downloads.autoSliderValue(it, 8)) }
             )
         }
 
-        SectionLabel(stringResource(R.string.download_section_stream_segments), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.download_section_stream_segments))
         SettingsSection(colors.cardBackground) {
             SliderSettingsCard(
                 icon = androidx.compose.material.icons.Icons.Filled.VideoSettings,
                 title = stringResource(R.string.download_concurrent_segments_title),
-                description = stringResource(R.string.download_concurrent_segments_desc),
-                value = state.concurrentSegments,
-                valueRange = 1..24,
-                summary = pluralStringResource(R.plurals.download_concurrent_segments_value, state.concurrentSegments, state.concurrentSegments),
+                description = stringResource(R.string.download_concurrent_segments_desc) + "\n" + stringResource(R.string.download_setting_auto_hint),
+                value = com.jhaiian.clint.downloads.autoSliderPosition(state.concurrentSegments, 24),
+                valueRange = 1..25,
+                summary = com.jhaiian.clint.downloads.autoOrCountLabel(state.concurrentSegments, R.plurals.download_concurrent_segments_value),
                 colors = colors,
-                onValueChange = onConcurrentSegmentsChange
+                onValueChange = { onConcurrentSegmentsChange(com.jhaiian.clint.downloads.autoSliderValue(it, 24)) }
             )
         }
 
-        SectionLabel(stringResource(R.string.download_section_speed_limit), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.download_section_speed_limit))
         SettingsSection(colors.cardBackground) {
             val unitLabel = stringResource(if (state.speedLimitUnit == SPEED_LIMIT_UNIT_MB) R.string.speed_limit_unit_mb else R.string.speed_limit_unit_kb)
             SettingsRow(
@@ -341,7 +393,7 @@ fun DownloadSettingsScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.download_section_retry), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.download_section_retry))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.RestartAlt,
@@ -385,70 +437,18 @@ fun DownloadSettingsScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.download_section_general), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.download_section_measurement))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.FlashOn,
-                title = stringResource(R.string.download_quick_download_title),
-                summary = stringResource(R.string.download_quick_download_summary),
+                icon = androidx.compose.material.icons.Icons.Filled.FormatSize,
+                title = stringResource(R.string.measurement_system_title),
+                summary = stringResource(if (state.measurementSystemDecimal) R.string.measurement_system_summary_decimal else R.string.measurement_system_summary_binary),
                 colors = colors,
-                onClick = onQuickDownloadClick,
-                trailing = { ClintSwitch(checked = state.quickDownload) }
-            )
-            RowDivider(colors.divider)
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.Image,
-                title = stringResource(R.string.download_quick_download_images_title),
-                summary = stringResource(R.string.download_quick_download_images_summary),
-                colors = colors,
-                enabled = !state.quickDownload,
-                onClick = { if (!state.quickDownload) onQuickDownloadImagesClick() },
-                trailing = { ClintSwitch(checked = state.quickDownloadImages && !state.quickDownload) }
-            )
-            RowDivider(colors.divider)
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.Visibility,
-                title = stringResource(R.string.download_keep_screen_on_title),
-                summary = stringResource(R.string.download_keep_screen_on_summary),
-                colors = colors,
-                onClick = onKeepScreenOnClick,
-                trailing = { ClintSwitch(checked = state.keepScreenOn) }
-            )
-            RowDivider(colors.divider)
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.BugReport,
-                title = stringResource(R.string.download_log_title),
-                summary = stringResource(R.string.download_log_summary),
-                colors = colors,
-                onClick = onDownloadLogClick,
-                trailing = { ClintSwitch(checked = state.downloadLog) }
+                onClick = { state.openDialog = DownloadSettingsDialog.MEASUREMENT_SYSTEM }
             )
         }
 
-        SectionLabel(stringResource(R.string.download_section_dialog_ui), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
-        SettingsSection(colors.cardBackground) {
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.ViewCompact,
-                title = stringResource(R.string.download_dialog_ui_title),
-                summary = stringResource(if (state.dialogUi == DownloadSettingsKeys.DIALOG_UI_COMPACT) R.string.download_dialog_ui_compact else R.string.download_dialog_ui_standard),
-                colors = colors,
-                onClick = { state.openDialog = DownloadSettingsDialog.DIALOG_UI }
-            )
-        }
-
-        SectionLabel(stringResource(R.string.download_section_notifications), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
-        SettingsSection(colors.cardBackground) {
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.Notifications,
-                title = stringResource(R.string.download_push_notifications_title),
-                summary = stringResource(R.string.download_push_notifications_summary),
-                colors = colors,
-                onClick = onPushNotificationsClick,
-                trailing = { ClintSwitch(checked = state.pushNotifications) }
-            )
-        }
-
-        SectionLabel(stringResource(R.string.download_section_permissions), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.download_section_permissions))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.BatterySaver,

@@ -1,0 +1,27 @@
+.ls-game{position:relative;border-radius:24px;overflow:hidden;background:var(--field);border:1px solid var(--divider);aspect-ratio:16/10;max-width:100%;margin:0 0 24px;-webkit-user-select:none;user-select:none}
+.ls-game[hidden]{display:none}
+.ls-game canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair;outline:none}
+.ls-game canvas:focus-visible{box-shadow:inset 0 0 0 2px var(--primary)}
+.ls-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px;text-align:center;background:var(--field)}
+@supports (background:color-mix(in srgb,red 50%,transparent)){.ls-overlay{background:color-mix(in srgb,var(--field) 82%,transparent)}}
+.ls-overlay[hidden]{display:none}
+.ls-overlay h2{margin:0;font-size:1.375rem;line-height:1.25;font-weight:650;text-wrap:balance}
+.ls-overlay p{margin:0;color:var(--fg2);max-width:34ch}
+.ls-overlay .ls-keys{font-size:.8125rem}
+.ls-stats{display:flex;gap:20px;font-variant-numeric:tabular-nums;color:var(--fg)}
+.ls-stats span{display:flex;flex-direction:column;align-items:center}
+.ls-stats b{font-size:1.75rem;line-height:1.1}
+.ls-stats small{font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--fg2)}
+.ls-overlay .btn{margin-top:6px;padding:0 28px}
+.ls-sound{position:absolute;right:8px;bottom:6px;width:40px;height:40px;border-radius:20px;border:0;padding:0;background:var(--field);color:var(--fg2);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.ls-sound svg{width:22px;height:22px;fill:currentColor}
+.ls-sound:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.ls-sound .ls-off,.ls-sound[aria-pressed="false"] .ls-on{display:none}
+.ls-sound[aria-pressed="false"] .ls-off{display:block}
+.ls-live{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (pointer:coarse){.ls-overlay .ls-keys{display:none}}
+@media (max-width:520px){.ls-game{aspect-ratio:4/3.4}}
+.ls-full,.ls-full body{height:100%;margin:0;padding:0;overflow:hidden}
+.ls-full main{max-width:none;padding:0;margin:0;height:100%}
+.ls-full .ls-game{position:fixed;inset:0;margin:0;border:0;border-radius:0;aspect-ratio:auto}
+.ls-full .ls-sound{right:max(8px,env(safe-area-inset-right));bottom:max(6px,env(safe-area-inset-bottom))}

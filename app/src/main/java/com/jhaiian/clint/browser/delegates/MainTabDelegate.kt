@@ -6,6 +6,7 @@ import com.jhaiian.clint.tabs.BrowserTab
 import com.jhaiian.clint.profiles.WebProfiles
 import com.jhaiian.clint.tabs.InactiveTabsPolicy
 import com.jhaiian.clint.tabs.SavedTab
+import com.jhaiian.clint.tabs.TabGroupPrefs
 import com.jhaiian.clint.tabs.TabSessionManager
 import com.jhaiian.clint.tabs.TabThumbnailCache
 import com.jhaiian.clint.browser.webview.ClintAutofill
@@ -45,17 +46,25 @@ internal fun MainActivity.saveTabs() {
     persistAllShortcutTabGroups()
 }
 
+internal fun MainActivity.discardSavedTabs() {
+    TabSessionManager.clear(this)
+    TabThumbnailCache.pruneDisk(this, emptySet())
+}
+
 internal fun MainActivity.restoreTabs(): Boolean {
     migrateTabsFromPrefsIfNeeded()
     val savedTabs = TabSessionManager.load(this).filter { it.shortcutId == null }
     if (savedTabs.isEmpty()) return false
     val activeIndex = savedTabs.indexOfFirst { it.isActive }.coerceAtLeast(0)
+    val groupsEnabled = TabGroupPrefs.isEnabled(prefs)
     val referencedGroupIds = savedTabs.mapNotNull { it.groupId }.toSet()
-    TabSessionManager.loadGroups(this)
-        .filter { it.id in referencedGroupIds }
-        .forEach { tabManager.restoreGroup(it) }
+    if (groupsEnabled) {
+        TabSessionManager.loadGroups(this)
+            .filter { it.id in referencedGroupIds }
+            .forEach { tabManager.restoreGroup(it) }
+    }
     savedTabs.forEachIndexed { index, saved ->
-        openNewTabSilent(saved.url, saved.tabId, saved.shortcutId, deferLoad = index != activeIndex, title = saved.title, profileId = saved.profileId, groupId = saved.groupId)
+        openNewTabSilent(saved.url, saved.tabId, saved.shortcutId, deferLoad = index != activeIndex, title = saved.title, profileId = saved.profileId, groupId = saved.groupId.takeIf { groupsEnabled })
     }
     tabManager.pruneEmptyGroups()
     val activeTabId = savedTabs[activeIndex].tabId

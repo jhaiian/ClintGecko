@@ -17,7 +17,7 @@ internal fun MainActivity.showRefreshLinkDownloadDialog(
     uiState.refreshLinkDialogRequest = RefreshLinkDialogRequest(
         existingFilename = session.filename,
         onUpdateExisting = {
-            ClintDownloadManager.updateDownloadUrl(session.downloadId, url)
+            ClintDownloadManager.updateDownloadUrl(session.downloadId, url, referer, cookies)
             Toast.makeText(this, getString(R.string.refresh_link_updated_toast, session.filename), Toast.LENGTH_SHORT).show()
             refreshLinkSession = null
         },

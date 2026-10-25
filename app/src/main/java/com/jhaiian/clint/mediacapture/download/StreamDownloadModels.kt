@@ -45,7 +45,7 @@ data class StreamDownloadRequest(
     val headers: Map<String, String> = emptyMap(),
     val estimatedTotalBytes: Long = 0L,
     val speedLimitBytesPerSec: Long = 0L,
-    val concurrentSegments: Int = 12,
+    val concurrentSegments: Int = com.jhaiian.clint.downloads.DownloadAutoTuner.AUTO,
     val noAudio: Boolean = false,
     val isLive: Boolean = false,
     val convertTsToMp4: Boolean = false,

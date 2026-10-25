@@ -14,18 +14,15 @@ import androidx.compose.material.icons.filled.VideocamOff
 import androidx.compose.material.icons.filled.PausePresentation
 import androidx.compose.material.icons.filled.Speed
 
-import androidx.compose.foundation.layout.padding
 import com.jhaiian.clint.ui.ClintSwitch
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.jhaiian.clint.R
 import com.jhaiian.clint.settings.common.RowDivider
 import com.jhaiian.clint.settings.common.SettingsRow
 import com.jhaiian.clint.settings.common.SettingsScreenScaffold
 import com.jhaiian.clint.settings.common.SettingsSection
-import com.jhaiian.clint.setup.SectionLabel
+import com.jhaiian.clint.settings.common.SettingsSectionLabel
 import com.jhaiian.clint.ui.theme.LocalClintColors
 
 @Composable
@@ -49,7 +46,7 @@ fun DataSaverScreen(
     val colors = LocalClintColors.current
 
     SettingsScreenScaffold {
-        SectionLabel(stringResource(R.string.data_saver_section), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.data_saver_section))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.DataSaverOn,
@@ -74,7 +71,7 @@ fun DataSaverScreen(
                 }
             )
         }
-        SectionLabel(stringResource(R.string.data_saver_media_section), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.data_saver_media_section))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.HideImage,
@@ -124,7 +121,7 @@ fun DataSaverScreen(
                 }
             )
         }
-        SectionLabel(stringResource(R.string.data_saver_loading_section), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.data_saver_loading_section))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.TextFields,
@@ -198,7 +195,7 @@ fun DataSaverScreen(
                 }
             )
         }
-        SectionLabel(stringResource(R.string.data_saver_browser_section), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.data_saver_browser_section))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.SearchOff,

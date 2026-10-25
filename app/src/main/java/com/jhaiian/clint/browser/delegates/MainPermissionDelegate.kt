@@ -236,63 +236,43 @@ private fun MainActivity.showWebCameraAndMicDialog(request: PermissionRequest, r
     )
 }
 
+private fun MainActivity.isSystemLocationGranted(): Boolean =
+    isSystemPermissionGranted(Manifest.permission.ACCESS_FINE_LOCATION) ||
+        isSystemPermissionGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
+
+private fun MainActivity.grantWebLocation(origin: String, callback: GeolocationCallback) {
+    if (isSystemLocationGranted()) {
+        callback.invoke(origin, true, false)
+    } else {
+        pendingWebGeoOrigin = origin
+        pendingWebGeoCallback = callback
+        webLocationPermissionLauncher.launch(
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+        )
+    }
+}
+
 internal fun MainActivity.onWebGeolocationRequest(origin: String, callback: GeolocationCallback) {
     val isIncognito = tabManager.activeTab?.isIncognito == true
     val rawOrigin = originFromString(origin)
 
     if (!isIncognito) {
-        val stored = SitePermissionManager.getState(this, rawOrigin, SitePermissionDatabase.TYPE_LOCATION)
-        if (stored == SitePermissionDatabase.STATE_ALLOW) {
-            if (isSystemPermissionGranted(Manifest.permission.ACCESS_FINE_LOCATION) ||
-                isSystemPermissionGranted(Manifest.permission.ACCESS_COARSE_LOCATION)) {
-                callback.invoke(origin, true, false)
-            } else {
-                pendingWebGeoOrigin = origin
-                pendingWebGeoCallback = callback
-                webLocationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-            }
-            return
+        when (SitePermissionManager.getState(this, rawOrigin, SitePermissionDatabase.TYPE_LOCATION)) {
+            SitePermissionDatabase.STATE_ALLOW -> { grantWebLocation(origin, callback); return }
+            SitePermissionDatabase.STATE_DENY -> { callback.invoke(origin, false, false); return }
+            else -> {}
         }
-        if (stored == SitePermissionDatabase.STATE_DENY) {
-            callback.invoke(origin, false, false)
-            return
+
+        val globalDefault = PreferenceManager.getDefaultSharedPreferences(this)
+            .getString("site_perm_default_${SitePermissionDatabase.TYPE_LOCATION}", SitePermissionActivity.PREF_VALUE_ASK) ?: SitePermissionActivity.PREF_VALUE_ASK
+        when (globalDefault) {
+            SitePermissionActivity.PREF_VALUE_ALLOW -> { grantWebLocation(origin, callback); return }
+            SitePermissionActivity.PREF_VALUE_DENY -> { callback.invoke(origin, false, false); return }
+            else -> {}
         }
     }
 
-    val locationGranted = isSystemPermissionGranted(Manifest.permission.ACCESS_FINE_LOCATION) ||
-        isSystemPermissionGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
-    if (locationGranted) {
-        if (!isIncognito) {
-            val globalDefault = PreferenceManager.getDefaultSharedPreferences(this)
-                .getString("site_perm_default_${SitePermissionDatabase.TYPE_LOCATION}", SitePermissionActivity.PREF_VALUE_ASK) ?: SitePermissionActivity.PREF_VALUE_ASK
-            when (globalDefault) {
-                SitePermissionActivity.PREF_VALUE_ALLOW -> { callback.invoke(origin, true, false); return }
-                SitePermissionActivity.PREF_VALUE_DENY -> { callback.invoke(origin, false, false); return }
-                else -> {}
-            }
-        }
-        showWebLocationDialog(origin, callback)
-    } else {
-        pendingWebGeoOrigin = origin
-        pendingWebGeoCallback = callback
-        val needsRationale = shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION)
-        if (needsRationale) {
-            uiState.confirmDialogConfig = com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig(
-                title = getString(R.string.location_permission_title),
-                message = getString(R.string.location_permission_message),
-                positiveLabel = getString(R.string.action_allow),
-                onPositive = { webLocationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION) },
-                negativeLabel = getString(R.string.action_deny),
-                onNegative = {
-                    pendingWebGeoCallback?.invoke(pendingWebGeoOrigin ?: "", false, false)
-                    pendingWebGeoOrigin = null
-                    pendingWebGeoCallback = null
-                }
-            )
-        } else {
-            webLocationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-        }
-    }
+    showWebLocationDialog(origin, callback)
 }
 
 internal fun MainActivity.showWebLocationDialog(origin: String, callback: GeolocationCallback) {
@@ -305,7 +285,7 @@ internal fun MainActivity.showWebLocationDialog(origin: String, callback: Geoloc
         isIncognito = isIncognito,
         onAllow = { remember ->
             if (remember && !isIncognito) SitePermissionManager.setState(this, rawOrigin, SitePermissionDatabase.TYPE_LOCATION, SitePermissionDatabase.STATE_ALLOW)
-            callback.invoke(origin, true, false)
+            grantWebLocation(origin, callback)
         },
         onDeny = { remember ->
             if (remember && !isIncognito) SitePermissionManager.setState(this, rawOrigin, SitePermissionDatabase.TYPE_LOCATION, SitePermissionDatabase.STATE_DENY)

@@ -7,7 +7,9 @@ import com.jhaiian.clint.ui.showClintDestinationSnackbar
 
 internal fun MainActivity.showPopupAlertDialog(newUrl: String, isIncognito: Boolean, sourceTabId: String? = null) {
     if (uiState.isFullscreen) return
-    val sourceHost = tabManager.activeTab?.webView?.url
+    val sourceTab = sourceTabId?.let { id -> tabManager.tabs.firstOrNull { it.id == id } } ?: tabManager.activeTab
+    val sourceUrl = sourceTab?.webView?.url
+    val sourceHost = sourceUrl
         ?.let { android.net.Uri.parse(it).host?.takeIf { h -> h.isNotEmpty() } ?: it }
         ?: getString(R.string.popup_alert_source_unknown)
 
@@ -23,6 +25,11 @@ internal fun MainActivity.showPopupAlertDialog(newUrl: String, isIncognito: Bool
         } else {
             openNewTab(isIncognito = isIncognito, url = newUrl, openerTabId = sourceTabId)
         }
+    }
+
+    if (isSameOrigin(sourceUrl, newUrl)) {
+        onAllow()
+        return
     }
 
     if (prefs.getString("popup_alert_style", "dialog") == "snackbar") {
@@ -42,3 +49,17 @@ internal fun MainActivity.showPopupAlertDialog(newUrl: String, isIncognito: Bool
         onAllow = onAllow
     )
 }
+
+private fun isSameOrigin(sourceUrl: String?, targetUrl: String): Boolean {
+    val source = sourceUrl?.let { android.net.Uri.parse(it) } ?: return false
+    val target = android.net.Uri.parse(targetUrl)
+    val sourceScheme = source.scheme?.lowercase() ?: return false
+    val targetScheme = target.scheme?.lowercase() ?: return false
+    if (sourceScheme != targetScheme || (sourceScheme != "http" && sourceScheme != "https")) return false
+    val sourceHost = source.host?.lowercase()?.takeIf { it.isNotEmpty() } ?: return false
+    val targetHost = target.host?.lowercase()?.takeIf { it.isNotEmpty() } ?: return false
+    return sourceHost == targetHost && effectivePort(source, sourceScheme) == effectivePort(target, targetScheme)
+}
+
+private fun effectivePort(uri: android.net.Uri, scheme: String): Int =
+    uri.port.takeIf { it != -1 } ?: if (scheme == "https") 443 else 80

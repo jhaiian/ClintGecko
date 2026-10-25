@@ -7,15 +7,13 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
 internal fun MainActivity.onShowCustomView(view: View, callback: CustomViewCallback) {
-    if (fullscreenView != null) { callback.onCustomViewHidden(); return }
+    val current = fullscreenView
+    if (current != null && current !== view) { callback.onCustomViewHidden(); return }
     fullscreenCallback = callback
+    if (current === view) return
     fullscreenView = view
-    (view.parent as? android.view.ViewGroup)?.removeView(view)
-    fullscreenContainerView.addView(view, android.view.ViewGroup.LayoutParams(
-        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-        android.view.ViewGroup.LayoutParams.MATCH_PARENT
-    ))
     uiState.isFullscreen = true
+    updateMainContentInsets()
     val ctrl = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
     ctrl.hide(WindowInsetsCompat.Type.statusBars() or WindowInsetsCompat.Type.navigationBars())
     ctrl.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -43,9 +41,7 @@ private fun MainActivity.applyFullscreenOrientation(view: View, retry: Boolean) 
 internal fun MainActivity.exitFullscreen() {
     fullscreenCallback?.onCustomViewHidden()
     fullscreenCallback = null
-    fullscreenView?.let { fullscreenContainerView.removeView(it) }
     fullscreenView = null
-    attachActiveWebView()
     uiState.isFullscreen = false
     bottomBarAnimator2?.cancel()
     uiState.topBarFraction = 0f

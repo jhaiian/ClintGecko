@@ -1,0 +1,83 @@
+O Clint Gecko é um navegador de código aberto baseado no Firefox, com ADM (Advanced Download Manager) e Captura de mídia integrados. O objetivo do Clint Gecko é ser o seu navegador tudo em um, sem deixar de ser agradável de usar e altamente personalizável. A cada atualização, o Clint Gecko chega mais perto desse objetivo.
+
+O ecossistema Jhaiian oferece até 500 combinações de tema, para você deixar a navegação do seu jeito.
+
+A privacidade também é prioridade. O Clint Gecko vem configurado para desativar a telemetria do GeckoView e da Mozilla, impedindo que dados de telemetria sejam enviados à Mozilla por esses serviços. O próprio Clint não coleta seus dados pessoais, porque não tem backend, análises nem servidores de coleta de dados. Tudo foi pensado para funcionar direto no seu aparelho.
+
+Fork oficial do Clint Browser (github.com/jhaiian/ClintBrowser). Se você quer uma versão mais leve, baseada no Android WebView, conheça o Clint Browser original.
+
+Criado e mantido por @jhaiian, um desenvolvedor solo das Filipinas.
+
+<b>MOTOR GECKO</b>
+• Usa o GeckoView, o motor do Firefox
+• Telemetria do GeckoView e da Mozilla desativada
+
+<b>EXTENSÕES</b>
+• Instale extensões do Firefox direto no navegador
+• Navegue pela loja de complementos do Firefox ou abra um arquivo .xpi
+• Escolha se uma extensão pode funcionar nas abas anônimas
+• Abra a página de opções de uma extensão pelo gerenciador de extensões
+
+<b>REPRODUÇÃO EM SEGUNDO PLANO</b>
+• Áudio e vídeo continuam tocando quando você troca de app ou bloqueia a tela
+• Controle a reprodução pela notificação de mídia
+• Pode ser ativada ou desativada nas configurações do navegador
+
+<b>CAPTURA DE MÍDIA</b>
+• Detecta streams de vídeo, áudio e legendas nas páginas que você visita
+• Suporta vídeos comuns e streams HLS/M3U8 e DASH
+• Baixe a mídia detectada direto do navegador
+
+<b>ADM (ADVANCED DOWNLOAD MANAGER)</b>
+• Downloads com várias conexões e várias partes
+• Pausar e retomar
+• Agendador de downloads
+• Limitador de velocidade
+• Pastas de download personalizadas
+
+<b>VISUAL E PERSONALIZAÇÃO</b>
+O Clint Gecko é feito com Material 3 e Jetpack Compose, com uma interface altamente personalizável.
+• 50 cores de destaque
+• Temas claro e escuro
+• 5 intensidades de superfície
+• No total, 500 combinações de tema
+
+<b>PRIVACIDADE E SEGURANÇA</b>
+• Proteção aprimorada contra rastreamento e Proteção total de cookies
+• Remoção de parâmetros de rastreamento, proteção contra impressão digital, Global Privacy Control e proteção contra vazamento de WebRTC
+• DNS seguro via HTTPS (Cloudflare, Google, Quad9 ou personalizado)
+• Bloqueio do app com digital, rosto ou bloqueio de tela
+• Bloqueio de capturas de tela e teclado anônimo
+• Limpeza automática da área de transferência e dos dados ao sair
+• Verificação rigorosa de certificados
+• Sem backend, análises nem coleta de dados
+
+<b>BLOQUEADOR DE SITES</b>
+• Bloqueia pornografia, apostas e outras categorias indesejadas
+• Listas de filtros por categoria (abuso, anúncios, cripto, drogas, fraude, apostas e mais)
+• Adicione seus próprios sites para bloquear
+
+<b>PERFIS</b>
+• Fique conectado a várias contas do mesmo site ao mesmo tempo
+• Cada perfil tem seus próprios cookies, logins e dados de sites
+• Escolha um perfil ao abrir uma nova aba
+• Dê a cada perfil um nome e uma cor
+
+<b>ATALHOS</b>
+• Adicione qualquer site à tela inicial com nome e ícone personalizados
+• O modo sem moldura esconde a barra de pesquisa e a barra inferior para uma experiência de app
+• Gerencie todos os seus atalhos em um só lugar com o Gerenciador de atalhos
+
+<b>NAVEGADOR</b>
+• Navegação com várias abas
+• Grupos de abas
+• Modo anônimo
+• Modo de leitura
+• Modo desktop
+• Proteção contra pop-ups
+• Economia de dados
+• Tradução de páginas no próprio aparelho
+
+É só baixar o app e explorar.
+
+Requer Android 8.0 (API 26) ou superior.

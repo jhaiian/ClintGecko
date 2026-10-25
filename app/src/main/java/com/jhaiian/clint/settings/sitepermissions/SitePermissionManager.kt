@@ -62,6 +62,18 @@ object SitePermissionManager {
         }
     }
 
+    fun countOrigins(context: Context): Int {
+        val cursor = db(context).readableDatabase.rawQuery(
+            "SELECT COUNT(DISTINCT ${SitePermissionDatabase.COL_ORIGIN}) FROM ${SitePermissionDatabase.TABLE}",
+            null
+        )
+        return cursor.use { if (it.moveToFirst()) it.getInt(0) else 0 }
+    }
+
+    fun clearAll(context: Context) {
+        db(context).writableDatabase.delete(SitePermissionDatabase.TABLE, null, null)
+    }
+
     fun deleteEntry(context: Context, origin: String, type: String) {
         val key = normalizeOrigin(origin)
         db(context).writableDatabase.delete(

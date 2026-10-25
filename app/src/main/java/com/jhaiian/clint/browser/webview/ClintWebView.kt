@@ -15,17 +15,21 @@ import com.jhaiian.clint.R
 import com.jhaiian.clint.browser.dialogs.JsDialogType
 import com.jhaiian.clint.browser.home.CLINT_HOME_URL
 import com.jhaiian.clint.browser.home.isClintHomeUrl
+import com.jhaiian.clint.browser.longshot.LongShot
 import com.jhaiian.clint.media.MediaPlaybackController
 import com.jhaiian.clint.media.TabAudioState
 import org.json.JSONArray
 import org.json.JSONObject
 import org.mozilla.geckoview.AllowOrDeny
 import org.mozilla.geckoview.BasicSelectionActionDelegate
+import org.mozilla.geckoview.ContentBlocking
+import org.mozilla.geckoview.ContentBlockingController
 import org.mozilla.geckoview.GeckoResult
 import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.GeckoSessionSettings
 import org.mozilla.geckoview.GeckoView
 import org.mozilla.geckoview.MediaSession
+import org.mozilla.geckoview.PanZoomController
 import org.mozilla.geckoview.WebExtension
 import org.mozilla.geckoview.WebRequestError
 import org.mozilla.geckoview.WebResponse
@@ -53,13 +57,36 @@ class ClintWebView(
             }
             return connection
         }
+
+        @android.annotation.SuppressLint("ClickableViewAccessibility")
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            if (event.actionMasked != MotionEvent.ACTION_DOWN) return super.onTouchEvent(event)
+            val downTime = event.downTime
+            touchDownTime = downTime
+            touchPullAllowed = null
+            if (this.session == null) {
+                touchPullAllowed = false
+                return false
+            }
+            onTouchEventForDetailResult(event).accept(
+                { detail -> if (touchDownTime == downTime) touchPullAllowed = detail != null && allowsPullToRefresh(detail) },
+                { if (touchDownTime == downTime) touchPullAllowed = false }
+            )
+            return true
+        }
     }
+    private var touchDownTime = -1L
+    private var touchPullAllowed: Boolean? = null
     val session: GeckoSession
+    val translator: com.jhaiian.clint.translation.PageTranslator
     private val cover = android.view.View(context).apply {
         visibility = android.view.View.GONE
         importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
     }
     private val hideCoverRunnable = Runnable { hideCover() }
+    private val detachDeactivateRunnable = Runnable {
+        if (!destroyed && session.isOpen && !isAttachedToWindow && !isMediaPlaying) session.setActive(false)
+    }
     private var loadingBackground = 0
     private var coverEnabled = false
     private var initialCoverPending = true
@@ -97,6 +124,8 @@ class ClintWebView(
     var progress: Int = 0
         private set
     var isSecure: Boolean = false
+        private set
+    var securityInfo: GeckoSession.ProgressDelegate.SecurityInformation? = null
         private set
     private var canGoBackState = false
     private var canGoForwardState = false
@@ -295,6 +324,10 @@ class ClintWebView(
             showHome()
             return
         }
+        if (LongShot.isLongShotUrl(url)) {
+            showLongShot(replace = false)
+            return
+        }
         lastFailedUrl = null
         awaitingRealLoad = true
         if (!pagePainted) showCover()
@@ -321,10 +354,23 @@ class ClintWebView(
         }
     }
 
+    private fun showLongShot(replace: Boolean) {
+        lastFailedUrl = null
+        awaitingRealLoad = true
+        ensureOpen()
+        val loader = GeckoSession.Loader().uri(LongShot.page(context))
+        if (replace) loader.flags(GeckoSession.LOAD_FLAGS_REPLACE_HISTORY)
+        session.load(loader)
+    }
+
     fun reload(bypassCache: Boolean = false) {
         if (isClintHomeUrl(currentUrl)) return
         if (recoverIfNeeded()) return
         if (destroyed || !session.isOpen) return
+        if (LongShot.isLongShotUrl(currentUrl)) {
+            showLongShot(replace = true)
+            return
+        }
         if (bypassCache) session.reload(org.mozilla.geckoview.GeckoSession.LOAD_FLAGS_BYPASS_CACHE) else session.reload()
     }
 
@@ -459,6 +505,7 @@ class ClintWebView(
         if (destroyed) return
         destroyed = true
         removeCallbacks(hideCoverRunnable)
+        ClintGecko.main.removeCallbacks(detachDeactivateRunnable)
         pendingEval.clear()
         queuedEvals.clear()
         ports.clear()
@@ -479,6 +526,7 @@ class ClintWebView(
             session.scrollDelegate = null
             session.mediaSessionDelegate = null
             session.selectionActionDelegate = null
+            session.translationsSessionDelegate = null
         }
         webViewClient = null
         webChromeClient = null
@@ -494,6 +542,7 @@ class ClintWebView(
 
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
+        ClintGecko.main.removeCallbacks(detachDeactivateRunnable)
         coverSurface()
         paused = false
         if (!destroyed && !(isWindowActive() && recoverIfNeeded()) && session.isOpen) {
@@ -509,11 +558,25 @@ class ClintWebView(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        if (!destroyed && session.isOpen && !isMediaPlaying) session.setActive(false)
+        ClintGecko.main.removeCallbacks(detachDeactivateRunnable)
+        if (!destroyed && session.isOpen) ClintGecko.main.postDelayed(detachDeactivateRunnable, DETACH_DEACTIVATE_DELAY_MS)
     }
 
     override fun canScrollVertically(direction: Int): Boolean =
         if (direction < 0) scrollYValue > 0 else true
+
+    fun pullToRefreshVerdict(downTime: Long): Boolean? =
+        if (downTime == touchDownTime) touchPullAllowed else null
+
+    private fun allowsPullToRefresh(detail: PanZoomController.InputResultDetail): Boolean {
+        if ((detail.scrollableDirections() and PanZoomController.SCROLLABLE_FLAG_TOP) != 0) return false
+        return when (detail.handledResult()) {
+            PanZoomController.INPUT_RESULT_HANDLED ->
+                (detail.overscrollDirections() and PanZoomController.OVERSCROLL_FLAG_VERTICAL) != 0
+            PanZoomController.INPUT_RESULT_UNHANDLED -> true
+            else -> false
+        }
+    }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         touchObserver?.invoke(ev)
@@ -524,41 +587,38 @@ class ClintWebView(
         if (raw == null) return null
         rawUrl = raw
         if (raw == "about:blank") return if (homeShown) CLINT_HOME_URL else null
+        if (LongShot.isPageUri(raw)) return LongShot.URL
         if (raw.startsWith(ERROR_PAGE_PREFIX) && lastFailedUrl != null) return lastFailedUrl
         return raw
     }
 
-    private fun buildErrorPage(uri: String, error: WebRequestError): String {
-        val host = runCatching { Uri.parse(uri).host }.getOrNull().orEmpty().ifEmpty { uri }
-        val isCert = error.category == WebRequestError.ERROR_CATEGORY_SECURITY
-        val strictCert = isCert && androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
-            .getBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.STRICT_CERTIFICATES, com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_STRICT_CERTIFICATES)
-        val message = context.getString(
-            when {
-                strictCert -> R.string.error_page_cert_strict_message
-                isCert -> R.string.error_page_cert_message
-                else -> R.string.error_page_message
-            },
-            host
-        )
-        val js = JSONObject.quote(uri)
-        val proceed = if (isCert && !strictCert) {
-            "<button class=\"warn\" onclick=\"document.addCertException(false).then(function(){location.href=$js})\">" +
-                "${android.text.TextUtils.htmlEncode(context.getString(R.string.error_page_proceed))}</button>"
-        } else ""
-        val html = "<!doctype html><html><head><meta charset=\"utf-8\">" +
-            "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
-            "<meta name=\"color-scheme\" content=\"light dark\">" +
-            "<title>${android.text.TextUtils.htmlEncode(context.getString(R.string.error_page_title))}</title>" +
-            "<style>body{font-family:sans-serif;margin:0;padding:32px 24px;max-width:520px;margin:auto;line-height:1.5}" +
-            "h1{font-size:1.4em}p{opacity:.8}button{font-size:1em;padding:12px 20px;margin:8px 8px 0 0;border-radius:20px;border:1px solid #888;background:transparent;color:inherit}" +
-            ".warn{border-color:#c33;color:#c33}</style></head><body>" +
-            "<h1>${android.text.TextUtils.htmlEncode(context.getString(R.string.error_page_title))}</h1>" +
-            "<p>${android.text.TextUtils.htmlEncode(message)}</p>" +
-            "<button onclick=\"location.href=$js\">${android.text.TextUtils.htmlEncode(context.getString(R.string.error_page_retry))}</button>" +
-            "<button onclick=\"history.back()\">${android.text.TextUtils.htmlEncode(context.getString(R.string.error_page_back))}</button>" +
-            "$proceed</body></html>"
-        return ERROR_PAGE_PREFIX + Base64.encodeToString(html.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+    var trackingPermission: GeckoSession.PermissionDelegate.ContentPermission? = null
+        private set
+
+    val hasTrackingProtectionException: Boolean
+        get() = trackingPermission?.value == GeckoSession.PermissionDelegate.ContentPermission.VALUE_ALLOW
+
+    fun applyTrackingProtection() {
+        runCatching { session.settings.useTrackingProtection = ClintGecko.blocksTrackingContent(isPrivate) }
+    }
+
+    fun loadContentBlockingLog(onResult: (List<ContentBlockingController.LogEntry>) -> Unit) {
+        val result = runCatching { ClintGecko.runtime.contentBlockingController.getLog(session) }.getOrNull()
+        if (result == null) {
+            onResult(emptyList())
+            return
+        }
+        result.accept({ onResult(it.orEmpty()) }, { onResult(emptyList()) })
+    }
+
+    fun setTrackingProtectionException(exception: Boolean): Boolean {
+        val permission = trackingPermission ?: return false
+        val value = if (exception) {
+            GeckoSession.PermissionDelegate.ContentPermission.VALUE_ALLOW
+        } else {
+            GeckoSession.PermissionDelegate.ContentPermission.VALUE_DENY
+        }
+        return runCatching { ClintGecko.runtime.storageController.setPermission(permission, value) }.isSuccess
     }
 
     private val navigationDelegate = object : GeckoSession.NavigationDelegate {
@@ -571,6 +631,7 @@ class ClintWebView(
             if (url == "about:blank" && (awaitingRealLoad || recoveryPending || !session.isOpen)) return
             if (url != null && url != "about:blank") awaitingRealLoad = false
             val mapped = mapUrl(url) ?: return
+            trackingPermission = perms.firstOrNull { it.permission == GeckoSession.PermissionDelegate.PERMISSION_TRACKING }
             currentUrl = mapped
             webViewClient?.doUpdateVisitedHistory(this@ClintWebView, mapped)
         }
@@ -587,6 +648,7 @@ class ClintWebView(
             session: GeckoSession,
             request: GeckoSession.NavigationDelegate.LoadRequest
         ): GeckoResult<AllowOrDeny>? {
+            if (LongShot.isLongShotAddress(request.uri)) return GeckoResult.fromValue(AllowOrDeny.DENY)
             if (com.jhaiian.clint.extensions.ClintExtensions.isXpiUrl(request.uri) &&
                 com.jhaiian.clint.extensions.ClintExtensions.installFromWeb(request.uri)
             ) {
@@ -613,7 +675,7 @@ class ClintWebView(
             val lookup = error.code == WebRequestError.ERROR_UNKNOWN_HOST
             if (webViewClient?.onReceivedError(this@ClintWebView, parsed, lookup) == true) return null
             lastFailedUrl = target
-            return GeckoResult.fromValue(buildErrorPage(target, error))
+            return GeckoResult.fromValue(ClintErrorPage.build(context, target, error))
         }
     }
 
@@ -625,6 +687,7 @@ class ClintWebView(
         override fun onPageStart(session: GeckoSession, url: String) {
             if (url == "about:blank" && (awaitingRealLoad || recoveryPending || !session.isOpen)) return
             progress = 0
+            translator.reset()
             if (url.startsWith(ERROR_PAGE_PREFIX)) hideCover() else if (url != "about:blank" && !isClintHomeUrl(url) && !pagePainted) showCover()
             if (!url.startsWith(ERROR_PAGE_PREFIX)) lastFailedUrl = null
             val mapped = mapUrl(url) ?: return
@@ -646,6 +709,7 @@ class ClintWebView(
 
         override fun onSecurityChange(session: GeckoSession, securityInfo: GeckoSession.ProgressDelegate.SecurityInformation) {
             isSecure = securityInfo.isSecure
+            this@ClintWebView.securityInfo = securityInfo
         }
     }
 
@@ -700,6 +764,10 @@ class ClintWebView(
         }
 
         override fun onTitleChange(session: GeckoSession, title: String?) {
+            if (LongShot.isSaveRequest(title)) {
+                if (rawUrl?.startsWith(ERROR_PAGE_PREFIX) == true) LongShot.save(context, title.orEmpty())
+                return
+            }
             if (isClintHomeUrl(currentUrl)) return
             currentTitle = title.orEmpty()
             webChromeClient?.onReceivedTitle(this@ClintWebView, currentTitle.orEmpty())
@@ -797,6 +865,7 @@ class ClintWebView(
         awaitingRealLoad = !(target.isNullOrEmpty() || isClintHomeUrl(target))
         when {
             target.isNullOrEmpty() || isClintHomeUrl(target) -> session.loadUri("about:blank")
+            LongShot.isLongShotUrl(target) -> showLongShot(replace = true)
             state != null -> session.restoreState(state)
             else -> session.loadUri(target)
         }
@@ -1078,6 +1147,7 @@ class ClintWebView(
         val builder = GeckoSessionSettings.Builder()
             .usePrivateMode(isPrivate)
             .allowJavascript(true)
+            .useTrackingProtection(ClintGecko.blocksTrackingContent(isPrivate))
         if (!profileId.isNullOrEmpty()) builder.contextId(profileId)
         session = GeckoSession(builder.build())
         session.contentDelegate = contentDelegate
@@ -1087,6 +1157,11 @@ class ClintWebView(
         session.promptDelegate = promptDelegate
         session.scrollDelegate = scrollDelegate
         session.mediaSessionDelegate = mediaDelegate
+        session.contentBlockingDelegate = object : ContentBlocking.Delegate {}
+        translator = com.jhaiian.clint.translation.PageTranslator(session) {
+            com.jhaiian.clint.translation.ClintTranslations.offerHandler?.invoke(this@ClintWebView)
+        }
+        session.translationsSessionDelegate = translator.delegate
         findActivity()?.let { session.selectionActionDelegate = ClipboardSelectionDelegate(it) }
         autofillAllowed = !isPrivate
         if (!deferOpen) {
@@ -1100,5 +1175,6 @@ class ClintWebView(
 
     companion object {
         const val ERROR_PAGE_PREFIX = "data:text/html;charset=utf-8;base64,"
+        private const val DETACH_DEACTIVATE_DELAY_MS = 500L
     }
 }

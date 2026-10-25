@@ -27,13 +27,12 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jhaiian.clint.R
 import com.jhaiian.clint.ui.ClintDialog
 import com.jhaiian.clint.ui.ClintDialogActionFooter
+import com.jhaiian.clint.ui.ClintOutlinedPasswordField
 import com.jhaiian.clint.ui.ClintOutlinedTextField
 import com.jhaiian.clint.ui.theme.LocalClintColors
 
@@ -121,13 +120,12 @@ internal fun HttpAuthDialog(request: HttpAuthRequest, hideStatusBar: Boolean, hi
                 modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
             )
             Spacer(Modifier.height(12.dp))
-            ClintOutlinedTextField(
+            ClintOutlinedPasswordField(
                 value = password,
                 onValueChange = { password = it },
+                passwordVisible = passwordVisible,
                 label = { Text(stringResource(R.string.http_auth_password)) },
-                singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
                         Icon(

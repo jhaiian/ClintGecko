@@ -45,8 +45,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.preference.PreferenceManager
@@ -66,7 +64,7 @@ import com.jhaiian.clint.settings.common.SettingsSection
 import com.jhaiian.clint.ui.ClintCheckbox
 import com.jhaiian.clint.ui.ClintDialog
 import com.jhaiian.clint.ui.ClintDialogCancelFooter
-import com.jhaiian.clint.ui.ClintOutlinedTextField
+import com.jhaiian.clint.ui.ClintOutlinedPasswordField
 import com.jhaiian.clint.ui.ClintRadioButton
 import com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig
 import com.jhaiian.clint.ui.listscreen.ConfirmDialogHost
@@ -591,30 +589,28 @@ private fun BackupCategoryDialog(uiState: BackupRestoreUiState, hideStatusBar: B
                 Text(stringResource(R.string.backup_protect_with_password), color = colors.onSurface, fontSize = 14.sp, modifier = Modifier.padding(start = 12.dp))
             }
             if (uiState.encryptBackup.value) {
-                ClintOutlinedTextField(
+                ClintOutlinedPasswordField(
                     value = uiState.backupPassword.value,
                     onValueChange = { uiState.backupPassword.value = it; uiState.passwordError.value = null },
+                    passwordVisible = uiState.backupPasswordVisible.value,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     label = { Text(stringResource(R.string.backup_password_label)) },
-                    singleLine = true,
                     isError = uiState.passwordError.value != null,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    visualTransformation = if (uiState.backupPasswordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
                         PasswordVisibilityToggle(uiState.backupPasswordVisible.value) {
                             uiState.backupPasswordVisible.value = !uiState.backupPasswordVisible.value
                         }
                     }
                 )
-                ClintOutlinedTextField(
+                ClintOutlinedPasswordField(
                     value = uiState.backupPasswordConfirm.value,
                     onValueChange = { uiState.backupPasswordConfirm.value = it; uiState.passwordError.value = null },
+                    passwordVisible = uiState.backupPasswordConfirmVisible.value,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     label = { Text(stringResource(R.string.backup_password_confirm_label)) },
-                    singleLine = true,
                     isError = uiState.passwordError.value != null,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    visualTransformation = if (uiState.backupPasswordConfirmVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
                     trailingIcon = {
                         PasswordVisibilityToggle(uiState.backupPasswordConfirmVisible.value) {
                             uiState.backupPasswordConfirmVisible.value = !uiState.backupPasswordConfirmVisible.value
@@ -655,15 +651,14 @@ fun RestorePasswordDialog(uiState: BackupRestoreUiState, hideStatusBar: Boolean,
     ) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
             Text(stringResource(R.string.restore_password_message), color = colors.secondaryText, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp))
-            ClintOutlinedTextField(
+            ClintOutlinedPasswordField(
                 value = uiState.restorePassword.value,
                 onValueChange = { uiState.restorePassword.value = it; uiState.restorePasswordError.value = null },
+                passwordVisible = uiState.restorePasswordVisible.value,
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text(stringResource(R.string.backup_password_label)) },
-                singleLine = true,
                 isError = uiState.restorePasswordError.value != null,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                visualTransformation = if (uiState.restorePasswordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
                 trailingIcon = {
                     PasswordVisibilityToggle(uiState.restorePasswordVisible.value) {
                         uiState.restorePasswordVisible.value = !uiState.restorePasswordVisible.value

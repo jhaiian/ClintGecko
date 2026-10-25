@@ -209,13 +209,3 @@ private fun mountedFsType(path: String): String? {
         }
     } catch (_: Throwable) { null }
 }
-
-internal fun estimateBase64DecodedSize(base64: String): Long {
-    val trimmed = base64.trimEnd()
-    val padding = when {
-        trimmed.endsWith("==") -> 2
-        trimmed.endsWith("=") -> 1
-        else -> 0
-    }
-    return (trimmed.length.toLong() * 3 / 4) - padding
-}

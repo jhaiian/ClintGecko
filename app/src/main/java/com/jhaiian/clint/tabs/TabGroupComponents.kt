@@ -88,6 +88,9 @@ import com.jhaiian.clint.ui.theme.LocalClintColors
 
 object TabGroupPrefs {
     const val PREF_SHOW_GROUP_BAR = "show_tab_group_bar"
+    const val PREF_TAB_GROUPS_ENABLED = "tab_groups_enabled"
+
+    fun isEnabled(prefs: android.content.SharedPreferences): Boolean = prefs.getBoolean(PREF_TAB_GROUPS_ENABLED, true)
 }
 
 data class TabGroupBarState(
@@ -472,6 +475,7 @@ private fun TabGroupMenu(
 internal fun TabSelectionActionBar(
     hasSelection: Boolean,
     canUngroup: Boolean,
+    groupsEnabled: Boolean,
     onGroup: () -> Unit,
     onMove: () -> Unit,
     onUngroup: () -> Unit,
@@ -486,9 +490,11 @@ internal fun TabSelectionActionBar(
         shadowElevation = 6.dp
     ) {
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-            SelectionAction(Icons.Filled.CreateNewFolder, stringResource(R.string.tab_selection_group), hasSelection, onGroup)
-            SelectionAction(Icons.AutoMirrored.Filled.DriveFileMove, stringResource(R.string.tab_selection_move), hasSelection, onMove)
-            SelectionAction(Icons.Filled.LinkOff, stringResource(R.string.tab_group_ungroup), hasSelection && canUngroup, onUngroup)
+            if (groupsEnabled) {
+                SelectionAction(Icons.Filled.CreateNewFolder, stringResource(R.string.tab_selection_group), hasSelection, onGroup)
+                SelectionAction(Icons.AutoMirrored.Filled.DriveFileMove, stringResource(R.string.tab_selection_move), hasSelection, onMove)
+                SelectionAction(Icons.Filled.LinkOff, stringResource(R.string.tab_group_ungroup), hasSelection && canUngroup, onUngroup)
+            }
             SelectionAction(Icons.Filled.Close, stringResource(R.string.action_close), hasSelection, onClose)
         }
     }

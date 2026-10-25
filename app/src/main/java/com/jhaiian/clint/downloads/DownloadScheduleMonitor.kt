@@ -107,7 +107,7 @@ class DownloadScheduleWorker(appContext: Context, params: WorkerParameters) :
     CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
-        setForeground(foregroundInfo())
+        runCatching { setForeground(foregroundInfo()) }
         ClintDownloadManager.init(applicationContext).join()
         DownloadScheduleMonitor.reconcile(applicationContext)
         return Result.success()

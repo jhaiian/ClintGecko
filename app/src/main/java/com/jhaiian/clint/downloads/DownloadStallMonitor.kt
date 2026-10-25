@@ -42,7 +42,8 @@ internal object DownloadStallMonitor {
             if (item.id in recovering) continue
 
             val previous = lastProgress[item.id]
-            if (previous == null || previous.bytes != item.bytesDownloaded) {
+            val receivedRecently = ClintDownloadManager.lastActivityAt[item.id]?.let { now - it < STALL_THRESHOLD_MS } == true
+            if (previous == null || previous.bytes != item.bytesDownloaded || receivedRecently) {
                 lastProgress[item.id] = Progress(item.bytesDownloaded, now)
                 continue
             }
@@ -58,6 +59,7 @@ internal object DownloadStallMonitor {
 
     private fun recoverStalledDownload(context: Context, id: Int) {
         if (!recovering.add(id)) return
+        DownloadLog.w(id, "STALL") { "No data received for ${STALL_THRESHOLD_MS / 1000}s; reconnecting" }
         ClintDownloadManager.applicationScope.launch {
             try {
                 ClintDownloadManager.pause(context, id)

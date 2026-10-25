@@ -18,6 +18,14 @@ class SpeedLimiter(initialLimitBytesPerSec: Long) {
         }
     }
 
+    fun currentLimit(): Long = limitBytesPerSec
+
+    fun batchBytes(capacity: Int): Int {
+        val limit = limitBytesPerSec
+        if (limit <= 0L) return capacity
+        return minOf(capacity.toLong(), maxOf(MIN_BATCH_BYTES, limit / BATCHES_PER_SECOND)).toInt()
+    }
+
     fun acquire(bytes: Int) {
         if (bytes <= 0) return
         var remaining = bytes.toDouble()
@@ -42,5 +50,10 @@ class SpeedLimiter(initialLimitBytesPerSec: Long) {
             }
             if (waitMs > 0L) Thread.sleep(waitMs)
         }
+    }
+
+    private companion object {
+        const val MIN_BATCH_BYTES = 16L * 1024L
+        const val BATCHES_PER_SECOND = 4L
     }
 }

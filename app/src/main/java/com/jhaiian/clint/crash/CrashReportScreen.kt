@@ -38,6 +38,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.jhaiian.clint.R
 import com.jhaiian.clint.settings.common.SettingsScreenScaffold
 import com.jhaiian.clint.setup.SectionLabel
+import com.jhaiian.clint.settings.common.SettingsSectionLabel
 import com.jhaiian.clint.setup.SetupPrimaryButton
 import com.jhaiian.clint.ui.ClintDialog
 import com.jhaiian.clint.ui.theme.ClintColors
@@ -233,7 +234,7 @@ fun CrashReportScreen(
 
         HorizontalDivider(color = colors.divider, thickness = 1.dp, modifier = Modifier.padding(vertical = 20.dp))
 
-        SectionLabel(stringResource(R.string.crash_report_title), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.crash_report_title))
         Text(
             stringResource(R.string.crash_report_instructions),
             color = colors.secondaryText,

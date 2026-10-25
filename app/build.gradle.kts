@@ -34,8 +34,8 @@ android {
         applicationId = "com.jhaiian.clint.gecko"
         minSdk = 26
         targetSdk = 37
-        versionCode = 4
-        versionName = "1.0.3"
+        versionCode = 5
+        versionName = "1.0.4"
 
         externalNativeBuild {
             cmake {
@@ -151,7 +151,7 @@ dependencies {
     implementation("androidx.documentfile:documentfile:1.1.0")
     implementation("androidx.appcompat:appcompat:1.8.0")
     implementation("com.google.android.material:material:1.14.0")
-    implementation("org.mozilla.geckoview:geckoview:158.0.20261007201254")
+    implementation("org.mozilla.geckoview:geckoview:158.0.20261021001945")
     implementation("androidx.preference:preference-ktx:1.2.1")
     implementation("androidx.recyclerview:recyclerview:1.4.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.2.0")

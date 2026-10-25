@@ -191,9 +191,9 @@ private fun ShortcutManagerToolbar(
 ) {
     val colors = LocalClintColors.current
 
-    Surface(color = colors.surface, shadowElevation = 4.dp, modifier = Modifier.statusBarsPadding()) {
+    Surface(color = colors.background, modifier = Modifier.statusBarsPadding()) {
         Row(
-            Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp),
+            Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {

@@ -4,6 +4,230 @@ All notable changes to Clint Gecko are documented here.
 
 ---
 
+# v1.0.4
+
+## What's New
+
+### A Rebuilt Download Engine
+
+Most of this update is under the hood. The download engine got a full review and a lot of fixes, so downloads should be faster, lighter, and much more reliable.
+
+#### Auto Mode
+
+The **Split download parts**, **Max simultaneous parts**, and **Concurrent segments** sliders now have an **Auto** option. Slide all the way to the right to use it.
+
+With Auto, Clint picks the number of connections and adjusts it while downloading. It only adds a connection if that actually makes the download faster. It uses fewer connections on mobile data, in battery saver, or when your phone is running hot. It also remembers what worked best for each server, so the next download from that server starts at the right number.
+
+Auto is the new default. If you already changed these sliders, your settings stay the same.
+
+#### More Reliable
+
+- Retries now wait longer each time instead of retrying every 5 seconds forever. The default is 10 retries, and you can still set 0 for unlimited.
+- A failed attempt keeps the progress it already made instead of starting over.
+- If copying a finished download to your chosen folder fails, only the copy is retried. Before, the file was deleted and downloaded again, forever.
+- Downloads can continue in the background even when Android won't let Clint start a foreground service.
+- Downloads paused because of no network, Wi-Fi only, or a schedule now resume correctly after a restart.
+- Unfinished files now end in `.part` and get their real name once they're done.
+- Leftover temporary files are cleaned up.
+
+#### Faster and Lighter
+
+- Downloads to a folder you chose on your device or SD card are now written straight there, instead of being downloaded first and then copied at 100%.
+- Stream downloads use a lot less storage. A 4 GB video with separate audio used to need about 12 GB written. Now it's about 8 GB.
+- Much fewer disk writes, which means less work for your phone during fast downloads.
+- Downloads no longer compete with the rest of the app for resources.
+- Fewer notification updates, so notifications don't get stuck or skipped.
+
+#### Streams and Live Recordings
+
+- Pausing, retrying, or restarting the app no longer deletes a live recording. It picks up where it left off.
+- A live recording that keeps failing now saves what it already has instead of failing completely.
+- Fixed many DASH streams that didn't download at all.
+- Streams with unsupported encryption now show a clear message right away, instead of failing only after everything was downloaded.
+
+---
+
+### Page Translation
+
+You can now translate pages right inside Clint! It uses Firefox's own translation engine, so everything happens **on your device**. The page text never leaves your phone. The only thing downloaded is the language files, and they come from Mozilla.
+
+- A translate bar slides in under the address bar. Pick the source and target languages, then tap **Translate**. Tap **Show original** to switch back.
+- The bar shows up when Clint detects a page in another language, from the new **Translate page** item in the menu, or from the translate button in the address bar.
+- The bar's menu has **Always translate**, **Never translate** for a language, and **Never translate this site**.
+- The bar hides by itself after a few seconds. You can also swipe it up or close it.
+- Clint remembers the last language you translated to.
+- New **Translations** page in Settings › Browser › Tools. From there you can turn the offer and the address bar button on or off, set Offer / Always / Never for each language, manage sites that are never translated, and download or delete language files.
+
+---
+
+### Enhanced Tracking Protection
+
+New **Enhanced Tracking Protection** setting in Settings › Privacy & Security, with three levels:
+
+- **Standard** (default): Blocks cryptominers and social media tracking cookies. In private tabs it also blocks tracking content and email trackers.
+- **Strict**: Everything in Standard, plus tracking content and social media trackers in **every** tab. Some sites might break.
+- **Off**: No tracker blocking.
+
+If a site breaks, you can turn protection off for that site from the site info sheet.
+
+---
+
+### Cookie Protection
+
+The **Block third-party cookies** switch is now a **Cookie protection** setting with three options:
+
+- **Allow all cookies**
+- **Total Cookie Protection** (default): Every site gets its own separate cookie jar, so trackers can't follow you from site to site.
+- **Block third-party cookies**
+
+If you had turned off third-party cookie blocking before, you'll be on **Allow all cookies**. If you had changed it and then turned it back on, you'll be on **Block third-party cookies**. Everyone else gets Total Cookie Protection.
+
+---
+
+### Site Information
+
+Tap the lock icon in the address bar to see information about the site you're on, just like Chrome and Firefox.
+
+- Whether the connection is secure, plus the site's certificate details (who it was issued to, who issued it, and how long it's valid).
+- A warning if you chose to continue past a certificate error.
+- How many trackers were blocked on the page. Tap the number to see them grouped by type: social media trackers, cross-site cookies, tracking content, fingerprinters, and cryptominers.
+- Every permission you've saved for the site (camera, microphone, location, notifications, clipboard). Tap one to change it, or reset them all at once.
+- Shortcuts to Cookies Control and Site settings.
+
+---
+
+### New Look for Settings
+
+All the settings screens have been redesigned.
+
+- A **Search settings** bar at the top of the main settings screen.
+- **Support Clint** now has its own card at the top.
+- Categories are grouped into **General**, **Protection**, **Downloads & data**, and **Advanced**, with **About** at the end.
+- The Browser, Look and feel, and Downloads screens have been reorganized so related settings sit together. The big "Layout" card in Look and feel has been split up, and **Language** is now at the top.
+- Updated descriptions on the main settings screen so they match what each screen actually has now.
+- On tablets and in landscape, the selected category is highlighted.
+
+---
+
+### Delete Browsing Data
+
+A new **Delete browsing data** screen, similar to Chrome's. Open it from History › ⋮, or from Settings › Privacy & Security › History.
+
+- Pick a time range: Last hour, Last 24 hours, Last 7 days, Last 4 weeks, or All time.
+- Choose what to delete: browsing history, cookies and site data, cached images and files, open tabs, and site settings. Each one shows a summary of what it will clear.
+- Closed tabs can be restored with **Undo**.
+- Your choices are remembered for next time.
+
+---
+
+### New Languages
+
+Clint is now available in:
+
+- **Hindi** (हिन्दी)
+- **Indonesian** (Bahasa Indonesia)
+- **Brazilian Portuguese** (Português (Brasil))
+
+---
+
+### A Better Error Page
+
+When a page fails to load, you now get a proper error page that matches your theme, including custom themes.
+
+- Each error gets its own message: no internet, site not found, connection refused, timed out, certificate problems, dangerous sites, and many more. Network errors also list a few things to try.
+- **Try again** and **Go back** buttons, and a **Details** section with the error code and full URL.
+- **Try again** works even when JavaScript is turned off.
+
+---
+
+### New Look for History
+
+- History is grouped into **Today**, **Yesterday**, **Earlier this week**, **Earlier this month**, and **Older**, or by letter when sorted by title.
+- Each entry shows the site and the time you visited.
+- Tap ✕ to remove an entry, with **Undo** if you change your mind.
+- A cleaner selection mode with a **Delete** button.
+
+---
+
+### New Look for Search Suggestions
+
+- Suggestions are grouped into **Bookmarks**, **History**, and **Search suggestions** cards.
+- The part of a suggestion that matches what you typed is highlighted.
+- URLs are easier to read, without `https://www.` in front.
+- To remove a history entry, long-press it.
+- A back button in the search field, and the keyboard hides when you scroll the suggestions.
+- New switches in Settings › Browser › Search: **Show history in suggestions** and **Show bookmarks in suggestions**.
+
+---
+
+### Website Isolation
+
+New **Website isolation** switch in Settings › Privacy & Security. This is the same feature as Firefox's "Website isolation" in Labs. It runs each site in its own process for better security. It's off by default, and Clint needs to restart after you change it.
+
+---
+
+### Long Shot
+
+No internet? Play a game! Long Shot is a small archery game, like Chrome's dino game.
+
+- It shows up on the offline page, or you can play it anytime by typing `clint://longshot` in the address bar. Typing `clint:` also suggests it.
+- Pull back and let go to shoot. Three misses and it's game over.
+- After each hit the target moves and gets smaller, and the wind gets stronger. Hit enough and the target starts swinging.
+- Hit bullseyes in a row for up to a ×3 multiplier.
+- Your best score is saved.
+
+> I don't know how fun it is lol, but give it a try when your internet goes down.
+
+---
+
+## Improvements
+
+- The browser menu now opens instantly. On some phones (like Xiaomi/HyperOS), it used to take a moment to open, and tapping again could close it.
+- Pull to refresh is harder to trigger by accident. It no longer starts when you scroll up to the top of a page, and it's blocked on Instagram Reels, TikTok, Facebook Reels, and YouTube Shorts.
+- New **Tab groups** switch in Settings › Look and feel. Turn it off if you don't use tab groups. Your tabs stay open.
+- New **Buttons at bottom** option in the tab menu's ⋮ menu. It moves the tab count, search, New Tab buttons, and group chips to the bottom so they're easier to reach with one hand.
+- New **Open tabs** option in Settings › Privacy & Security › Clear data on exit › Data to clear. It's off by default.
+- Pop-ups from the same site now open without asking. Pop-ups to other sites still ask.
+- Location requests from websites now have the **Don't ask me again** option, like camera, microphone, and notifications. You also no longer get two dialogs in a row.
+- You can now drag the text cursor past the edge of a text field. That means you can reach the end of a long URL in the address bar.
+- The segment map now shows one cell per segment again, and the expanded grid scrolls when a stream has a lot of segments.
+
+---
+
+## Other Changes
+
+- Updated Privacy Policy and Terms of Service.
+
+Translation downloads its language files from Mozilla, so I've added it to the Privacy Policy, along with tracking protection, cookie protection, site information, delete browsing data, and the new open tabs option for clear data on exit. I also added a note to the Terms of Service that machine translations can be wrong. As always, everything stays on your device except what's needed to download those files.
+
+---
+
+## Dependency Updates
+
+- Bumped GeckoView from `158.0.20261007201254` to `158.0.20261021001945`.
+- Bumped Gradle from `9.8.1` to `9.8.2`.
+
+---
+
+## Bug Fixes
+
+- Fixed the Downloads screen being empty after the app was killed, and new downloads not being saved in that state.
+- Fixed pausing and quickly resuming a download sometimes starting it twice.
+- Fixed changes to a download's link, cookies, or settings getting reverted while it was downloading.
+- Fixed some servers making a download restart over and over.
+- Fixed slow or speed-limited downloads pausing and resuming every 30 seconds.
+- Fixed being rate limited throwing away most of a download's progress.
+- Fixed downloads failing with "Server error 416" when resuming.
+- Fixed some HLS streams downloading the whole video for every segment.
+- Fixed text fields at the bottom of a page (like Google AI Mode's "Ask anything" box) being covered by the keyboard.
+- Fixed the page jumping and a black band showing up when opening or closing the keyboard.
+- Fixed fullscreen not working on some embedded video players (like the Dailymotion trailers on FilmAffinity). The screen would flicker and drop out of fullscreen right away.
+- Fixed the buttons on the error page not working.
+- Fixed a failed download's notification getting stuck when push notifications are off.
+- Fixed cancelling a stream conversion leaving an empty file in Downloads.
+
+---
+
 # v1.0.3
 
 ## What's New
@@ -422,12 +646,6 @@ Thank you to Daniel Rioja for suggesting this.
 - Fixed Clipboard permission not working.
 - Fixed Autofill not working.
 - Fixed notification bug. (Thanks to @Woallin [#9](https://github.com/jhaiian/ClintGecko/issues/9))
-
----
-
-## Donation
-
-Thank you to **Daniel Rioja** for donating $6.67! 
 
 ---
 

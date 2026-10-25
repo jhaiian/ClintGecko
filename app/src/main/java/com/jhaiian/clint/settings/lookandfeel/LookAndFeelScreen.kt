@@ -5,6 +5,7 @@ import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Contrast
+import androidx.compose.material.icons.filled.Workspaces
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Layers
@@ -52,7 +53,7 @@ import com.jhaiian.clint.settings.common.RowDivider
 import com.jhaiian.clint.settings.common.SettingsRow
 import com.jhaiian.clint.settings.common.SettingsScreenScaffold
 import com.jhaiian.clint.settings.common.SettingsSection
-import com.jhaiian.clint.setup.SectionLabel
+import com.jhaiian.clint.settings.common.SettingsSectionLabel
 import com.jhaiian.clint.ui.ThemeSwatchUtils
 import com.jhaiian.clint.ui.theme.LocalClintColors
 
@@ -72,6 +73,7 @@ fun LookAndFeelScreen(
     onShowHomeButtonRowClicked: () -> Unit,
     onShowTabStripRowClicked: () -> Unit,
     onTabStripPositionSelected: (String) -> Unit,
+    onTabGroupsRowClicked: () -> Unit,
     onTabGroupBarPositionSelected: (String) -> Unit,
     onCustomizeMenuRowClicked: () -> Unit,
     onExitConfirmationConfirmed: (String) -> Unit,
@@ -133,7 +135,7 @@ fun LookAndFeelScreen(
             }
         }
     ) {
-        SectionLabel(stringResource(R.string.pref_category_language).uppercase(), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.pref_category_language))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Translate,
@@ -144,7 +146,7 @@ fun LookAndFeelScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.pref_category_appearance).uppercase(), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.pref_category_appearance))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Palette,
@@ -185,22 +187,22 @@ fun LookAndFeelScreen(
         }
         DarkReaderColorHint(colors)
 
-        SectionLabel(stringResource(R.string.pref_category_layout).uppercase(), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.pref_category_address_bar))
         SettingsSection(colors.cardBackground) {
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.SwapVert,
-                title = stringResource(R.string.pref_nested_scroll_title),
-                summary = stringResource(nestedScrollSummaryRes(state.scrollHideMode)),
-                colors = colors,
-                onClick = { state.openDialog = LookAndFeelDialog.SCROLL_HIDE_MODE }
-            )
-            RowDivider(colors.divider)
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.WebAsset,
                 title = stringResource(R.string.pref_address_bar_position_title),
                 summary = stringResource(addressBarPositionSummaryRes(state.addressBarPosition)),
                 colors = colors,
                 onClick = { state.openDialog = LookAndFeelDialog.ADDRESS_BAR_POSITION }
+            )
+            RowDivider(colors.divider)
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.SwapVert,
+                title = stringResource(R.string.pref_nested_scroll_title),
+                summary = stringResource(nestedScrollSummaryRes(state.scrollHideMode)),
+                colors = colors,
+                onClick = { state.openDialog = LookAndFeelDialog.SCROLL_HIDE_MODE }
             )
             RowDivider(colors.divider)
             SettingsRow(
@@ -213,7 +215,10 @@ fun LookAndFeelScreen(
                     ClintSwitch(checked = state.showHomeButton)
                 }
             )
-            RowDivider(colors.divider)
+        }
+
+        SettingsSectionLabel(stringResource(R.string.pref_category_tabs))
+        SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Tab,
                 title = stringResource(R.string.pref_tab_strip_title),
@@ -234,13 +239,28 @@ fun LookAndFeelScreen(
             )
             RowDivider(colors.divider)
             SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Workspaces,
+                title = stringResource(R.string.pref_tab_groups_title),
+                summary = stringResource(R.string.pref_tab_groups_summary),
+                colors = colors,
+                onClick = onTabGroupsRowClicked,
+                trailing = {
+                    ClintSwitch(checked = state.tabGroupsEnabled)
+                }
+            )
+            RowDivider(colors.divider)
+            SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Layers,
                 title = stringResource(R.string.pref_tab_group_bar_position_title),
                 summary = stringResource(tabBarPositionSummaryRes(state.tabGroupBarPosition)),
                 colors = colors,
-                onClick = { state.openDialog = LookAndFeelDialog.TAB_GROUP_BAR_POSITION }
+                enabled = state.tabGroupsEnabled,
+                onClick = { if (state.tabGroupsEnabled) state.openDialog = LookAndFeelDialog.TAB_GROUP_BAR_POSITION }
             )
-            RowDivider(colors.divider)
+        }
+
+        SettingsSectionLabel(stringResource(R.string.menu))
+        SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.MoreVert,
                 title = stringResource(R.string.pref_menu_style_title),
@@ -256,7 +276,10 @@ fun LookAndFeelScreen(
                 colors = colors,
                 onClick = onCustomizeMenuRowClicked
             )
-            RowDivider(colors.divider)
+        }
+
+        SettingsSectionLabel(stringResource(R.string.pref_category_fullscreen))
+        SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Fullscreen,
                 title = stringResource(R.string.hide_status_bar),
@@ -280,7 +303,7 @@ fun LookAndFeelScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.pref_category_navigation).uppercase(), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.pref_category_navigation))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Close,

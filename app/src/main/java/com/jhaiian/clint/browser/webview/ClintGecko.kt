@@ -41,6 +41,8 @@ object ClintGecko {
     private const val TRIM_MEMORY_MODERATE_LEVEL = 60
     private const val TRIM_DEBOUNCE_MS = 5000L
     private const val COOKIE_OP_TIMEOUT_MS = 8000L
+    const val PREF_WEBSITE_ISOLATION = "website_isolation_enabled"
+    const val DEFAULT_WEBSITE_ISOLATION = false
 
     private lateinit var appContext: Context
     private var runtimeRef: GeckoRuntime? = null
@@ -123,11 +125,13 @@ object ClintGecko {
     fun init(context: Context) {
         if (runtimeRef != null) return
         appContext = context.applicationContext
-        val aboutConfigEnabled = androidx.preference.PreferenceManager.getDefaultSharedPreferences(appContext)
-            .getBoolean("about_config_enabled", false)
+        val startupPrefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(appContext)
+        val aboutConfigEnabled = startupPrefs.getBoolean("about_config_enabled", false)
+        val websiteIsolationEnabled = startupPrefs.getBoolean(PREF_WEBSITE_ISOLATION, DEFAULT_WEBSITE_ISOLATION)
         val settings = GeckoRuntimeSettings.Builder()
             .javaScriptEnabled(true)
             .aboutConfigEnabled(aboutConfigEnabled)
+            .fissionEnabled(websiteIsolationEnabled)
             .remoteDebuggingEnabled(false)
             .extensionsWebAPIEnabled(true)
             .consoleOutput((appContext.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0)
@@ -137,8 +141,10 @@ object ClintGecko {
         runCatching { com.jhaiian.clint.backup.CookieBackup.applyPending(appContext) }
         runtimeRef = GeckoRuntime.create(appContext, settings)
         disableTelemetry()
+        com.jhaiian.clint.translation.ClintTranslations.applyPrefs(appContext)
         SecureDns.apply(appContext)
         com.jhaiian.clint.privacy.PrivacyPrefs.applyGeckoPrefs(appContext)
+        applyTrackingProtection(appContext)
         com.jhaiian.clint.privacy.PrivacyGuard.onRuntimeReady(appContext)
         com.jhaiian.clint.extensions.ClintExtensions.init(appContext, runtime)
         installExtension()
@@ -528,11 +534,72 @@ object ClintGecko {
         runtime.storageController.clearDataForSessionContext(contextId)
     }
 
-    fun setBlockThirdPartyCookies(block: Boolean) {
+    fun setCookiePolicy(policy: String) {
+        val behavior = when (policy) {
+            com.jhaiian.clint.privacy.PrivacyPrefs.COOKIE_POLICY_ALLOW_ALL -> ContentBlocking.CookieBehavior.ACCEPT_ALL
+            com.jhaiian.clint.privacy.PrivacyPrefs.COOKIE_POLICY_BLOCK_THIRD_PARTY -> ContentBlocking.CookieBehavior.ACCEPT_FIRST_PARTY
+            else -> ContentBlocking.CookieBehavior.ACCEPT_FIRST_PARTY_AND_ISOLATE_OTHERS
+        }
+        val privateBehavior = if (behavior == ContentBlocking.CookieBehavior.ACCEPT_FIRST_PARTY) {
+            ContentBlocking.CookieBehavior.ACCEPT_FIRST_PARTY
+        } else {
+            ContentBlocking.CookieBehavior.ACCEPT_FIRST_PARTY_AND_ISOLATE_OTHERS
+        }
         runCatching {
-            runtime.settings.contentBlocking.setCookieBehavior(
-                if (block) ContentBlocking.CookieBehavior.ACCEPT_FIRST_PARTY else ContentBlocking.CookieBehavior.ACCEPT_ALL
-            )
+            runtime.settings.contentBlocking
+                .setCookieBehavior(behavior)
+                .setCookieBehaviorPrivateMode(privateBehavior)
+        }
+    }
+
+    @Volatile
+    var trackingProtectionLevel: String = com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_ETP_LEVEL
+        private set
+
+    val isTrackingProtectionEnabled: Boolean
+        get() = trackingProtectionLevel != com.jhaiian.clint.privacy.PrivacyPrefs.ETP_LEVEL_OFF
+
+    fun blocksTrackingContent(isPrivate: Boolean): Boolean = when (trackingProtectionLevel) {
+        com.jhaiian.clint.privacy.PrivacyPrefs.ETP_LEVEL_STRICT -> true
+        com.jhaiian.clint.privacy.PrivacyPrefs.ETP_LEVEL_STANDARD -> isPrivate
+        else -> false
+    }
+
+    fun applyTrackingProtection(context: Context) {
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        val level = com.jhaiian.clint.privacy.PrivacyPrefs.etpLevel(prefs)
+        val fingerprinting = prefs.getBoolean(
+            com.jhaiian.clint.privacy.PrivacyPrefs.FINGERPRINTING_PROTECTION,
+            com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_FINGERPRINTING_PROTECTION
+        )
+        trackingProtectionLevel = level
+        val categories = when (level) {
+            com.jhaiian.clint.privacy.PrivacyPrefs.ETP_LEVEL_STRICT -> ContentBlocking.AntiTracking.STRICT
+            com.jhaiian.clint.privacy.PrivacyPrefs.ETP_LEVEL_STANDARD -> ContentBlocking.AntiTracking.DEFAULT or ContentBlocking.AntiTracking.CRYPTOMINING
+            else -> ContentBlocking.AntiTracking.NONE
+        }
+        val antiTracking = if (fingerprinting) {
+            categories or ContentBlocking.AntiTracking.FINGERPRINTING
+        } else {
+            categories and ContentBlocking.AntiTracking.FINGERPRINTING.inv()
+        }
+        val etpLevel = when (level) {
+            com.jhaiian.clint.privacy.PrivacyPrefs.ETP_LEVEL_STRICT -> ContentBlocking.EtpLevel.STRICT
+            com.jhaiian.clint.privacy.PrivacyPrefs.ETP_LEVEL_STANDARD -> ContentBlocking.EtpLevel.DEFAULT
+            else -> ContentBlocking.EtpLevel.NONE
+        }
+        val category = when (level) {
+            com.jhaiian.clint.privacy.PrivacyPrefs.ETP_LEVEL_STRICT -> ContentBlocking.EtpCategory.STRICT
+            com.jhaiian.clint.privacy.PrivacyPrefs.ETP_LEVEL_STANDARD -> ContentBlocking.EtpCategory.STANDARD
+            else -> ContentBlocking.EtpCategory.CUSTOM
+        }
+        runCatching {
+            runtime.settings.contentBlocking
+                .setEnhancedTrackingProtectionLevel(etpLevel)
+                .setEnhancedTrackingProtectionCategory(category)
+                .setAntiTracking(antiTracking)
+                .setStrictSocialTrackingProtection(level == com.jhaiian.clint.privacy.PrivacyPrefs.ETP_LEVEL_STRICT)
+                .setEmailTrackerBlockingPrivateBrowsing(level != com.jhaiian.clint.privacy.PrivacyPrefs.ETP_LEVEL_OFF)
         }
     }
 

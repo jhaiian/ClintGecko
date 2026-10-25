@@ -137,6 +137,48 @@ internal object DownloadFileHelper {
         return File(dir, "$base(${System.nanoTime()})$ext")
     }
 
+    const val PART_SUFFIX = ".part"
+
+    fun isPartFile(file: File): Boolean = file.name.endsWith(PART_SUFFIX)
+
+    fun finalNameOf(file: File): String = file.name.removeSuffix(PART_SUFFIX)
+
+    fun uniquePartFile(dir: File, name: String): File {
+        val safeName = sanitizeFileName(name)
+        val dot = safeName.lastIndexOf('.')
+        val base = if (dot > 0) safeName.substring(0, dot) else safeName
+        val ext = if (dot > 0) safeName.substring(dot) else ""
+        var i = 0
+        while (i <= 1000) {
+            val candidate = if (i == 0) safeName else "$base($i)$ext"
+            if (!File(dir, candidate).exists()) {
+                val part = File(dir, candidate + PART_SUFFIX)
+                try {
+                    if (part.createNewFile()) return part
+                } catch (_: java.io.IOException) {
+                }
+            }
+            i++
+        }
+        return File(dir, "$base(${System.nanoTime()})$ext$PART_SUFFIX")
+    }
+
+    fun promotePartFile(part: File): File? {
+        if (!isPartFile(part)) return part
+        val dir = part.parentFile ?: return null
+        val name = finalNameOf(part)
+        val dot = name.lastIndexOf('.')
+        val base = if (dot > 0) name.substring(0, dot) else name
+        val ext = if (dot > 0) name.substring(dot) else ""
+        var i = 0
+        while (i <= 1000) {
+            val target = File(dir, if (i == 0) name else "$base($i)$ext")
+            if (!target.exists()) return if (part.renameTo(target)) target else null
+            i++
+        }
+        return null
+    }
+
     fun previewUniqueName(dir: File, name: String): String {
         val safeName = sanitizeFileName(name)
         if (!File(dir, safeName).exists()) return safeName

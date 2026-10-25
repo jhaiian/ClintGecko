@@ -18,6 +18,14 @@ object DashSegmentResolver {
 
     private enum class Level { MPD, PERIOD, ADAPTATION, REPRESENTATION }
 
+    private class ParsedDash(val track: ResolvedTrack, val singleFileUrl: String?)
+
+    private val ISO_DURATION = Regex("""PT(?:([\d.]+)H)?(?:([\d.]+)M)?(?:([\d.]+)S)?""")
+    private val NUMBER_PATTERN = Regex("""\${'$'}Number(%0(\d+)d)?\${'$'}""")
+    private val TIME_PATTERN = Regex("""\${'$'}Time(%0(\d+)d)?\${'$'}""")
+    private const val SINGLE_FILE_CHUNK_BYTES = 8L * 1024L * 1024L
+    private const val MAX_TIMELINE_SEGMENTS = 200_000L
+
     private fun resolveUrl(base: String, relative: String): String {
         val trimmed = relative.trim()
         if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed
@@ -29,7 +37,7 @@ object DashSegmentResolver {
     }
 
     private fun parseIso8601Duration(s: String): Double? {
-        val m = Regex("""PT(?:([\d.]+)H)?(?:([\d.]+)M)?(?:([\d.]+)S)?""").matchEntire(s.trim()) ?: return null
+        val m = ISO_DURATION.matchEntire(s.trim()) ?: return null
         val h = m.groupValues[1].toDoubleOrNull() ?: 0.0
         val mi = m.groupValues[2].toDoubleOrNull() ?: 0.0
         val sec = m.groupValues[3].toDoubleOrNull() ?: 0.0
@@ -41,15 +49,13 @@ object DashSegmentResolver {
         var out = template
         out = out.replace("\$RepresentationID\$", repId ?: "")
         out = out.replace("\$Bandwidth\$", bandwidth?.toString() ?: "")
-        val numberFmt = Regex("""${'$'}Number(%0(\d+)d)?${'$'}""")
-        out = numberFmt.replace(out) { m ->
+        out = NUMBER_PATTERN.replace(out) { m ->
             if (number == null) m.value else {
                 val width = m.groupValues[2].toIntOrNull()
                 if (width != null) number.toString().padStart(width, '0') else number.toString()
             }
         }
-        val timeFmt = Regex("""${'$'}Time(%0(\d+)d)?${'$'}""")
-        out = timeFmt.replace(out) { m ->
+        out = TIME_PATTERN.replace(out) { m ->
             if (time == null) m.value else {
                 val width = m.groupValues[2].toIntOrNull()
                 if (width != null) time.toString().padStart(width, '0') else time.toString()
@@ -83,11 +89,42 @@ object DashSegmentResolver {
             return null
         }
 
-        return try {
+        val parsed = try {
             parse(text, mpdUrl, kind, targetWidth, targetHeight, targetBandwidth, targetRepresentationId)
         } catch (_: Exception) {
             null
+        } ?: return null
+        val singleFileUrl = parsed.singleFileUrl ?: return parsed.track
+        return splitSingleFile(parsed.track, singleFileUrl, referer, cookies, userAgent, extraHeaders)
+    }
+
+    private fun splitSingleFile(
+        track: ResolvedTrack,
+        url: String,
+        referer: String,
+        cookies: String,
+        userAgent: String,
+        extraHeaders: Map<String, String>
+    ): ResolvedTrack {
+        val builder = Request.Builder().url(url).header("Range", "bytes=0-0")
+        StreamRequestHeaders.apply(builder, url, referer, cookies, userAgent, extraHeaders)
+        val totalBytes = try {
+            ClintDownloadManager.httpClient.newCall(builder.build()).execute().use { resp ->
+                if (resp.code == 206) com.jhaiian.clint.downloads.ContentRangeInfo.parse(resp.header("Content-Range"))?.total else null
+            }
+        } catch (_: Exception) {
+            null
         }
+        if (totalBytes == null || totalBytes <= 0L) return track
+        val chunks = mutableListOf<SegmentSpec>()
+        var offset = 0L
+        var number = 0L
+        while (offset < totalBytes) {
+            val length = minOf(SINGLE_FILE_CHUNK_BYTES, totalBytes - offset)
+            chunks += SegmentSpec(url = url, byteRangeOffset = offset, byteRangeLength = length, sequenceNumber = number++)
+            offset += length
+        }
+        return track.copy(segments = chunks)
     }
 
     private fun parse(
@@ -98,7 +135,7 @@ object DashSegmentResolver {
         targetHeight: Int?,
         targetBandwidth: Long?,
         targetRepresentationId: String? = null
-    ): ResolvedTrack? {
+    ): ParsedDash? {
         val parser = Xml.newPullParser()
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
         parser.setInput(java.io.StringReader(text))
@@ -109,6 +146,7 @@ object DashSegmentResolver {
         var repBase: String? = null
         var level = Level.MPD
         var mpdDuration: Double? = null
+        var periodDuration: Double? = null
         var mpdIsLive = false
         var mpdUpdatePeriod: Double? = null
 
@@ -122,7 +160,7 @@ object DashSegmentResolver {
         var matchedBandwidth: Long? = null
         var inMatchedRep = false
         var textBuffer = StringBuilder()
-        val collectedTracks = mutableListOf<ResolvedTrack>()
+        val collectedTracks = mutableListOf<Pair<ResolvedTrack, String?>>()
 
         var segmentListInit: String? = null
         val segmentListUrls = mutableListOf<String>()
@@ -144,6 +182,7 @@ object DashSegmentResolver {
                         "Period" -> {
                             level = Level.PERIOD
                             periodBase = mpdBase
+                            periodDuration = parser.getAttributeValue(null, "duration")?.let(::parseIso8601Duration)
                         }
                         "AdaptationSet" -> {
                             level = Level.ADAPTATION
@@ -244,12 +283,19 @@ object DashSegmentResolver {
                                     duration = repTemplate?.duration ?: adaptationTemplate?.duration
                                 )
                                 val effectiveTimeline = repTimeline ?: adaptationTimeline
+                                val duration = periodDuration ?: mpdDuration
                                 val result = buildTrack(
                                     kind, baseUrl, matchedRepId, matchedBandwidth, effectiveTemplate,
-                                    effectiveTimeline, mpdDuration, segmentListInit, segmentListUrls,
+                                    effectiveTimeline, duration, segmentListInit, segmentListUrls,
                                     mpdIsLive, mpdUpdatePeriod
                                 )
-                                if (result != null) collectedTracks += result
+                                if (result != null) {
+                                    collectedTracks += result to null
+                                } else if (effectiveTemplate.media == null && segmentListUrls.isEmpty() && repBase != null && !mpdIsLive) {
+                                    collectedTracks += ResolvedTrack(
+                                        kind, null, listOf(SegmentSpec(url = baseUrl)), duration, "mp4", false, null
+                                    ) to baseUrl
+                                }
                             }
                             inMatchedRep = false
                             level = Level.ADAPTATION
@@ -262,12 +308,15 @@ object DashSegmentResolver {
             eventType = parser.next()
         }
         if (collectedTracks.isEmpty()) return null
-        val first = collectedTracks.first()
-        if (collectedTracks.size == 1) return first
-        val mergedSegments = collectedTracks.flatMap { it.segments }
-        val mergedDuration = collectedTracks.mapNotNull { it.durationSeconds }
+        val (first, firstSingleFile) = collectedTracks.first()
+        if (firstSingleFile != null || collectedTracks.size == 1) return ParsedDash(first, firstSingleFile)
+        val matching = collectedTracks
+            .filter { (track, singleFile) -> singleFile == null && track.initSegment?.url == first.initSegment?.url }
+            .map { it.first }
+        val mergedSegments = matching.flatMap { it.segments }
+        val mergedDuration = matching.mapNotNull { it.durationSeconds }
             .takeIf { it.isNotEmpty() }?.sum() ?: first.durationSeconds
-        return first.copy(segments = mergedSegments, durationSeconds = mergedDuration)
+        return ParsedDash(first.copy(segments = mergedSegments, durationSeconds = mergedDuration), null)
     }
 
     private fun buildTrack(
@@ -297,15 +346,21 @@ object DashSegmentResolver {
         val segments = mutableListOf<SegmentSpec>()
         if (!timeline.isNullOrEmpty()) {
             var number = template.startNumber
-            for ((startT, d, r) in timeline) {
+            val timelineEnd = mpdDuration?.let { timeline.first().first + (it * template.timescale).toLong() }
+            for ((index, entry) in timeline.withIndex()) {
+                val (startT, d, r) = entry
+                val repeats = if (r >= 0) r.toLong() else {
+                    val limit = timeline.getOrNull(index + 1)?.first ?: timelineEnd
+                    if (limit != null && d > 0L && limit > startT) (limit - startT + d - 1) / d - 1 else 0L
+                }
                 var t = startT
-                var repeatCount = r
-                while (repeatCount >= 0) {
+                var remaining = repeats.coerceAtMost(MAX_TIMELINE_SEGMENTS)
+                while (remaining >= 0) {
                     val url = resolveUrl(baseUrl, substitute(mediaTemplate, repId, bandwidth, number, t))
                     segments += SegmentSpec(url = url, sequenceNumber = number)
                     t += d
                     number++
-                    repeatCount--
+                    remaining--
                 }
             }
         } else {

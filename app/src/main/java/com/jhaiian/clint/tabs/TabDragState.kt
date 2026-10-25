@@ -60,6 +60,7 @@ internal class TabDragState(private val gridState: LazyGridState) {
     val handleOrigins = mutableMapOf<String, Offset>()
     var collapsedGroupIds: Set<String> = emptySet()
     var columns: Int = 1
+    var mergeEnabled: Boolean = true
     private var pointerStartInRoot: Offset = Offset.Zero
 
     fun start(tabId: String, touchOffset: Offset, originKey: String = tabId) {
@@ -144,6 +145,7 @@ internal class TabDragState(private val gridState: LazyGridState) {
                     (inGrid.y - item.offset.y) / item.size.height.coerceAtLeast(1)
                 }
                 when {
+                    !mergeEnabled -> if (fraction < 0.5f) tabBeforeKey(tabId) else tabAfterKey(tabId)
                     fraction < 0.3f -> tabBeforeKey(tabId)
                     fraction > 0.7f -> tabAfterKey(tabId)
                     else -> tabMergeKey(tabId)

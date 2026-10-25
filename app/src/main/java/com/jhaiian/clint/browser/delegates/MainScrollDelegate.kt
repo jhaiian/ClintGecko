@@ -10,12 +10,15 @@ import android.view.animation.DecelerateInterpolator
 
 internal fun MainActivity.setupSwipeRefresh() {
     swipeRefreshView.canChildScrollUpCallback = {
-        swipeGuardBlocked || isYouTubeShorts() || canvasTouchActive || run {
+        swipeGuardBlocked || isShortVideoFeed() || canvasTouchActive || run {
             val wv = tabManager.activeTab?.webView
             val mode = prefs.getString("scroll_hide_mode", "off") ?: "off"
             val barsHiddenByScrolling = !hasWebBottomNav && mode != "off" && uiState.topBarFraction >= 1f
             wv != null && (wv.url?.startsWith("moz-extension://") == true || barsHiddenByScrolling || wv.canScrollVertically(-1) || nestedScrollActive)
         }
+    }
+    swipeRefreshView.touchVerdictCallback = { downTime ->
+        tabManager.activeTab?.webView?.pullToRefreshVerdict(downTime)
     }
     updateSwipeRefreshColors(uiState.isIncognito)
     swipeRefreshView.apply {
@@ -28,6 +31,14 @@ internal fun MainActivity.setupSwipeRefresh() {
 }
 
 internal fun MainActivity.updateMainContentInsets() {
+    if (uiState.isFullscreen) {
+        uiState.contentPaddingTopPx = 0
+        uiState.contentPaddingBottomPx = 0
+        swipeRefreshView.setPadding(0, 0, 0, 0)
+        webContainer.translationY = 0f
+        swipeRefreshView.isEnabled = false
+        return
+    }
     val contentBarHeight = (uiState.topBarFullHeightPx - uiState.statusBarInsetPx).coerceAtLeast(0)
     val topCollapsed = uiState.topBarFraction > 0f || uiState.topBarAnimating
     val bottomCollapsed = uiState.bottomBarFraction > 0f || uiState.bottomBarAnimating
@@ -202,7 +213,18 @@ internal fun MainActivity.injectCanvasTouchDetector(webView: ClintWebView) {
     webView.evaluateJavascript(loadJsAsset("canvas_touch_detector.js"), null)
 }
 
-internal fun MainActivity.isYouTubeShorts(): Boolean {
+private val TIKTOK_FEED_PATH = Regex("^/?$|^/(foryou|following|friends|explore|live)(/|$)|/(video|photo)/", RegexOption.IGNORE_CASE)
+
+internal fun MainActivity.isShortVideoFeed(): Boolean {
     val url = tabManager.activeTab?.webView?.url ?: return false
-    return url.contains("youtube.com/shorts", ignoreCase = true)
+    val uri = runCatching { android.net.Uri.parse(url) }.getOrNull() ?: return false
+    val host = uri.host?.lowercase() ?: return false
+    val path = uri.path.orEmpty()
+    fun onHost(domain: String) = host == domain || host.endsWith(".$domain")
+    return when {
+        onHost("youtube.com") -> path.startsWith("/shorts", ignoreCase = true)
+        onHost("instagram.com") || onHost("facebook.com") -> path.startsWith("/reel", ignoreCase = true)
+        onHost("tiktok.com") -> TIKTOK_FEED_PATH.containsMatchIn(path)
+        else -> false
+    }
 }

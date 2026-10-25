@@ -54,6 +54,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -633,11 +634,12 @@ private fun DownloadCard(
                 }
             }
             if (parts != null && !expanded) {
+                val strip = remember(parts) { SegmentMap.downsample(parts, SegmentMap.STRIP_BUCKETS) }
                 PartsStrip(
-                    fractions = parts, color = accent, cellHeight = 8.dp,
+                    fractions = strip, color = accent, cellHeight = 8.dp,
                     gap = when {
-                        parts.size > 64 -> 0.dp
-                        parts.size > 32 -> 1.dp
+                        strip.size > 64 -> 0.dp
+                        strip.size > 32 -> 1.dp
                         else -> 2.dp
                     }
                 )
@@ -648,7 +650,11 @@ private fun DownloadCard(
             ) {
                 Text(
                     if (parts != null && item.isStream) stringResource(R.string.downloads_segments_summary, item.segmentsCompleted, item.segmentsTotal)
-                    else if (parts != null) stringResource(R.string.downloads_parts_summary, item.multithreadingParts, parts.count { it >= 1f }, parts.size)
+                    else if (parts != null) stringResource(
+                        R.string.downloads_parts_summary,
+                        if (DownloadAutoTuner.isAuto(item.multithreadingParts)) item.activeConnections else item.multithreadingParts,
+                        parts.count { it >= 1f }, parts.size
+                    )
                     else stringResource(if (expanded) R.string.downloads_collapse else R.string.downloads_expand),
                     color = colors.secondaryText, fontSize = 12.sp, modifier = Modifier.weight(1f)
                 )
@@ -705,7 +711,13 @@ private fun ExpandedDetails(
                     color = colors.onSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold
                 )
                 if (item.isStream && parts.size > 16) {
-                    PartsStrip(fractions = parts, color = accent, cellHeight = 8.dp, gap = 2.dp, minCellWidth = 8.dp)
+                    val cell = when {
+                        parts.size > 1024 -> 5.dp
+                        parts.size > 256 -> 6.dp
+                        else -> 8.dp
+                    }
+                    val gap = if (parts.size > 256) 1.dp else 2.dp
+                    PartsStrip(fractions = parts, color = accent, cellHeight = cell, gap = gap, minCellWidth = cell, maxHeight = 240.dp)
                 } else {
                     PartsStrip(fractions = parts, color = accent, columns = 16, cellHeight = 14.dp, gap = 3.dp)
                 }
@@ -733,7 +745,15 @@ private fun ExpandedDetails(
                 )
                 if (!item.isStream) {
                     SettingChip(
-                        text = pluralStringResource(R.plurals.downloads_setting_connections, item.multithreadingParts, item.multithreadingParts),
+                        text = when {
+                            !DownloadAutoTuner.isAuto(item.multithreadingParts) ->
+                                pluralStringResource(R.plurals.downloads_setting_connections, item.multithreadingParts, item.multithreadingParts)
+                            item.activeConnections > 0 -> stringResource(
+                                R.string.downloads_setting_auto_value,
+                                pluralStringResource(R.plurals.downloads_setting_connections, item.activeConnections, item.activeConnections)
+                            )
+                            else -> stringResource(R.string.download_setting_auto)
+                        },
                         icon = Icons.Filled.Layers, active = false, onClick = onChangeSettings
                     )
                 }

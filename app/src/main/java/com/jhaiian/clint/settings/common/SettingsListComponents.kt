@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -26,12 +28,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
@@ -55,13 +59,16 @@ fun SettingsScreenScaffold(
     Surface(color = colors.background, modifier = Modifier.fillMaxSize()) {
         val maxContentWidth = rememberMaxContentWidth(LocalContext.current)
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
-            Column(
-                Modifier
-                    .then(if (maxContentWidth != null) Modifier.widthIn(max = maxContentWidth) else Modifier.fillMaxWidth())
-                    .verticalScroll(rememberScrollState())
-                    .padding(16.dp),
-                content = content
-            )
+            CompositionLocalProvider(LocalSettingsDividerInset provides SettingsRowDividerInset) {
+                Column(
+                    Modifier
+                        .then(if (maxContentWidth != null) Modifier.widthIn(max = maxContentWidth) else Modifier.fillMaxWidth())
+                        .verticalScroll(rememberScrollState())
+                        .navigationBarsPadding()
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
+                    content = content
+                )
+            }
         }
         overlay()
     }
@@ -70,11 +77,40 @@ fun SettingsScreenScaffold(
 val ClintColors.dialogSectionBackground: Color
     get() = lerp(popupBackground, Color.White, 0.08f)
 
+val SettingsRowDividerInset = 72.dp
+
+val LocalSettingsDividerInset = compositionLocalOf { 0.dp }
+
 @Composable
-fun SettingsSection(background: Color, modifier: Modifier = Modifier, elevation: Dp = 0.dp, bottomSpacing: Dp = 24.dp, content: @Composable ColumnScope.() -> Unit) {
+fun SettingsSectionLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        color = LocalClintColors.current.primary,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.1.sp,
+        modifier = modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 10.dp)
+    )
+}
+
+@Composable
+fun SettingsIconTile(icon: androidx.compose.ui.graphics.vector.ImageVector, colors: ClintColors, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .size(40.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.primary.copy(alpha = 0.12f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = null, tint = colors.primary, modifier = Modifier.size(22.dp))
+    }
+}
+
+@Composable
+fun SettingsSection(background: Color, modifier: Modifier = Modifier, elevation: Dp = 0.dp, bottomSpacing: Dp = 20.dp, content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier.fillMaxWidth().padding(bottom = bottomSpacing),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = background),
         elevation = CardDefaults.cardElevation(defaultElevation = elevation)
     ) {
@@ -84,7 +120,12 @@ fun SettingsSection(background: Color, modifier: Modifier = Modifier, elevation:
 
 @Composable
 fun RowDivider(color: Color) {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(color))
+    val inset = LocalSettingsDividerInset.current
+    if (inset > 0.dp) {
+        Box(Modifier.fillMaxWidth().padding(start = inset, end = 16.dp).height(1.dp).background(color.copy(alpha = color.alpha * 0.6f)))
+    } else {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(color))
+    }
 }
 
 class SettingsSearchTarget(val title: String) {
@@ -121,21 +162,26 @@ fun SettingsRow(
     colors: ClintColors,
     onClick: () -> Unit,
     enabled: Boolean = true,
+    selected: Boolean = false,
     trailing: @Composable () -> Unit = {}
 ) {
     Row(
         Modifier
             .fillMaxWidth()
             .settingsSearchHighlight(title, colors.primary)
+            .then(if (selected) Modifier.background(colors.primary.copy(alpha = 0.12f)) else Modifier)
             .clickable(onClick = onClick)
             .alpha(if (enabled) 1f else 0.45f)
-            .padding(16.dp),
+            .heightIn(min = 72.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = colors.iconTint, modifier = Modifier.size(22.dp))
+        SettingsIconTile(icon, colors)
         Column(Modifier.weight(1f).padding(start = 16.dp, end = 12.dp)) {
-            Text(title, color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            Text(summary, color = colors.secondaryText, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 2.dp))
+            Text(title, color = colors.onSurface, fontSize = 16.sp, fontWeight = FontWeight.Medium, lineHeight = 21.sp)
+            if (summary.isNotEmpty()) {
+                Text(summary, color = colors.secondaryText, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 2.dp))
+            }
         }
         trailing()
     }

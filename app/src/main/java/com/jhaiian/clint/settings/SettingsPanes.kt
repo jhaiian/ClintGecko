@@ -114,10 +114,8 @@ private const val DEFAULT_DISABLE_IMAGES = false
 private const val DEFAULT_DISABLE_AUTOPLAY = true
 private const val DEFAULT_SEND_SAVE_DATA_HEADER = true
 
-private const val PREF_BLOCK_THIRD_PARTY_COOKIES = "block_third_party_cookies"
 private const val PREF_CUSTOM_USER_AGENT = "custom_user_agent"
 private const val PREF_HTTPS_ONLY = "https_only"
-private const val DEFAULT_BLOCK_THIRD_PARTY_COOKIES = true
 private const val DEFAULT_CUSTOM_USER_AGENT = true
 private const val DEFAULT_HTTPS_ONLY = true
 
@@ -158,6 +156,7 @@ fun LookAndFeelPane(activity: SettingsActivity) {
             initialShowHomeButton = prefs.getBoolean("show_home_button", true),
             initialShowTabStrip = com.jhaiian.clint.tabs.TabStripPrefs.isEnabled(activity, prefs),
             initialTabStripPosition = com.jhaiian.clint.tabs.TabBarPlacement.normalize(prefs.getString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_STRIP_POSITION, null)),
+            initialTabGroupsEnabled = com.jhaiian.clint.tabs.TabGroupPrefs.isEnabled(prefs),
             initialTabGroupBarPosition = com.jhaiian.clint.tabs.TabBarPlacement.normalize(prefs.getString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_GROUP_BAR_POSITION, null)),
             initialExitConfirmation = prefs.getString("exit_confirmation", "toast") ?: "toast",
             initialPopupAlertStyle = prefs.getString("popup_alert_style", "dialog") ?: "dialog"
@@ -174,6 +173,7 @@ fun LookAndFeelPane(activity: SettingsActivity) {
         uiState.showHomeButton = prefs.getBoolean("show_home_button", true)
         uiState.showTabStrip = com.jhaiian.clint.tabs.TabStripPrefs.isEnabled(activity, prefs)
         uiState.tabStripPosition = com.jhaiian.clint.tabs.TabBarPlacement.normalize(prefs.getString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_STRIP_POSITION, null))
+        uiState.tabGroupsEnabled = com.jhaiian.clint.tabs.TabGroupPrefs.isEnabled(prefs)
         uiState.tabGroupBarPosition = com.jhaiian.clint.tabs.TabBarPlacement.normalize(prefs.getString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_GROUP_BAR_POSITION, null))
         uiState.exitConfirmation = prefs.getString("exit_confirmation", "toast") ?: "toast"
         uiState.popupAlertStyle = prefs.getString("popup_alert_style", "dialog") ?: "dialog"
@@ -249,6 +249,24 @@ fun LookAndFeelPane(activity: SettingsActivity) {
         uiState.showTabStrip = newValue
     }
 
+    fun onTabGroupsRowClicked() {
+        if (!uiState.tabGroupsEnabled) {
+            prefs.edit().putBoolean(com.jhaiian.clint.tabs.TabGroupPrefs.PREF_TAB_GROUPS_ENABLED, true).apply()
+            uiState.tabGroupsEnabled = true
+            return
+        }
+        confirmDialog = ConfirmDialogConfig(
+            title = activity.getString(R.string.pref_tab_groups_disable_title),
+            message = activity.getString(R.string.pref_tab_groups_disable_message),
+            positiveLabel = activity.getString(R.string.pref_tab_groups_disable_confirm),
+            onPositive = {
+                prefs.edit().putBoolean(com.jhaiian.clint.tabs.TabGroupPrefs.PREF_TAB_GROUPS_ENABLED, false).apply()
+                uiState.tabGroupsEnabled = false
+            },
+            negativeLabel = activity.getString(R.string.action_cancel)
+        )
+    }
+
     fun onHideStatusBarRowClicked() {
         val newValue = !uiState.hideStatusBar
         confirmDialog = ConfirmDialogConfig(
@@ -320,6 +338,7 @@ fun LookAndFeelPane(activity: SettingsActivity) {
             uiState.tabStripPosition = value
             uiState.openDialog = null
         },
+        onTabGroupsRowClicked = ::onTabGroupsRowClicked,
         onTabGroupBarPositionSelected = { value ->
             prefs.edit().putString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_GROUP_BAR_POSITION, value).apply()
             uiState.tabGroupBarPosition = value
@@ -343,7 +362,7 @@ fun LookAndFeelPane(activity: SettingsActivity) {
 }
 
 @Composable
-fun BrowserSettingsPane(activity: SettingsActivity) {
+fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> Unit) {
     val prefs = remember { PreferenceManager.getDefaultSharedPreferences(activity) }
     val uiState = remember {
         BrowserSettingsUiState(
@@ -361,6 +380,8 @@ fun BrowserSettingsPane(activity: SettingsActivity) {
             initialSearchSuggestionsApi = prefs.getString("search_suggestions_api", "duckduckgo") ?: "duckduckgo",
             initialCustomSearchSuggestionsApiName = com.jhaiian.clint.browser.customSearchSuggestionsApiName(prefs),
             initialCustomSearchSuggestionsApiUrl = com.jhaiian.clint.browser.customSearchSuggestionsApiUrlTemplate(prefs),
+            initialSuggestionsShowHistory = prefs.getBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_HISTORY, true),
+            initialSuggestionsShowBookmarks = prefs.getBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_BOOKMARKS, true),
             initialJavascriptEnabled = prefs.getBoolean("javascript_enabled", true),
             initialHideStatusBar = prefs.getBoolean("hide_status_bar", false),
             initialHideSystemNavigation = prefs.getBoolean("hide_system_navigation", false),
@@ -385,6 +406,8 @@ fun BrowserSettingsPane(activity: SettingsActivity) {
         uiState.searchSuggestionsApi = prefs.getString("search_suggestions_api", "duckduckgo") ?: "duckduckgo"
         uiState.customSearchSuggestionsApiName = com.jhaiian.clint.browser.customSearchSuggestionsApiName(prefs)
         uiState.customSearchSuggestionsApiUrl = com.jhaiian.clint.browser.customSearchSuggestionsApiUrlTemplate(prefs)
+        uiState.suggestionsShowHistory = prefs.getBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_HISTORY, true)
+        uiState.suggestionsShowBookmarks = prefs.getBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_BOOKMARKS, true)
         uiState.javascriptEnabled = prefs.getBoolean("javascript_enabled", true)
         uiState.hideStatusBar = prefs.getBoolean("hide_status_bar", false)
         uiState.hideSystemNavigation = prefs.getBoolean("hide_system_navigation", false)
@@ -587,6 +610,18 @@ fun BrowserSettingsPane(activity: SettingsActivity) {
         }
     }
 
+    fun onSuggestionsShowHistoryClicked() {
+        val newValue = !uiState.suggestionsShowHistory
+        prefs.edit().putBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_HISTORY, newValue).apply()
+        uiState.suggestionsShowHistory = newValue
+    }
+
+    fun onSuggestionsShowBookmarksClicked() {
+        val newValue = !uiState.suggestionsShowBookmarks
+        prefs.edit().putBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_BOOKMARKS, newValue).apply()
+        uiState.suggestionsShowBookmarks = newValue
+    }
+
     fun onIncognitoSearchHistoryRowClicked() {
         val newValue = !uiState.incognitoSearchHistory
         prefs.edit().putBoolean("incognito_search_history_enabled", newValue).apply()
@@ -607,6 +642,8 @@ fun BrowserSettingsPane(activity: SettingsActivity) {
         onCustomSearchEngineSaved = ::onCustomSearchEngineSaved,
         onSearchSuggestionsApiConfirmed = ::onSearchSuggestionsApiConfirmed,
         onCustomSearchSuggestionsApiSaved = ::onCustomSearchSuggestionsApiSaved,
+        onSuggestionsShowHistoryClicked = ::onSuggestionsShowHistoryClicked,
+        onSuggestionsShowBookmarksClicked = ::onSuggestionsShowBookmarksClicked,
         onJavascriptRowClicked = ::onJavascriptRowClicked,
         onBackgroundPlaybackRowClicked = ::onBackgroundPlaybackRowClicked,
         onAboutConfigRowClicked = ::onAboutConfigRowClicked,
@@ -622,7 +659,8 @@ fun BrowserSettingsPane(activity: SettingsActivity) {
         },
         onExtensionsRowClicked = {
             com.jhaiian.clint.extensions.ExtensionsActivity.launch(activity)
-        }
+        },
+        onTranslationsRowClicked = onTranslationsClick
     )
     ConfirmDialogHost(confirmDialog, uiState.hideStatusBar, uiState.hideSystemNavigation) { confirmDialog = null }
 }
@@ -632,11 +670,13 @@ fun PrivacySettingsPane(activity: SettingsActivity) {
     val prefs = remember { PreferenceManager.getDefaultSharedPreferences(activity) }
     val uiState = remember {
         PrivacySettingsUiState(
-            initialBlockThirdPartyCookies = prefs.getBoolean(PREF_BLOCK_THIRD_PARTY_COOKIES, DEFAULT_BLOCK_THIRD_PARTY_COOKIES),
+            initialEtpLevel = com.jhaiian.clint.privacy.PrivacyPrefs.etpLevel(prefs),
+            initialCookiePolicy = com.jhaiian.clint.privacy.PrivacyPrefs.cookiePolicy(prefs),
             initialCustomUserAgent = prefs.getBoolean(PREF_CUSTOM_USER_AGENT, DEFAULT_CUSTOM_USER_AGENT),
             initialHttpsOnly = prefs.getBoolean(PREF_HTTPS_ONLY, DEFAULT_HTTPS_ONLY),
             initialDoNotTrack = prefs.getBoolean(PREF_DO_NOT_TRACK, DEFAULT_DO_NOT_TRACK),
             initialStrictCertificates = prefs.getBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.STRICT_CERTIFICATES, com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_STRICT_CERTIFICATES),
+            initialWebsiteIsolation = prefs.getBoolean(com.jhaiian.clint.browser.webview.ClintGecko.PREF_WEBSITE_ISOLATION, com.jhaiian.clint.browser.webview.ClintGecko.DEFAULT_WEBSITE_ISOLATION),
             initialStripTrackingParams = prefs.getBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.STRIP_TRACKING_PARAMS, com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_STRIP_TRACKING_PARAMS),
             initialGlobalPrivacyControl = prefs.getBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.GLOBAL_PRIVACY_CONTROL, com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_GLOBAL_PRIVACY_CONTROL),
             initialFingerprintingProtection = prefs.getBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.FINGERPRINTING_PROTECTION, com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_FINGERPRINTING_PROTECTION),
@@ -645,6 +685,7 @@ fun PrivacySettingsPane(activity: SettingsActivity) {
             initialClearHistory = prefs.getBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_HISTORY, com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_CLEAR_ON_EXIT_HISTORY),
             initialClearCookies = prefs.getBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_COOKIES, com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_CLEAR_ON_EXIT_COOKIES),
             initialClearCache = prefs.getBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_CACHE, com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_CLEAR_ON_EXIT_CACHE),
+            initialClearTabs = prefs.getBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_TABS, com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_CLEAR_ON_EXIT_TABS),
             initialAppLock = prefs.getBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.APP_LOCK, com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_APP_LOCK),
             initialAppLockTimeout = prefs.getInt(com.jhaiian.clint.privacy.PrivacyPrefs.APP_LOCK_TIMEOUT, com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_APP_LOCK_TIMEOUT),
             initialScreenshotBlocking = prefs.getBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.SCREENSHOT_BLOCKING, com.jhaiian.clint.privacy.PrivacyPrefs.DEFAULT_SCREENSHOT_BLOCKING),
@@ -670,6 +711,26 @@ fun PrivacySettingsPane(activity: SettingsActivity) {
         val newValue = !current
         prefs.edit().putBoolean(prefKey, newValue).apply()
         apply(newValue)
+    }
+
+    fun onWebsiteIsolationClick() {
+        val previous = uiState.websiteIsolation
+        val newValue = !previous
+        prefs.edit().putBoolean(com.jhaiian.clint.browser.webview.ClintGecko.PREF_WEBSITE_ISOLATION, newValue).commit()
+        uiState.websiteIsolation = newValue
+        confirmDialog = ConfirmDialogConfig(
+            title = activity.getString(R.string.restart_required_title),
+            message = activity.getString(R.string.restart_required_message),
+            cancelable = false,
+            positiveLabel = activity.getString(R.string.action_later),
+            negativeLabel = activity.getString(R.string.action_cancel),
+            onNegative = {
+                prefs.edit().putBoolean(com.jhaiian.clint.browser.webview.ClintGecko.PREF_WEBSITE_ISOLATION, previous).commit()
+                uiState.websiteIsolation = previous
+            },
+            neutralLabel = activity.getString(R.string.restart_required_confirm),
+            onNeutral = { activity.restartAppAfterRestore() }
+        )
     }
 
     fun applySecureDnsMode(mode: String) {
@@ -706,11 +767,21 @@ fun PrivacySettingsPane(activity: SettingsActivity) {
 
     PrivacySettingsScreen(
         state = uiState,
-        onBlockThirdPartyCookiesClick = { toggle(PREF_BLOCK_THIRD_PARTY_COOKIES, uiState.blockThirdPartyCookies) { uiState.blockThirdPartyCookies = it } },
+        onEtpLevelConfirmed = { level ->
+            prefs.edit().putString(com.jhaiian.clint.privacy.PrivacyPrefs.ETP_LEVEL, level).apply()
+            uiState.etpLevel = level
+            uiState.etpDialogOpen = false
+        },
+        onCookiePolicyConfirmed = { policy ->
+            com.jhaiian.clint.privacy.PrivacyPrefs.setCookiePolicy(prefs, policy)
+            uiState.cookiePolicy = policy
+            uiState.cookiePolicyDialogOpen = false
+        },
         onCustomUserAgentClick = { toggle(PREF_CUSTOM_USER_AGENT, uiState.customUserAgent) { uiState.customUserAgent = it } },
         onHttpsOnlyClick = { toggle(PREF_HTTPS_ONLY, uiState.httpsOnly) { uiState.httpsOnly = it } },
         onDoNotTrackClick = { toggle(PREF_DO_NOT_TRACK, uiState.doNotTrack) { uiState.doNotTrack = it } },
         onStrictCertificatesClick = { toggle(com.jhaiian.clint.privacy.PrivacyPrefs.STRICT_CERTIFICATES, uiState.strictCertificates) { uiState.strictCertificates = it } },
+        onWebsiteIsolationClick = ::onWebsiteIsolationClick,
         onStripTrackingParamsClick = { toggle(com.jhaiian.clint.privacy.PrivacyPrefs.STRIP_TRACKING_PARAMS, uiState.stripTrackingParams) { uiState.stripTrackingParams = it } },
         onGlobalPrivacyControlClick = {
             toggle(com.jhaiian.clint.privacy.PrivacyPrefs.GLOBAL_PRIVACY_CONTROL, uiState.globalPrivacyControl) { uiState.globalPrivacyControl = it }
@@ -725,15 +796,17 @@ fun PrivacySettingsPane(activity: SettingsActivity) {
             com.jhaiian.clint.privacy.PrivacyPrefs.applyGeckoPrefs(activity)
         },
         onClearOnExitClick = { toggle(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT, uiState.clearOnExit) { uiState.clearOnExit = it } },
-        onClearOnExitConfirmed = { history, cookies, cache ->
+        onClearOnExitConfirmed = { history, cookies, cache, tabs ->
             prefs.edit()
                 .putBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_HISTORY, history)
                 .putBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_COOKIES, cookies)
                 .putBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_CACHE, cache)
+                .putBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_TABS, tabs)
                 .apply()
             uiState.clearHistory = history
             uiState.clearCookies = cookies
             uiState.clearCache = cache
+            uiState.clearTabs = tabs
             uiState.clearOnExitDialogOpen = false
         },
         onAppLockClick = {
@@ -766,7 +839,8 @@ fun PrivacySettingsPane(activity: SettingsActivity) {
                 android.widget.Toast.makeText(activity, R.string.autofill_service_open_failed, android.widget.Toast.LENGTH_LONG).show()
             }
         },
-        onHistoryClick = { activity.startActivity(Intent(activity, HistoryActivity::class.java)) }
+        onHistoryClick = { activity.startActivity(Intent(activity, HistoryActivity::class.java)) },
+        onDeleteBrowsingDataClick = { activity.startActivity(Intent(activity, com.jhaiian.clint.privacy.DeleteBrowsingDataActivity::class.java)) }
     )
     ConfirmDialogHost(confirmDialog, uiState.hideStatusBar, uiState.hideSystemNavigation) { confirmDialog = null }
 }

@@ -175,16 +175,16 @@ fun MenuCustomizationScreen(
 @Composable
 private fun MenuCustomizationToolbar(onBack: () -> Unit, onResetClick: () -> Unit) {
     val colors = LocalClintColors.current
-    Surface(color = colors.surface, shadowElevation = 4.dp, modifier = Modifier.statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Surface(color = colors.background, modifier = Modifier.statusBarsPadding()) {
+        Row(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = colors.onSurface)
             }
             Text(
                 stringResource(R.string.menu_customization_title),
                 color = colors.onSurface,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Medium,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(start = 4.dp)

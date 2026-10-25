@@ -14,33 +14,71 @@ import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
 import com.jhaiian.clint.settings.downloads.DownloadSettingsKeys
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 internal object DownloadNotificationHelper {
 
     const val DOWNLOAD_GROUP_KEY = "com.jhaiian.clint.downloads.GROUP"
     private const val COMPLETE_TAG = "com.jhaiian.clint.downloads.COMPLETE"
     private const val PROGRESS_NOTIFY_INTERVAL_MS = 1000L
+    private const val GLOBAL_WINDOW_MS = 1000L
+    private const val GLOBAL_PROGRESS_POSTS_PER_WINDOW = 4
+    private const val REPOST_DELAY_MS = 1500L
 
     private val lastProgressPostAt = ConcurrentHashMap<Int, Long>()
+    private val recentPosts = ArrayDeque<Long>()
+
+    private fun recordPost(enforceLimit: Boolean): Boolean = synchronized(recentPosts) {
+        val now = SystemClock.elapsedRealtime()
+        while (recentPosts.isNotEmpty() && now - recentPosts.first() >= GLOBAL_WINDOW_MS) recentPosts.removeFirst()
+        val withinBudget = recentPosts.size < GLOBAL_PROGRESS_POSTS_PER_WINDOW
+        if (withinBudget || !enforceLimit) recentPosts.addLast(now)
+        withinBudget
+    }
+
+    private fun takeGlobalSlot(force: Boolean): Boolean = recordPost(enforceLimit = !force)
+
+    private fun stateKey(item: DownloadItem): String =
+        "${item.status}|${item.waitingForNetwork}|${item.waitingForUnmetered}|${item.waitingForSchedule}|${item.waitingForCustomSchedule}"
+
+    private fun isStillWorking(id: Int): Boolean {
+        val status = ClintDownloadManager.downloadsFlow.value.firstOrNull { it.id == id }?.status ?: return false
+        return status in DownloadStatus.ACTIVELY_WORKING
+    }
 
     private fun shouldPostProgress(id: Int): Boolean {
         val now = SystemClock.elapsedRealtime()
-        var allowed = false
-        lastProgressPostAt.compute(id) { _, last ->
-            if (last == null || now - last >= PROGRESS_NOTIFY_INTERVAL_MS) {
-                allowed = true
-                now
-            } else last
-        }
-        return allowed
+        val last = lastProgressPostAt[id]
+        if (last != null && now - last < PROGRESS_NOTIFY_INTERVAL_MS) return false
+        if (!isStillWorking(id)) return false
+        if (!takeGlobalSlot(force = false)) return false
+        lastProgressPostAt[id] = now
+        return true
     }
 
     fun showProgressNotificationThrottled(context: Context, item: DownloadItem) {
-        if (shouldPostProgress(item.id)) showProgressNotification(context, item)
+        if (shouldPostProgress(item.id)) postProgressNotification(context, item)
     }
 
     fun showCopyingTempNotificationThrottled(context: Context, item: DownloadItem) {
-        if (shouldPostProgress(item.id)) showCopyingTempNotification(context, item)
+        if (shouldPostProgress(item.id)) postCopyingTempNotification(context, item)
+    }
+
+    private fun notifyReplacing(nm: NotificationManager, item: DownloadItem, notification: Notification) {
+        val calm = takeGlobalSlot(force = true)
+        nm.cancel(item.id)
+        nm.notify(item.id, notification)
+        if (calm) return
+        val expected = stateKey(item)
+        ClintDownloadManager.applicationScope.launch {
+            delay(REPOST_DELAY_MS)
+            val latest = ClintDownloadManager.downloadsFlow.value.firstOrNull { it.id == item.id } ?: return@launch
+            if (!ClintDownloadManager.isRemoved(item.id) && stateKey(latest) == expected) {
+                takeGlobalSlot(force = true)
+                nm.notify(item.id, notification)
+            }
+        }
     }
 
     fun cancelCompleteNotification(context: Context, id: Int) {
@@ -95,6 +133,7 @@ internal object DownloadNotificationHelper {
 
     fun showQueuedNotification(context: Context, item: DownloadItem) {
         if (ClintDownloadManager.isRemoved(item.id)) return
+        takeGlobalSlot(force = true)
         val nm = context.getSystemService(NotificationManager::class.java)
         NotificationCompat.Builder(context, ClintDownloadManager.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_24)
@@ -111,6 +150,12 @@ internal object DownloadNotificationHelper {
     }
 
     fun showProgressNotification(context: Context, item: DownloadItem) {
+        if (ClintDownloadManager.isRemoved(item.id)) return
+        takeGlobalSlot(force = true)
+        postProgressNotification(context, item)
+    }
+
+    private fun postProgressNotification(context: Context, item: DownloadItem) {
         if (ClintDownloadManager.isRemoved(item.id)) return
         lastProgressPostAt[item.id] = SystemClock.elapsedRealtime()
         val nm = context.getSystemService(NotificationManager::class.java)
@@ -227,6 +272,7 @@ internal object DownloadNotificationHelper {
 
     fun showAllocationNotification(context: Context, item: DownloadItem) {
         if (ClintDownloadManager.isRemoved(item.id)) return
+        takeGlobalSlot(force = true)
         val nm = context.getSystemService(NotificationManager::class.java)
         val pct = item.allocationProgress
         val allocStr = context.getString(R.string.download_status_allocating, pct)
@@ -249,6 +295,13 @@ internal object DownloadNotificationHelper {
 
     fun showCopyingTempNotification(context: Context, item: DownloadItem) {
         if (ClintDownloadManager.isRemoved(item.id)) return
+        takeGlobalSlot(force = true)
+        postCopyingTempNotification(context, item)
+    }
+
+    private fun postCopyingTempNotification(context: Context, item: DownloadItem) {
+        if (ClintDownloadManager.isRemoved(item.id)) return
+        lastProgressPostAt[item.id] = SystemClock.elapsedRealtime()
         val nm = context.getSystemService(NotificationManager::class.java)
         val progress = item.copyProgress
         NotificationCompat.Builder(context, ClintDownloadManager.CHANNEL_ID)
@@ -266,6 +319,7 @@ internal object DownloadNotificationHelper {
 
     fun showDeletingTempNotification(context: Context, item: DownloadItem) {
         if (ClintDownloadManager.isRemoved(item.id)) return
+        takeGlobalSlot(force = true)
         val nm = context.getSystemService(NotificationManager::class.java)
         NotificationCompat.Builder(context, ClintDownloadManager.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_24)
@@ -363,7 +417,7 @@ internal object DownloadNotificationHelper {
             .setProgress(100, pct.coerceAtLeast(0), false)
             .addAction(0, actionLabel, actionPendingIntent)
             .build()
-            .let { nm.notify(item.id, it) }
+            .let { notifyReplacing(nm, item, it) }
     }
 
     fun showCompleteNotification(context: Context, item: DownloadItem) {
@@ -406,13 +460,19 @@ internal object DownloadNotificationHelper {
             .setContentIntent(downloadsPi)
             .addAction(0, context.getString(R.string.action_open), openPi)
             .build()
-            .let { nm.notify(COMPLETE_TAG, item.id, it) }
+            .let {
+                takeGlobalSlot(force = true)
+                nm.notify(COMPLETE_TAG, item.id, it)
+            }
     }
 
     fun showFailedNotification(context: Context, item: DownloadItem) {
         lastProgressPostAt.remove(item.id)
-        if (!isPushEnabled(context)) return
         val nm = context.getSystemService(NotificationManager::class.java)
+        if (!isPushEnabled(context)) {
+            nm.cancel(item.id)
+            return
+        }
         val downloadsIntent = Intent(context, DownloadsActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
@@ -429,7 +489,7 @@ internal object DownloadNotificationHelper {
             .setAutoCancel(true)
             .setContentIntent(downloadsPi)
             .build()
-            .let { nm.notify(item.id, it) }
+            .let { notifyReplacing(nm, item, it) }
     }
 
     fun showRetryingNotification(context: Context, item: DownloadItem) {
@@ -458,7 +518,10 @@ internal object DownloadNotificationHelper {
             .setOngoing(false)
             .setContentIntent(downloadsPi)
             .build()
-            .let { nm.notify(item.id, it) }
+            .let {
+                takeGlobalSlot(force = true)
+                nm.notify(item.id, it)
+            }
     }
 
     private fun isPushEnabled(context: Context): Boolean =

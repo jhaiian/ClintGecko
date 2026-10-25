@@ -3,16 +3,18 @@ package com.jhaiian.clint.mediacapture.download
 import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.InputStream
 
 object TsToAacConverter {
 
-    fun convert(input: File, output: File, isActive: () -> Boolean, onProgress: (Int) -> Unit): Boolean {
+    fun convert(input: File, output: File, isActive: () -> Boolean, onProgress: (Int) -> Unit): Boolean =
+        convert(listOf(input), output, isActive, onProgress)
+
+    fun convert(inputs: List<File>, output: File, isActive: () -> Boolean, onProgress: (Int) -> Unit): Boolean {
         var success = false
         try {
-            success = TsAacExtraction(input, output, isActive, onProgress).run()
+            success = TsAacExtraction(inputs, output, isActive, onProgress).run()
         } catch (_: Exception) {
         } catch (_: OutOfMemoryError) {
         } finally {
@@ -68,7 +70,7 @@ private class TsAacPacketSource(private val input: InputStream) {
 }
 
 private class TsAacExtraction(
-    private val input: File,
+    private val inputs: List<File>,
     private val output: File,
     private val isActive: () -> Boolean,
     private val onProgress: (Int) -> Unit
@@ -82,8 +84,8 @@ private class TsAacExtraction(
     private lateinit var sink: BufferedOutputStream
 
     fun run(): Boolean {
-        val totalBytes = input.length().coerceAtLeast(1L)
-        FileInputStream(input).use { stream ->
+        val totalBytes = inputs.sumOf { it.length() }.coerceAtLeast(1L)
+        SegmentInputStream(inputs).use { stream ->
             BufferedOutputStream(FileOutputStream(output), 1 shl 16).use { out ->
                 sink = out
                 val source = TsAacPacketSource(stream)

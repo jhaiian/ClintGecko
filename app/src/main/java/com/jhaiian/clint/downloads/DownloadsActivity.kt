@@ -216,6 +216,11 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
         handleDownloaderIntent(intent)
     }
 
+    override fun onResume() {
+        super.onResume()
+        ClintDownloadManager.resumeTimeoutPaused(this)
+    }
+
     private fun pathFor(item: DownloadItem): String = when {
         item.file != null -> item.file.absolutePath
         item.contentUri != null -> {

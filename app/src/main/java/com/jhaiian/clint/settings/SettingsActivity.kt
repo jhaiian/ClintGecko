@@ -5,6 +5,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,8 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -40,6 +39,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -53,6 +54,7 @@ import com.jhaiian.clint.base.ClintActivity
 import com.jhaiian.clint.settings.backuprestore.BackupRestorePane
 import com.jhaiian.clint.settings.common.LocalSettingsSearchTarget
 import com.jhaiian.clint.settings.common.SettingsSearchTarget
+import com.jhaiian.clint.settings.main.MainSettingsEntry
 import com.jhaiian.clint.settings.main.MainSettingsScreen
 import com.jhaiian.clint.settings.search.SettingsSearchResults
 import com.jhaiian.clint.settings.search.SettingsSearchToolbar
@@ -71,6 +73,7 @@ internal const val DEST_DOWNLOADS = "downloads"
 internal const val DEST_BACKUP_RESTORE = "backup_restore"
 internal const val DEST_UPDATES = "updates"
 internal const val DEST_MISC = "misc"
+internal const val DEST_TRANSLATIONS = "translations"
 internal const val DEST_DEBUG = "debug"
 internal const val DEST_ABOUT = "about"
 internal const val DEST_SUPPORT_CLINT = "support_clint"
@@ -101,6 +104,8 @@ class SettingsActivity : ClintActivity(), OverlayHostActivity {
         val initialDestination = when (intent.getStringExtra(EXTRA_OPEN_FRAGMENT)) {
             "data_saver" -> DEST_DATA_SAVER
             "download_settings" -> DEST_DOWNLOADS
+            "site_settings" -> DEST_SITE_SETTINGS
+            "translations" -> DEST_TRANSLATIONS
             else -> null
         }
 
@@ -187,6 +192,7 @@ private fun SettingsNavHost(activity: SettingsActivity, initialDestination: Stri
     val listPane: @Composable (onNavigate: (String, String?) -> Unit) -> Unit = { onNavigate ->
         SettingsListPane(
             activity = activity,
+            selectedDestination = if (isTwoPane) selectedDestination else null,
             searchActive = searchActive,
             searchQuery = searchQuery,
             onSearchActiveChange = { active ->
@@ -203,18 +209,20 @@ private fun SettingsNavHost(activity: SettingsActivity, initialDestination: Stri
             Box(Modifier.width(360.dp).fillMaxHeight()) {
                 listPane(navigate)
             }
+            Box(Modifier.width(1.dp).fillMaxHeight().background(LocalClintColors.current.divider))
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 SettingsDetailPane(
                     activity = activity,
                     destination = selectedDestination,
                     searchTarget = searchTarget,
-                    onBack = { selectedDestination = null }
+                    onNavigate = { navigate(it, null) },
+                    onBack = { selectedDestination = selectedDestination?.let(::parentDestination) }
                 )
             }
         }
     } else {
         val handleBack: () -> Unit = {
-            if (hasShownList) selectedDestination = null else activity.finish()
+            if (hasShownList) selectedDestination = selectedDestination?.let(::parentDestination) else activity.finish()
         }
         if (selectedDestination != null) {
             BackHandler(onBack = handleBack)
@@ -234,6 +242,7 @@ private fun SettingsNavHost(activity: SettingsActivity, initialDestination: Stri
                     activity = activity,
                     destination = destination,
                     searchTarget = searchTarget,
+                    onNavigate = { navigate(it, null) },
                     onBack = handleBack
                 )
             }
@@ -244,6 +253,7 @@ private fun SettingsNavHost(activity: SettingsActivity, initialDestination: Stri
 @Composable
 private fun SettingsListPane(
     activity: SettingsActivity,
+    selectedDestination: String?,
     searchActive: Boolean,
     searchQuery: String,
     onSearchActiveChange: (Boolean) -> Unit,
@@ -253,7 +263,6 @@ private fun SettingsListPane(
     val versionName = remember {
         activity.packageManager.getPackageInfo(activity.packageName, 0).versionName ?: ""
     }
-    val colors = LocalClintColors.current
     BackHandler(enabled = searchActive) { onSearchActiveChange(false) }
     Column(Modifier.fillMaxSize()) {
         if (searchActive) {
@@ -270,20 +279,13 @@ private fun SettingsListPane(
         } else {
             SettingsToolbar(
                 title = stringResource(R.string.settings),
-                onBack = { activity.finish() },
-                actions = {
-                    IconButton(onClick = { onSearchActiveChange(true) }) {
-                        Icon(
-                            Icons.Filled.Search,
-                            contentDescription = stringResource(R.string.settings_search),
-                            tint = colors.iconTint
-                        )
-                    }
-                }
+                onBack = { activity.finish() }
             )
             Box(Modifier.weight(1f)) {
                 MainSettingsScreen(
                     versionName = versionName,
+                    selectedEntry = selectedDestination?.let(::mainEntryFor),
+                    onSearchClick = { onSearchActiveChange(true) },
                     onLookAndFeelClick = { onNavigate(DEST_LOOK_AND_FEEL, null) },
                     onBrowserClick = { onNavigate(DEST_BROWSER, null) },
                     onPrivacyClick = { onNavigate(DEST_PRIVACY, null) },
@@ -307,6 +309,7 @@ private fun SettingsDetailPane(
     activity: SettingsActivity,
     destination: String?,
     searchTarget: SettingsSearchTarget?,
+    onNavigate: (String) -> Unit,
     onBack: () -> Unit
 ) {
     if (destination == null) {
@@ -319,7 +322,7 @@ private fun SettingsDetailPane(
             CompositionLocalProvider(LocalSettingsSearchTarget provides searchTarget) {
                 when (destination) {
                     DEST_LOOK_AND_FEEL -> LookAndFeelPane(activity)
-                    DEST_BROWSER -> BrowserSettingsPane(activity)
+                    DEST_BROWSER -> BrowserSettingsPane(activity, onTranslationsClick = { onNavigate(DEST_TRANSLATIONS) })
                     DEST_PRIVACY -> PrivacySettingsPane(activity)
                     DEST_SITE_SETTINGS -> SiteSettingsPane(activity)
                     DEST_DATA_SAVER -> DataSaverPane(activity)
@@ -327,12 +330,34 @@ private fun SettingsDetailPane(
                     DEST_BACKUP_RESTORE -> BackupRestorePane(activity)
                     DEST_UPDATES -> UpdateSettingsPane(activity)
                     DEST_MISC -> MiscPane(activity)
+                    DEST_TRANSLATIONS -> com.jhaiian.clint.settings.translations.TranslationsSettingsPane(activity)
                     DEST_DEBUG -> DebugPane(activity)
                     DEST_ABOUT -> AboutPane(activity)
                 }
             }
         }
     }
+}
+
+private fun mainEntryFor(destination: String): MainSettingsEntry? = when (destination) {
+    DEST_LOOK_AND_FEEL -> MainSettingsEntry.LOOK_AND_FEEL
+    DEST_BROWSER -> MainSettingsEntry.BROWSER
+    DEST_PRIVACY -> MainSettingsEntry.PRIVACY
+    DEST_SITE_SETTINGS -> MainSettingsEntry.SITE_SETTINGS
+    DEST_DATA_SAVER -> MainSettingsEntry.DATA_SAVER
+    DEST_DOWNLOADS -> MainSettingsEntry.DOWNLOADS
+    DEST_BACKUP_RESTORE -> MainSettingsEntry.BACKUP_RESTORE
+    DEST_UPDATES -> MainSettingsEntry.UPDATES
+    DEST_MISC -> MainSettingsEntry.MISC
+    DEST_TRANSLATIONS -> MainSettingsEntry.BROWSER
+    DEST_DEBUG -> MainSettingsEntry.DEBUG
+    DEST_ABOUT -> MainSettingsEntry.ABOUT
+    else -> null
+}
+
+private fun parentDestination(destination: String): String? = when (destination) {
+    DEST_TRANSLATIONS -> DEST_BROWSER
+    else -> null
 }
 
 private fun destinationTitleRes(destination: String): Int = when (destination) {
@@ -345,6 +370,7 @@ private fun destinationTitleRes(destination: String): Int = when (destination) {
     DEST_BACKUP_RESTORE -> R.string.backup_restore_title
     DEST_UPDATES -> R.string.pref_updates_title
     DEST_MISC -> R.string.pref_misc_title
+    DEST_TRANSLATIONS -> R.string.translation_settings_title
     DEST_DEBUG -> R.string.debug_title
     DEST_ABOUT -> R.string.about
     else -> R.string.settings
@@ -353,16 +379,16 @@ private fun destinationTitleRes(destination: String): Int = when (destination) {
 @Composable
 private fun SettingsToolbar(title: String, onBack: () -> Unit, actions: @Composable RowScope.() -> Unit = {}) {
     val colors = LocalClintColors.current
-    Surface(color = colors.surface, shadowElevation = 4.dp, modifier = Modifier.statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Surface(color = colors.background, modifier = Modifier.statusBarsPadding()) {
+        Row(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) {
                 Icon(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back), tint = colors.onSurface)
             }
             Text(
                 title,
                 color = colors.onSurface,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Medium,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(start = 4.dp)
@@ -377,18 +403,24 @@ private fun SettingsEmptyDetailPane() {
     val colors = LocalClintColors.current
     Surface(color = colors.background, modifier = Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    androidx.compose.material.icons.Icons.Filled.Tune,
-                    contentDescription = null,
-                    tint = colors.secondaryText,
-                    modifier = Modifier.size(48.dp)
-                )
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 32.dp)) {
+                Box(
+                    Modifier.size(88.dp).clip(CircleShape).background(colors.primary.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        androidx.compose.material.icons.Icons.Filled.Tune,
+                        contentDescription = null,
+                        tint = colors.primary,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
                 Text(
                     stringResource(R.string.settings_select_category),
                     color = colors.secondaryText,
-                    fontSize = 14.sp,
-                    modifier = Modifier.padding(top = 12.dp)
+                    fontSize = 15.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.padding(top = 20.dp)
                 )
             }
         }

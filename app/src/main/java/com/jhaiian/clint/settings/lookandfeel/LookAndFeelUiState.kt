@@ -21,6 +21,7 @@ class LookAndFeelUiState(
     initialShowHomeButton: Boolean,
     initialShowTabStrip: Boolean,
     initialTabStripPosition: String,
+    initialTabGroupsEnabled: Boolean,
     initialTabGroupBarPosition: String,
     initialExitConfirmation: String,
     initialPopupAlertStyle: String
@@ -38,6 +39,7 @@ class LookAndFeelUiState(
     var showHomeButton by mutableStateOf(initialShowHomeButton)
     var showTabStrip by mutableStateOf(initialShowTabStrip)
     var tabStripPosition by mutableStateOf(initialTabStripPosition)
+    var tabGroupsEnabled by mutableStateOf(initialTabGroupsEnabled)
     var tabGroupBarPosition by mutableStateOf(initialTabGroupBarPosition)
 
     var exitConfirmation by mutableStateOf(initialExitConfirmation)

@@ -184,6 +184,8 @@ object DownloadLog {
 
     fun formatBytes(bytes: Long): String = if (bytes < 0L) "unknown" else "${formatFileSize(bytes)} ($bytes B)"
 
+    private fun autoOrValue(value: Int): Any = if (DownloadAutoTuner.isAuto(value)) "auto" else value
+
     fun describe(item: DownloadItem): List<Pair<String, Any?>> = listOf(
         "File" to item.filename,
         "Download ID" to item.id,
@@ -194,8 +196,8 @@ object DownloadLog {
         "Size" to if (item.totalBytes > 0L) formatBytes(item.totalBytes) else null,
         "Downloaded" to if (item.bytesDownloaded > 0L) formatBytes(item.bytesDownloaded) else null,
         "Resumable" to item.resumable,
-        "Split parts" to item.splitParts.takeIf { !item.isStream },
-        "Connections" to item.multithreadingParts.takeIf { !item.isStream },
+        "Split parts" to autoOrValue(item.splitParts).takeIf { !item.isStream },
+        "Connections" to autoOrValue(item.multithreadingParts).takeIf { !item.isStream },
         "Speed limit" to if (item.speedLimitBytesPerSec > 0L) "${formatFileSize(item.speedLimitBytesPerSec)}/s" else "none",
         "Wi-Fi only" to item.unmeteredOnly,
         "Retry" to item.retryEnabled,
@@ -212,7 +214,7 @@ object DownloadLog {
         "Audio bitrate" to item.streamAudioBandwidth?.let { "${it / 1000} kbps" },
         "Audio track" to listOfNotNull(item.streamAudioLanguage, item.streamAudioLabel).joinToString(" ").ifBlank { null },
         "Live" to item.streamIsLive.takeIf { item.isStream },
-        "Segment workers" to item.streamConcurrentSegments.takeIf { item.isStream },
+        "Segment workers" to autoOrValue(item.streamConcurrentSegments).takeIf { item.isStream },
         "Convert TS" to item.streamConvertTsToMp4.takeIf { item.isStream }
     )
 

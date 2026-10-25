@@ -7,6 +7,10 @@ import android.database.sqlite.SQLiteOpenHelper
 internal class DownloadDatabase(context: Context) :
     SQLiteOpenHelper(context.applicationContext, DB_NAME, null, DB_VERSION) {
 
+    init {
+        setWriteAheadLoggingEnabled(true)
+    }
+
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
             """CREATE TABLE $TABLE (
@@ -42,7 +46,8 @@ internal class DownloadDatabase(context: Context) :
                 $COL_QUEUE_ORDER       INTEGER NOT NULL DEFAULT 0,
                 $COL_PART_MAP          TEXT    NOT NULL DEFAULT '',
                 $COL_ETAG              TEXT,
-                $COL_LAST_MODIFIED     TEXT
+                $COL_LAST_MODIFIED     TEXT,
+                $COL_WAIT_REASON       TEXT
             )"""
         )
     }
@@ -75,11 +80,14 @@ internal class DownloadDatabase(context: Context) :
             db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_ETAG TEXT")
             db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_LAST_MODIFIED TEXT")
         }
+        if (oldVersion < 10) {
+            db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_WAIT_REASON TEXT")
+        }
     }
 
     companion object {
         const val DB_NAME                = "clint_downloads.db"
-        const val DB_VERSION             = 9
+        const val DB_VERSION             = 10
         const val TABLE                  = "downloads"
         const val COL_ID                 = "id"
         const val COL_URL                = "url"
@@ -114,5 +122,10 @@ internal class DownloadDatabase(context: Context) :
         const val COL_PART_MAP           = "part_map"
         const val COL_ETAG               = "etag"
         const val COL_LAST_MODIFIED      = "last_modified"
+        const val COL_WAIT_REASON        = "wait_reason"
+        const val WAIT_NETWORK           = "network"
+        const val WAIT_UNMETERED         = "unmetered"
+        const val WAIT_SCHEDULE          = "schedule"
+        const val WAIT_SYSTEM            = "system"
     }
 }

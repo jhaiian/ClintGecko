@@ -9,7 +9,7 @@ import androidx.compose.runtime.setValue
 
 internal enum class AddressBarPosition { TOP, BOTTOM, SPLIT }
 
-internal enum class SuggestionType { BOOKMARK, HISTORY, SUGGESTION }
+internal enum class SuggestionType { CLINT_PAGE, BOOKMARK, HISTORY, SUGGESTION }
 
 internal data class SuggestionItem(
     val query: String,
@@ -99,8 +99,11 @@ internal class MainUiState {
     var popupAlertRequest by mutableStateOf<com.jhaiian.clint.browser.dialogs.PopupAlertRequest?>(null)
     var refreshLinkDialogRequest by mutableStateOf<com.jhaiian.clint.browser.dialogs.RefreshLinkDialogRequest?>(null)
     var cookiesControlRequest by mutableStateOf<com.jhaiian.clint.browser.dialogs.CookiesControlRequest?>(null)
+    var siteInfoRequest by mutableStateOf<com.jhaiian.clint.browser.siteinfo.SiteInfoRequest?>(null)
     var cookiesControlExportRequest by mutableStateOf<com.jhaiian.clint.browser.dialogs.CookiesControlExportRequest?>(null)
     var cookiesControlImportRequest by mutableStateOf<com.jhaiian.clint.browser.dialogs.CookiesControlImportRequest?>(null)
+    var translateBarRequest by mutableStateOf<com.jhaiian.clint.translation.TranslateBarRequest?>(null)
+    var showTranslateButton by mutableStateOf(true)
     var profilePickerOpen by mutableStateOf(false)
     var tabGroupBar by mutableStateOf<com.jhaiian.clint.tabs.TabGroupBarState?>(null)
     var tabMenuFocusGroupId by mutableStateOf<String?>(null)

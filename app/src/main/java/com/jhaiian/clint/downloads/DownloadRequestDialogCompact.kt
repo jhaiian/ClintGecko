@@ -31,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
@@ -161,21 +160,21 @@ internal fun CompactDownloadRequestContent(
             if (showSplitAndMultithreading) {
                 CompactSliderRow(
                     title = stringResource(R.string.download_split_parts_title),
-                    valueText = pluralStringResource(R.plurals.download_split_parts_value, splitParts, splitParts),
-                    value = splitParts, range = 1..32, onChange = onSplitPartsChange
+                    valueText = autoOrCountLabel(splitParts, R.plurals.download_split_parts_value),
+                    value = autoSliderPosition(splitParts, 32), range = 1..33, onChange = { onSplitPartsChange(autoSliderValue(it, 32)) }
                 )
                 CompactSliderRow(
                     title = stringResource(R.string.download_multithreading_title),
-                    valueText = pluralStringResource(R.plurals.download_multithreading_value, multithreadingParts, multithreadingParts),
-                    value = multithreadingParts, range = 1..8, onChange = onMultithreadingPartsChange
+                    valueText = autoOrCountLabel(multithreadingParts, R.plurals.download_multithreading_value),
+                    value = autoSliderPosition(multithreadingParts, 8), range = 1..9, onChange = { onMultithreadingPartsChange(autoSliderValue(it, 8)) }
                 )
             }
 
             if (showConcurrentSegments) {
                 CompactSliderRow(
                     title = stringResource(R.string.download_concurrent_segments_title),
-                    valueText = pluralStringResource(R.plurals.download_concurrent_segments_value, concurrentSegments, concurrentSegments),
-                    value = concurrentSegments, range = 1..24, onChange = onConcurrentSegmentsChange
+                    valueText = autoOrCountLabel(concurrentSegments, R.plurals.download_concurrent_segments_value),
+                    value = autoSliderPosition(concurrentSegments, 24), range = 1..25, onChange = { onConcurrentSegmentsChange(autoSliderValue(it, 24)) }
                 )
             }
 

@@ -13,8 +13,6 @@ import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
-import java.io.File
-import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -32,6 +30,32 @@ internal class PartRange(val start: Long, end: Long, done: Long) {
     val remaining: Long get() = (end - position + 1).coerceAtLeast(0L)
     val length: Long get() = (end - start + 1).coerceAtLeast(1L)
     val complete: Boolean get() = remaining == 0L
+}
+
+internal class ContentRangeInfo(val start: Long, val end: Long, val total: Long?) {
+    companion object {
+        private val SATISFIED = Regex("""bytes\s+(\d+)-(\d+)/(\d+|\*)""", RegexOption.IGNORE_CASE)
+        private val UNSATISFIED = Regex("""bytes\s+\*/(\d+)""", RegexOption.IGNORE_CASE)
+
+        fun parse(header: String?): ContentRangeInfo? {
+            val match = SATISFIED.find(header ?: return null) ?: return null
+            val start = match.groupValues[1].toLongOrNull() ?: return null
+            val end = match.groupValues[2].toLongOrNull() ?: return null
+            return ContentRangeInfo(start, end, match.groupValues[3].toLongOrNull())
+        }
+
+        fun parseUnsatisfiedTotal(header: String?): Long? =
+            UNSATISFIED.find(header ?: return null)?.groupValues?.get(1)?.toLongOrNull()
+    }
+}
+
+internal fun parseRetryAfterSeconds(value: String?): Long? {
+    val raw = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+    raw.toLongOrNull()?.let { return it.coerceAtLeast(0L) }
+    return runCatching {
+        val at = java.time.ZonedDateTime.parse(raw, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli()
+        ((at - System.currentTimeMillis()) / 1000L).coerceAtLeast(0L)
+    }.getOrNull()
 }
 
 internal object PartMap {
@@ -93,11 +117,11 @@ internal object ParallelDownloader {
     private const val MIN_SPLIT_BYTES = 512L * 1024L
     private const val BUFFER_BYTES = 256 * 1024
     private const val MONITOR_TICK_MS = 200L
-    private const val CHECKPOINT_INTERVAL_MS = 1500L
+    private const val CHECKPOINT_INTERVAL_MS = 2000L
     private const val RAMP_UP_INTERVAL_MS = 3000L
-    private const val DYNAMIC_ADJUST_INTERVAL_MS = 2000L
     private const val NO_PROGRESS_LIMIT_MS = 90_000L
     private const val MAX_BACKOFF_MS = 30_000L
+    private const val MAX_RATE_LIMIT_WAIT_SEC = 300L
     private const val GIVE_UP_FAILURES = 8
 
     private sealed interface RangeResult {
@@ -111,12 +135,13 @@ internal object ParallelDownloader {
     }
 
     private fun validatorFor(item: DownloadItem): String? =
-        item.etag?.takeIf { it.isNotBlank() && !it.startsWith("W/") } ?: item.lastModified?.takeIf { it.isNotBlank() }
+        item.etag?.takeIf { it.isNotBlank() && !it.startsWith("W/") }
+            ?: item.lastModified?.takeIf { it.isNotBlank() && item.restarts == 0 }
 
     suspend fun download(
         context: Context,
         initialItem: DownloadItem,
-        outputFile: File,
+        target: DownloadTarget,
         plannedParts: Int,
         maxConnections: Int,
         speedLimiter: SpeedLimiter
@@ -129,18 +154,31 @@ internal object ParallelDownloader {
         val lock = Any()
         val validator = validatorFor(item)
         val host = item.url.toHttpUrlOrNull()?.host.orEmpty()
-        val ceiling = AtomicInteger(maxConnections.coerceAtLeast(1))
-        val maxSafe = AtomicInteger(maxConnections.coerceAtLeast(1))
+        val autoConnections = DownloadAutoTuner.isAuto(maxConnections)
+        val autoSplit = DownloadAutoTuner.isAuto(item.splitParts)
+        val connectionCap = if (autoConnections) DownloadAutoTuner.connectionCeiling(context) else maxConnections.coerceAtLeast(1)
+        val startConnections = if (autoConnections) DownloadAutoTuner.startingConnections(context, host, connectionCap) else connectionCap
+        val minSplitBytes = if (autoSplit) DownloadAutoTuner.MIN_AUTO_PART_BYTES else MIN_SPLIT_BYTES
+        val ceiling = AtomicInteger(startConnections)
+        val maxSafe = AtomicInteger(connectionCap)
         val rateLimitUntil = AtomicLong(0L)
         val fatal = AtomicReference<String?>(null)
         val restart = AtomicReference<String?>(null)
         val fallback = AtomicBoolean(false)
         val lastError = AtomicReference<String?>(null)
         val activeWorkers = AtomicInteger(0)
+        val autoController = if (autoConnections) {
+            AutoConcurrencyController(ceiling, { maxSafe.get() }) {
+                listOf(speedLimiter.currentLimit(), ClintDownloadManager.globalSpeedLimiter.currentLimit())
+                    .filter { it > 0L }.minOrNull() ?: 0L
+            }
+        } else null
 
         DownloadLog.i(id, "PARTS") {
             val finished = ranges.count { it.complete }
-            "Parallel download · ${ranges.size} ranges · up to ${ceiling.get()} connections over HTTP/1.1" +
+            "Parallel download · ${ranges.size} ranges · " +
+                (if (autoConnections) "auto connections, starting at ${ceiling.get()} of up to $connectionCap" else "up to ${ceiling.get()} connections") +
+                " over HTTP/1.1" +
                 (if (finished > 0) " · $finished ranges already finished" else "") +
                 (if (validator != null) " · If-Range: $validator" else " · no validator for safe resume")
         }
@@ -149,10 +187,12 @@ internal object ParallelDownloader {
             fatal.get() != null || restart.get() != null || fallback.get() ||
                 ClintDownloadManager.pauseRequested.contains(id) || ClintDownloadManager.isRemoved(id)
 
+        fun canSplitMore(): Boolean = !autoSplit || ranges.size < DownloadAutoTuner.MAX_AUTO_PARTS
+
         fun splitRange(victim: PartRange): PartRange? = synchronized(victim) {
             val position = victim.position
             val remaining = victim.end - position + 1
-            if (remaining < MIN_SPLIT_BYTES * 2) null else {
+            if (remaining < minSplitBytes * 2 || !canSplitMore()) null else {
                 val middle = position + remaining / 2
                 val piece = PartRange(middle, victim.end, 0L).also { it.active = true }
                 victim.end = middle - 1
@@ -169,39 +209,59 @@ internal object ParallelDownloader {
                 free.active = true
                 free
             } else {
-                val victim = ranges.filter { it.active && it.remaining >= MIN_SPLIT_BYTES * 2 }.maxByOrNull { it.remaining }
+                val victim = if (canSplitMore()) {
+                    ranges.filter { it.active && it.remaining >= minSplitBytes * 2 }.maxByOrNull { it.remaining }
+                } else null
                 if (victim == null) null else splitRange(victim)
             }
         }
 
         fun hasWaitingRanges(): Boolean = synchronized(lock) { ranges.any { !it.active && !it.complete } }
-        fun hasWork(): Boolean = synchronized(lock) { ranges.any { !it.complete && (!it.active || it.remaining >= MIN_SPLIT_BYTES * 2) } }
+        fun hasWork(): Boolean = synchronized(lock) {
+            val splittable = canSplitMore()
+            ranges.any { !it.complete && (!it.active || (splittable && it.remaining >= minSplitBytes * 2)) }
+        }
         fun allComplete(): Boolean = synchronized(lock) { ranges.all { it.complete } }
         fun snapshot(): List<PartRange> = synchronized(lock) { ranges.toList() }
 
         fun transfer(range: PartRange, call: Call): RangeResult {
             call.execute().use { response ->
                 when {
-                    response.code == 429 -> return RangeResult.RateLimited(response.header("Retry-After")?.toLongOrNull())
+                    response.code == 429 -> return RangeResult.RateLimited(parseRetryAfterSeconds(response.header("Retry-After")))
                     response.code == 200 && validator != null -> return RangeResult.Restart("server sent the whole file for If-Range, so it changed on the server")
                     response.code == 200 -> return RangeResult.NoRangeSupport
                     response.code == 401 || response.code == 403 || response.code == 404 || response.code == 410 ->
                         return RangeResult.Fatal("Server error ${response.code}")
                     response.code != 206 -> return RangeResult.Failed("HTTP ${response.code}")
                 }
-                RandomAccessFile(outputFile, "rw").use { raf ->
-                    val channel = raf.channel
-                    val buffer = ByteArray(BUFFER_BYTES)
-                    val input = response.body.byteStream()
+                val contentRange = ContentRangeInfo.parse(response.header("Content-Range"))
+                if (contentRange != null) {
+                    val remoteTotal = contentRange.total
+                    if (remoteTotal != null && remoteTotal != totalBytes) {
+                        return RangeResult.Restart("the file size changed on the server ($remoteTotal instead of $totalBytes bytes)")
+                    }
+                    if (contentRange.start != range.position) {
+                        return RangeResult.Failed("server sent bytes ${contentRange.start}- instead of ${range.position}-")
+                    }
+                }
+                target.openChannel(context).use { channel ->
+                    val reader = BatchedReader(response.body.byteStream(), ByteArray(BUFFER_BYTES))
                     while (true) {
                         if (stopRequested() || Thread.currentThread().isInterrupted) return RangeResult.Stopped
-                        val read = input.read(buffer)
+                        val wanted = minOf(range.remaining, BUFFER_BYTES.toLong()).toInt()
+                        if (wanted <= 0) break
+                        val batch = minOf(
+                            wanted,
+                            speedLimiter.batchBytes(BUFFER_BYTES),
+                            ClintDownloadManager.globalSpeedLimiter.batchBytes(BUFFER_BYTES)
+                        )
+                        val read = reader.fill(batch)
                         if (read == -1) break
                         val written = synchronized(range) {
                             val allowed = range.end - range.position + 1
                             if (allowed <= 0L) 0 else {
                                 val count = minOf(read.toLong(), allowed).toInt()
-                                val chunk = ByteBuffer.wrap(buffer, 0, count)
+                                val chunk = ByteBuffer.wrap(reader.buffer, 0, count)
                                 var position = range.position
                                 while (chunk.hasRemaining()) position += channel.write(chunk, position)
                                 range.done.addAndGet(count.toLong())
@@ -209,6 +269,7 @@ internal object ParallelDownloader {
                             }
                         }
                         if (written > 0) {
+                            ClintDownloadManager.noteActivity(id)
                             speedLimiter.acquire(written)
                             ClintDownloadManager.globalSpeedLimiter.acquire(written)
                         }
@@ -229,6 +290,7 @@ internal object ParallelDownloader {
                 .header("User-Agent", item.userAgent)
                 .header("Accept", "*/*")
                 .header("Accept-Language", "en-US,en;q=0.9")
+                .header("Accept-Encoding", "identity")
                 .header("Range", "bytes=$startPosition-$endPosition")
                 .apply {
                     if (item.referer.isNotEmpty()) header("Referer", item.referer)
@@ -250,7 +312,7 @@ internal object ParallelDownloader {
                         }
                     }
                     try {
-                        withContext(Dispatchers.IO) { runInterruptible { transfer(range, call) } }
+                        withContext(DownloadDispatchers.network) { runInterruptible { transfer(range, call) } }
                     } finally {
                         watcher.cancel()
                     }
@@ -278,22 +340,24 @@ internal object ParallelDownloader {
                     fatal.compareAndSet(null, result.message)
                 }
                 is RangeResult.RateLimited -> {
-                    val backoffSeconds = result.retryAfterSeconds ?: (5L shl range.failures.coerceAtMost(6)).coerceIn(1L, 300L)
+                    val backoffSeconds = (result.retryAfterSeconds ?: (5L shl range.failures.coerceAtMost(6)))
+                        .coerceIn(1L, MAX_RATE_LIMIT_WAIT_SEC)
                     rateLimitUntil.updateAndGet { maxOf(it, now + backoffSeconds * 1000L) }
                     range.failures++
                     range.retryAt = now + backoffSeconds * 1000L
+                    lastError.set("Server error 429")
                     if (ceiling.get() > 1) {
                         val shrunk = ceiling.updateAndGet { (it - 1).coerceAtLeast(1) }
                         maxSafe.updateAndGet { minOf(it, shrunk) }
                         DownloadLog.w(id, "RANGE") { "Rate limited (HTTP 429) · waiting ${backoffSeconds}s · connections reduced to $shrunk" }
                     } else {
-                        DownloadLog.w(id, "RANGE") { "Rate limited with one connection; switching to single-connection mode" }
-                        fallback.set(true)
+                        DownloadLog.w(id, "RANGE") { "Rate limited with one connection · waiting ${backoffSeconds}s and keeping the finished ranges" }
                     }
                 }
                 is RangeResult.Failed -> {
                     range.failures++
                     lastError.set(result.message)
+                    if (autoConnections && ceiling.get() > 1) ceiling.updateAndGet { (it - 1).coerceAtLeast(1) }
                     val backoff = minOf(MAX_BACKOFF_MS, 1000L shl (range.failures - 1).coerceIn(0, 5)) + Random.nextLong(0L, 750L)
                     range.retryAt = now + backoff
                     DownloadLog.w(id, "RANGE") {
@@ -311,7 +375,7 @@ internal object ParallelDownloader {
 
             fun spawnWorker() {
                 activeWorkers.incrementAndGet()
-                jobs += launch(Dispatchers.IO) {
+                jobs += launch(DownloadDispatchers.network) {
                     try {
                         while (isActive && !stopRequested()) {
                             if (activeWorkers.get() > ceiling.get()) break
@@ -339,8 +403,8 @@ internal object ParallelDownloader {
                                 if (stopRequested()) RangeResult.Stopped
                                 else RangeResult.Failed("${e.javaClass.simpleName}: ${e.message}")
                             }
-                            range.active = false
                             handle(range, result, startedAt, startDone)
+                            range.active = false
                         }
                     } finally {
                         activeWorkers.decrementAndGet()
@@ -355,9 +419,6 @@ internal object ParallelDownloader {
             var lastSpeedTime = System.currentTimeMillis()
             var lastCheckpoint = System.currentTimeMillis()
             var lastRampUp = System.currentTimeMillis()
-            var lastDynamicCheck = System.currentTimeMillis()
-            var lastDynamicBytes = previousTotal.get()
-            var lastDynamicSpeed = 0L
 
             while (true) {
                 delay(MONITOR_TICK_MS)
@@ -374,7 +435,8 @@ internal object ParallelDownloader {
                 }
                 item = item.copy(
                     bytesDownloaded = total,
-                    partProgress = current.map { (it.done.get().toFloat() / it.length).coerceIn(0f, 1f) }
+                    partProgress = current.map { (it.done.get().toFloat() / it.length).coerceIn(0f, 1f) },
+                    activeConnections = activeWorkers.get()
                 )
                 if (total - lastNotifyBytes >= 65536L) {
                     lastNotifyBytes = total
@@ -385,25 +447,19 @@ internal object ParallelDownloader {
                         lastSpeedTime = now
                     }
                     DownloadNotificationHelper.showProgressNotificationThrottled(context, item)
-                    ClintDownloadManager.publish(ClintDownloadManager.withLiveSettings(item))
+                    ClintDownloadManager.publish(item)
                 }
                 if (now - lastCheckpoint >= CHECKPOINT_INTERVAL_MS) {
                     lastCheckpoint = now
-                    ClintDownloadManager.checkpointProgress(id, total, 0L, "", PartMap.encode(current))
+                    val encoded = PartMap.encode(current)
+                    runCatching { target.openChannel(context).use { it.force(false) } }
+                    ClintDownloadManager.checkpointProgress(id, total, 0L, "", encoded, item.generation)
                 }
-                if (now - lastRampUp >= RAMP_UP_INTERVAL_MS) {
+                if (autoController != null) {
+                    autoController.onTick(now, total, canGrow = hasWork(), blocked = rateLimitUntil.get() > now)
+                } else if (now - lastRampUp >= RAMP_UP_INTERVAL_MS) {
                     lastRampUp = now
                     if (ceiling.get() < maxSafe.get() && rateLimitUntil.get() <= now) ceiling.incrementAndGet()
-                }
-                if (now - lastDynamicCheck >= DYNAMIC_ADJUST_INTERVAL_MS) {
-                    val speed = (total - lastDynamicBytes) * 1000L / (now - lastDynamicCheck).coerceAtLeast(1L)
-                    if (lastDynamicSpeed > 0L && speed > 0L) {
-                        if (speed > lastDynamicSpeed * 1.1 && ceiling.get() < maxSafe.get()) ceiling.incrementAndGet()
-                        else if (speed < lastDynamicSpeed * 0.9 && ceiling.get() > 1) ceiling.decrementAndGet()
-                    }
-                    lastDynamicSpeed = speed
-                    lastDynamicBytes = total
-                    lastDynamicCheck = now
                 }
                 val error = lastError.get()
                 if (error != null && now - lastProgressAt.get() >= NO_PROGRESS_LIMIT_MS &&
@@ -422,6 +478,7 @@ internal object ParallelDownloader {
             }
         }
 
+        if (autoConnections) DownloadAutoTuner.rememberConnections(context, host, ceiling.get())
         val finalRanges = snapshot()
         val total = finalRanges.sumOf { it.done.get() }
         item = item.copy(
@@ -429,7 +486,8 @@ internal object ParallelDownloader {
             partMap = PartMap.encode(finalRanges),
             completedPartsMask = 0L,
             partOffsets = "",
-            partProgress = finalRanges.map { (it.done.get().toFloat() / it.length).coerceIn(0f, 1f) }
+            partProgress = finalRanges.map { (it.done.get().toFloat() / it.length).coerceIn(0f, 1f) },
+            activeConnections = 0
         )
         if (ClintDownloadManager.isRemoved(id)) throw CancellationException("removed")
         if (ClintDownloadManager.pauseRequested.remove(id)) return ParallelOutcome.Paused(item)

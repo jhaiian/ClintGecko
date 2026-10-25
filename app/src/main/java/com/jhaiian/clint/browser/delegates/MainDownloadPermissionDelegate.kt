@@ -244,7 +244,7 @@ private fun MainActivity.checkFilenameConflictAndEnqueue(
         onRename = onRename,
         onUpdateLink = pendingMatch?.let { match ->
             {
-                ClintDownloadManager.updateDownloadUrl(match.id, url)
+                ClintDownloadManager.updateDownloadUrl(match.id, url, referer, cookies)
                 onDismiss()
                 showClintSnackbar(message = getString(R.string.media_capture_duplicate_link_updated))
             }

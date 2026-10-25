@@ -36,6 +36,7 @@ class ClintApplication : Application() {
         DataSaverMode.register(this)
         com.jhaiian.clint.privacy.PrivacyGuard.install(this)
         MediaPlaybackController.init(this)
+        com.jhaiian.clint.downloads.ClintDownloadManager.init(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
             override fun onActivityStarted(activity: Activity) {

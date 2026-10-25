@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -139,10 +140,9 @@ fun ClintColorPickerDialog(
                         Box(Modifier.weight(1f).fillMaxHeight().background(current))
                     }
                     OutlinedTextField(
-                        value = hexText,
-                        onValueChange = { onHexChanged(it) },
+                        state = rememberSyncedTextFieldState(hexText) { onHexChanged(it) },
                         modifier = Modifier.weight(1f),
-                        singleLine = true,
+                        lineLimits = TextFieldLineLimits.SingleLine,
                         label = { Text(stringResource(R.string.color_picker_hex_label)) },
                         prefix = { Text("#") },
                         keyboardOptions = KeyboardOptions(

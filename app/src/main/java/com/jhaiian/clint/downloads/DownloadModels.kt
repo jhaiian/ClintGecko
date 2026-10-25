@@ -75,8 +75,8 @@ data class DownloadItem(
     val retryEnabled: Boolean = true,
     val lastErrorWasServerError: Boolean = false,
     val unmeteredOnly: Boolean = false,
-    val splitParts: Int = 32,
-    val multithreadingParts: Int = 4,
+    val splitParts: Int = DownloadAutoTuner.AUTO,
+    val multithreadingParts: Int = DownloadAutoTuner.AUTO,
 
     val speedLimitBytesPerSec: Long = 0L,
     val locationMode: String = "default",
@@ -104,7 +104,7 @@ data class DownloadItem(
     val streamPrimaryIsAudio: Boolean = false,
     val streamNoAudio: Boolean = false,
     val streamHeaders: Map<String, String> = emptyMap(),
-    val streamConcurrentSegments: Int = 12,
+    val streamConcurrentSegments: Int = DownloadAutoTuner.AUTO,
     val streamIsLive: Boolean = false,
     val streamConvertTsToMp4: Boolean = false,
     val streamVideoRepresentationId: String? = null,
@@ -117,7 +117,10 @@ data class DownloadItem(
     val muxProgress: Int = 0,
     val streamSegDone: Int = 0,
     val streamSegTotal: Int = 0,
-    val streamSegBytes: Long = 0L
+    val streamSegBytes: Long = 0L,
+    @Transient val generation: Long = 0L,
+    @Transient val restarts: Int = 0,
+    @Transient val activeConnections: Int = 0
 ) {
     val progressPercent: Int
         get() = if (totalBytes > 0) ((bytesDownloaded * 100) / totalBytes).toInt() else -1

@@ -100,13 +100,45 @@ object MediaRemuxer {
                     extractor.setDataSource(path)
                     extractors += extractor
                 }
-                remuxTracks(extractors, inputPaths, outputPath, audioLanguage, onProgress) { isActive }
+                val totalBytes = inputPaths.sumOf { runCatching { File(it).length() }.getOrDefault(0L) }
+                remuxTracks(extractors, totalBytes, outputPath, audioLanguage, onProgress) { isActive }
             } catch (e: CancelledRemuxException) {
                 RemuxResult(false, e.message)
             } catch (e: Exception) {
                 RemuxResult(false, e.message)
             } finally {
                 extractors.forEach { runCatching { it.release() } }
+            }
+        }
+    }
+
+    suspend fun remuxSegments(
+        inputs: List<List<File>>,
+        outputPath: String,
+        audioLanguage: String? = null,
+        onProgress: ((Int) -> Unit)? = null
+    ): RemuxResult {
+        if (inputs.isEmpty()) return RemuxResult(false, null)
+        return withContext(Dispatchers.IO) {
+            val extractors = mutableListOf<MediaExtractor>()
+            val sources = mutableListOf<SegmentDataSource>()
+            try {
+                for (files in inputs) {
+                    val source = SegmentDataSource(files)
+                    sources += source
+                    val extractor = MediaExtractor()
+                    extractors += extractor
+                    extractor.setDataSource(source)
+                }
+                val totalBytes = sources.sumOf { it.getSize() }
+                remuxTracks(extractors, totalBytes, outputPath, audioLanguage, onProgress) { isActive }
+            } catch (e: CancelledRemuxException) {
+                RemuxResult(false, e.message)
+            } catch (e: Exception) {
+                RemuxResult(false, e.message)
+            } finally {
+                extractors.forEach { runCatching { it.release() } }
+                sources.forEach { runCatching { it.close() } }
             }
         }
     }
@@ -261,7 +293,7 @@ object MediaRemuxer {
 
     private fun remuxTracks(
         extractors: List<MediaExtractor>,
-        inputPaths: List<String>,
+        totalBytes: Long,
         outputPath: String,
         audioLanguage: String?,
         onProgress: ((Int) -> Unit)?,
@@ -332,7 +364,6 @@ object MediaRemuxer {
                 val fmt = extractors[track.extractorIndex].getTrackFormat(track.trackIndex)
                 if (fmt.containsKey(MediaFormat.KEY_DURATION)) fmt.getLong(MediaFormat.KEY_DURATION) else 0L
             } ?: 0L
-            val totalBytes = inputPaths.sumOf { runCatching { File(it).length() }.getOrDefault(0L) }
 
             var lastPercent = -1
             var sampleCount = 0L

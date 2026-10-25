@@ -39,7 +39,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -161,9 +160,9 @@ fun DownloadRequestDialog(
 
     var retryEnabled by remember { mutableStateOf(initialRetryEnabled) }
     var unmeteredOnly by remember { mutableStateOf(initialUnmeteredOnly) }
-    var splitParts by remember { mutableStateOf(initialSplitParts.coerceIn(1, 32)) }
-    var multithreadingParts by remember { mutableStateOf(initialMultithreadingParts.coerceIn(1, 8)) }
-    var concurrentSegments by remember { mutableStateOf(initialConcurrentSegments.coerceIn(1, 24)) }
+    var splitParts by remember { mutableStateOf(initialSplitParts.coerceIn(0, 32)) }
+    var multithreadingParts by remember { mutableStateOf(initialMultithreadingParts.coerceIn(0, 8)) }
+    var concurrentSegments by remember { mutableStateOf(initialConcurrentSegments.coerceIn(0, 24)) }
 
     var speedLimitText by remember { mutableStateOf(if (initialSpeedLimitAmount > 0) initialSpeedLimitAmount.toString() else "") }
     val kbLabel = stringResource(R.string.speed_limit_unit_kb)
@@ -439,13 +438,13 @@ fun DownloadRequestDialog(
                                     fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 8.dp)
                                 )
                                 Text(
-                                    pluralStringResource(R.plurals.download_split_parts_value, splitParts, splitParts),
+                                    autoOrCountLabel(splitParts, R.plurals.download_split_parts_value),
                                     color = colors.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp)
                                 )
                                 ClintSlider(
-                                    value = splitParts.toFloat(),
-                                    onValueChange = { splitParts = it.toInt() },
-                                    valueRange = 1f..32f, steps = 30
+                                    value = autoSliderPosition(splitParts, 32).toFloat(),
+                                    onValueChange = { splitParts = autoSliderValue(it.toInt(), 32) },
+                                    valueRange = 1f..33f, steps = 31
                                 )
 
                                 Text(
@@ -453,13 +452,13 @@ fun DownloadRequestDialog(
                                     fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp)
                                 )
                                 Text(
-                                    pluralStringResource(R.plurals.download_multithreading_value, multithreadingParts, multithreadingParts),
+                                    autoOrCountLabel(multithreadingParts, R.plurals.download_multithreading_value),
                                     color = colors.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp)
                                 )
                                 ClintSlider(
-                                    value = multithreadingParts.toFloat(),
-                                    onValueChange = { multithreadingParts = it.toInt() },
-                                    valueRange = 1f..8f, steps = 6
+                                    value = autoSliderPosition(multithreadingParts, 8).toFloat(),
+                                    onValueChange = { multithreadingParts = autoSliderValue(it.toInt(), 8) },
+                                    valueRange = 1f..9f, steps = 7
                                 )
                             }
 
@@ -469,13 +468,13 @@ fun DownloadRequestDialog(
                                     fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 8.dp)
                                 )
                                 Text(
-                                    pluralStringResource(R.plurals.download_concurrent_segments_value, concurrentSegments, concurrentSegments),
+                                    autoOrCountLabel(concurrentSegments, R.plurals.download_concurrent_segments_value),
                                     color = colors.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp)
                                 )
                                 ClintSlider(
-                                    value = concurrentSegments.toFloat(),
-                                    onValueChange = { concurrentSegments = it.toInt() },
-                                    valueRange = 1f..24f, steps = 22
+                                    value = autoSliderPosition(concurrentSegments, 24).toFloat(),
+                                    onValueChange = { concurrentSegments = autoSliderValue(it.toInt(), 24) },
+                                    valueRange = 1f..25f, steps = 23
                                 )
                             }
 

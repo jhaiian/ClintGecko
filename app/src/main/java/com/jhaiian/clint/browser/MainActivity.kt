@@ -81,7 +81,6 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
 
     internal lateinit var webContainer: FrameLayout
     internal lateinit var swipeRefreshView: ClintSwipeRefreshLayout
-    internal lateinit var fullscreenContainerView: FrameLayout
 
     internal lateinit var prefs: SharedPreferences
     internal val tabManager = TabManager()
@@ -191,17 +190,14 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
     }
 
     internal val webLocationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
         val origin = pendingWebGeoOrigin
         val callback = pendingWebGeoCallback
         pendingWebGeoOrigin = null
         pendingWebGeoCallback = null
-        if (granted && origin != null && callback != null) {
-            showWebLocationDialog(origin, callback)
-        } else {
-            callback?.invoke(origin ?: "", false, false)
-        }
+        val granted = results.values.any { it }
+        callback?.invoke(origin ?: "", granted && origin != null, false)
     }
 
     internal val webNotificationPermissionLauncher = registerForActivityResult(
@@ -281,13 +277,15 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
     private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         when (key) {
             "javascript_enabled" -> applyJavaScript()
-            "block_third_party_cookies" -> applyCookiePolicy()
+            com.jhaiian.clint.privacy.PrivacyPrefs.COOKIE_POLICY -> applyCookiePolicy()
+            com.jhaiian.clint.privacy.PrivacyPrefs.ETP_LEVEL, com.jhaiian.clint.privacy.PrivacyPrefs.FINGERPRINTING_PROTECTION -> applyTrackingProtectionSettings()
             "do_not_track" -> applyDoNotTrackSettings()
             com.jhaiian.clint.browser.webview.ClintAutofill.PREF_AUTOFILL_ENABLED -> applyAutofillSettings()
             "custom_user_agent" -> applyUserAgent()
             com.jhaiian.clint.mediacapture.MEDIA_CAPTURE_ENABLED_PREF -> updateMediaCaptureEnabledState()
             "show_home_button" -> updateHomeButtonState()
             com.jhaiian.clint.tabs.TabGroupPrefs.PREF_SHOW_GROUP_BAR, com.jhaiian.clint.tabs.TabStripPrefs.PREF_SHOW_TAB_STRIP -> updateTabCount()
+            com.jhaiian.clint.tabs.TabGroupPrefs.PREF_TAB_GROUPS_ENABLED -> applyTabGroupsSetting()
             com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_STRIP_POSITION, com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_GROUP_BAR_POSITION -> updateTabBarPositions()
             "data_saver_enabled", "data_saver_metered_only", "data_saver_disable_images", "data_saver_disable_autoplay", "data_saver_send_header", "data_saver_block_fonts", "data_saver_block_frames", "data_saver_block_preload", "data_saver_block_video", "data_saver_block_scripts", "data_saver_block_css", "data_saver_cache_first" -> applyDataSaverSettings()
             "hide_bars_on_scroll" -> {
@@ -301,6 +299,7 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
                 }
             }
         }
+        onTranslationPrefChanged(key)
         com.jhaiian.clint.browser.webview.ClintGecko.pushConfig()
     }
 
@@ -314,7 +313,6 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
         swipeRefreshView = ClintSwipeRefreshLayout(this).apply {
             addView(webContainer, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         }
-        fullscreenContainerView = FrameLayout(this)
 
         prefs = PreferenceManager.getDefaultSharedPreferences(this)
         if (!prefs.getBoolean("setup_complete", false)) {
@@ -327,13 +325,14 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
         com.jhaiian.clint.browser.webview.ClintGecko.init(this)
         com.jhaiian.clint.browser.webview.ClintGecko.configProvider = { buildRequestConfig() }
         setupExtensions()
-        com.jhaiian.clint.browser.webview.ClintGecko.setBlockThirdPartyCookies(prefs.getBoolean("block_third_party_cookies", true))
+        com.jhaiian.clint.browser.webview.ClintGecko.setCookiePolicy(com.jhaiian.clint.privacy.PrivacyPrefs.cookiePolicy(prefs))
         syncBaseScripts()
         syncGlobalScripts()
         DataSaverMode.onActiveChanged = { applyDataSaverSettings() }
         updateMediaCaptureEnabledState()
         updateHomeButtonState()
         updateTabBarPositions()
+        setupTranslations()
         tabManager.framelessShortcutIds = com.jhaiian.clint.shortcuts.ShortcutStore.framelessIds(this)
         applySystemUiVisibility()
 
@@ -370,6 +369,7 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
         setupSwipeRefresh()
         setupAddressBar()
         applyAddressBarPosition()
+        if (savedInstanceState == null && com.jhaiian.clint.privacy.PrivacyPrefs.closesTabsOnExit(prefs)) discardSavedTabs()
         val isRefreshLinkMode = intent.getBooleanExtra(EXTRA_REFRESH_LINK_MODE, false)
         val shortcutId = intent.getStringExtra(EXTRA_SHORTCUT_ID)
         applyShortcutFrameless(shortcutId)
@@ -453,6 +453,10 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
         addBackgroundPlaybackScript()
         syncFramelessShortcuts()
         closeInactiveTabs()
+        if (com.jhaiian.clint.privacy.BrowsingDataCleaner.consumeCloseAllTabsRequest()) {
+            val ids = tabManager.previews().map { it.id }
+            if (ids.isNotEmpty()) closeTabsWithUndo(ids, resources.getQuantityString(R.plurals.tab_menu_closed_tabs, ids.size, ids.size))
+        }
         updateTabCount()
         if (::swipeRefreshView.isInitialized) updateSwipeRefreshColors(uiState.isIncognito)
         bottomBarAnimator2?.cancel()
@@ -483,7 +487,11 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
 
     override fun onStop() {
         super.onStop()
-        saveTabs()
+        if (isFinishing && com.jhaiian.clint.privacy.PrivacyPrefs.closesTabsOnExit(prefs)) {
+            Thread { discardSavedTabs() }.start()
+        } else {
+            saveTabs()
+        }
         tabManager.activeTab?.webView?.onPause()
         if (refreshLinkSession != null) {
             cleanupRefreshLinkTabs()
@@ -510,6 +518,7 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
 
     override fun onDestroy() {
         teardownExtensions()
+        teardownTranslations()
         prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
         DataSaverMode.onActiveChanged = null
         com.jhaiian.clint.media.MediaPlaybackController.tabIdResolver = null
@@ -811,6 +820,12 @@ class MainActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity,
     fun onMenuCookiesControl() {
         openCookiesControl()
     }
+    fun onMenuTranslate() {
+        openTranslatePage()
+    }
+    fun onMenuOpenTranslationSettings() {
+        openTranslationSettings()
+    }
     fun onMenuWebsiteBlocker() {
         val enabled = !prefs.getBoolean("website_blocker_enabled", false)
         prefs.edit().putBoolean("website_blocker_enabled", enabled).apply()
@@ -984,8 +999,17 @@ td,th{border:1px solid $secondaryColor;padding:6px 8px;}
     inner class BlobDownloadBridge {
         @android.webkit.JavascriptInterface
         fun receiveBlob(base64: String, filename: String, mimeType: String) {
-            runOnUiThread {
-                showDownloadDialogForBlob(base64, filename, mimeType)
+            com.jhaiian.clint.browser.webview.ClintGecko.io.execute {
+                val blob = com.jhaiian.clint.downloads.DownloadBlobStore.fromBase64(applicationContext, base64)
+                runOnUiThread {
+                    if (blob == null) {
+                        Toast.makeText(this@MainActivity, R.string.download_response_failed, Toast.LENGTH_SHORT).show()
+                    } else if (isFinishing || isDestroyed) {
+                        ClintDownloadManager.enqueueBlob(applicationContext, blob, filename, mimeType)
+                    } else {
+                        showDownloadDialogForBlob(blob, filename, mimeType)
+                    }
+                }
             }
         }
 

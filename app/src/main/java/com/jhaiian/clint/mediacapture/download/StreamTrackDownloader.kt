@@ -1,21 +1,29 @@
 package com.jhaiian.clint.mediacapture.download
 
+import com.jhaiian.clint.downloads.AutoConcurrencyController
+import com.jhaiian.clint.downloads.BatchedReader
 import com.jhaiian.clint.downloads.ClintDownloadManager
+import com.jhaiian.clint.downloads.DownloadAutoTuner
+import com.jhaiian.clint.downloads.DownloadDispatchers
 import com.jhaiian.clint.downloads.DownloadLog
 import com.jhaiian.clint.downloads.HostConnectionLimiter
+import com.jhaiian.clint.downloads.SegmentMap
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.Call
+import okhttp3.Protocol
 import okhttp3.Request
 
 class StreamCancelledException : Exception()
@@ -24,14 +32,16 @@ data class DownloadedSegment(val file: File, val key: HlsKeyInfo?)
 
 object StreamTrackDownloader {
 
+    internal const val PLAIN_SUFFIX = ".plain"
+
     private const val MAX_CONCURRENT_SEGMENTS = 12
     private const val MAX_SEGMENT_ATTEMPTS = 3
     private const val SEGMENT_BUFFER_BYTES = 128 * 1024
-    private const val SEGMENT_MAP_INTERVAL_MS = 150L
+    private const val SEGMENT_MAP_INTERVAL_MS = 400L
     private const val UNKNOWN_SIZE_SOFTENING_BYTES = 512L * 1024L
     private const val RAMP_UP_INTERVAL_MS = 3000L
-    private const val DYNAMIC_ADJUST_INTERVAL_MS = 2000L
     private const val MONITOR_TICK_MS = 200L
+    private const val MAX_RATE_LIMIT_WAIT_SEC = 300L
 
     private data class FetchResult(
         val size: Long?,
@@ -43,10 +53,14 @@ object StreamTrackDownloader {
 
     private fun fetchSegment(
         seg: SegmentSpec, target: File, referer: String, cookies: String, userAgent: String, extraHeaders: Map<String, String>,
-        activeCalls: MutableSet<Call>, speedLimiter: com.jhaiian.clint.downloads.SpeedLimiter?,
+        activeCalls: MutableSet<Call>, speedLimiter: com.jhaiian.clint.downloads.SpeedLimiter?, tagId: Int,
+        multiplexed: AtomicBoolean? = null,
         onBytes: ((written: Long, expected: Long) -> Unit)? = null
     ): FetchResult {
         val builder = Request.Builder().url(seg.url)
+        if (tagId != DownloadLog.GLOBAL_ID) {
+            builder.tag(ClintDownloadManager.CallTag::class.java, ClintDownloadManager.CallTag(tagId))
+        }
         StreamRequestHeaders.apply(builder, seg.url, referer, cookies, userAgent, extraHeaders)
         if (seg.byteRangeOffset != null && seg.byteRangeLength != null) {
             val end = seg.byteRangeOffset + seg.byteRangeLength - 1
@@ -54,29 +68,56 @@ object StreamTrackDownloader {
         }
         val call = ClintDownloadManager.httpClient.newCall(builder.build())
         activeCalls.add(call)
+        val requestedRange = seg.byteRangeOffset != null && seg.byteRangeLength != null
         return try {
             call.execute().use { resp ->
+                if (resp.protocol == Protocol.HTTP_2) multiplexed?.set(true)
                 if (!resp.isSuccessful) {
-                    FetchResult(null, "HTTP ${resp.code}", httpCode = resp.code, retryAfterSeconds = resp.header("Retry-After")?.toLongOrNull())
+                    FetchResult(
+                        null, "HTTP ${resp.code}", httpCode = resp.code,
+                        retryAfterSeconds = com.jhaiian.clint.downloads.parseRetryAfterSeconds(resp.header("Retry-After"))
+                    )
+                } else if (requestedRange && resp.code != 206 &&
+                    !(seg.byteRangeOffset == 0L && resp.body.contentLength() == seg.byteRangeLength)
+                ) {
+                    FetchResult(null, "server ignored the byte range (HTTP ${resp.code})", httpCode = resp.code)
                 } else {
                     val totalLength = resp.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull()
                     val expected = resp.body.contentLength().takeIf { it > 0L } ?: seg.byteRangeLength ?: -1L
+                    val htmlType = resp.header("Content-Type")?.substringBefore(';')?.trim()?.equals("text/html", ignoreCase = true) == true
                     var written = 0L
+                    var firstByte = -1
                     resp.body.byteStream().use { input ->
                         FileOutputStream(target).use { output ->
-                            val buffer = ByteArray(SEGMENT_BUFFER_BYTES)
+                            val reader = BatchedReader(input, ByteArray(SEGMENT_BUFFER_BYTES))
                             while (true) {
-                                val read = input.read(buffer)
+                                val batch = minOf(
+                                    speedLimiter?.batchBytes(SEGMENT_BUFFER_BYTES) ?: SEGMENT_BUFFER_BYTES,
+                                    ClintDownloadManager.globalSpeedLimiter.batchBytes(SEGMENT_BUFFER_BYTES)
+                                )
+                                val read = reader.fill(batch)
                                 if (read == -1) break
-                                output.write(buffer, 0, read)
+                                if (written == 0L) firstByte = reader.buffer[0].toInt() and 0xFF
+                                output.write(reader.buffer, 0, read)
                                 written += read
                                 onBytes?.invoke(written, expected)
+                                if (tagId != DownloadLog.GLOBAL_ID) ClintDownloadManager.noteActivity(tagId)
                                 speedLimiter?.acquire(read)
                                 ClintDownloadManager.globalSpeedLimiter.acquire(read)
                             }
                         }
                     }
-                    FetchResult(written, null, totalLength)
+                    when {
+                        written == 0L -> {
+                            target.delete()
+                            FetchResult(null, "empty response")
+                        }
+                        htmlType && firstByte == '<'.code -> {
+                            target.delete()
+                            FetchResult(null, "server returned a web page instead of media")
+                        }
+                        else -> FetchResult(written, null, totalLength)
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -111,9 +152,19 @@ object StreamTrackDownloader {
         var completedCount = results.size
         val progressLock = Any()
         val pending = all.indices.filter { !results.containsKey(it) }
-        val workerCount = maxConcurrentSegments.coerceIn(1, 24)
-        val ceiling = AtomicInteger(workerCount)
+        val autoSegments = DownloadAutoTuner.isAuto(maxConcurrentSegments)
+        val tunerContext = ClintDownloadManager.appContext
+        val multiplexed = AtomicBoolean(false)
+        val workerCount = if (autoSegments) DownloadAutoTuner.segmentCeiling(tunerContext, multiplexed = true) else maxConcurrentSegments.coerceIn(1, 24)
+        val ceiling = AtomicInteger(if (autoSegments) DownloadAutoTuner.startingSegments(tunerContext, host, workerCount) else workerCount)
         val maxSafe = AtomicInteger(workerCount)
+        val transferred = AtomicLong(0L)
+        val autoController = if (autoSegments) {
+            AutoConcurrencyController(ceiling, { minOf(maxSafe.get(), DownloadAutoTuner.segmentCeiling(tunerContext, multiplexed.get())) }) {
+                listOfNotNull(speedLimiter?.currentLimit(), ClintDownloadManager.globalSpeedLimiter.currentLimit())
+                    .filter { it > 0L }.minOrNull() ?: 0L
+            }
+        } else null
         val rateLimitUntilMs = AtomicLong(0L)
         val bytesDone = AtomicLong(0L)
         val nextPending = AtomicInteger(0)
@@ -133,11 +184,12 @@ object StreamTrackDownloader {
             else (written.toFloat() / (written + UNKNOWN_SIZE_SOFTENING_BYTES)).coerceIn(0f, 0.9f)
         }
 
-        fun segmentMap(): List<Float> = List(total) { index ->
+        fun segmentMap(): List<Float> = SegmentMap.build(total) { index ->
             if (results.containsKey(index)) 1f else inFlight[index] ?: 0f
         }
         if (logging) DownloadLog.i(logId, "SEGMENTS") {
-            "Segment pass \u00B7 ${pending.size} to fetch of $total \u00B7 ${results.size} already on disk \u00B7 $workerCount workers" +
+            "Segment pass \u00B7 ${pending.size} to fetch of $total \u00B7 ${results.size} already on disk \u00B7 " +
+                (if (autoSegments) "auto workers, starting at ${ceiling.get()} of up to $workerCount" else "$workerCount workers") +
                 if (track.initSegment != null) " \u00B7 includes init segment" else ""
         }
 
@@ -150,9 +202,6 @@ object StreamTrackDownloader {
 
         val controller = launch(Dispatchers.Default) {
             var lastRamp = System.currentTimeMillis()
-            var lastCheck = lastRamp
-            var lastBytes = 0L
-            var lastSpeed = 0L
             var lastMapAt = 0L
             while (isActive) {
                 delay(MONITOR_TICK_MS)
@@ -161,32 +210,20 @@ object StreamTrackDownloader {
                     lastMapAt = now
                     synchronized(progressLock) { onSegmentMap(segmentMap()) }
                 }
-                if (now - lastRamp >= RAMP_UP_INTERVAL_MS) {
+                if (autoController != null) {
+                    autoController.onTick(now, transferred.get(), canGrow = nextPending.get() < pending.size, blocked = rateLimitUntilMs.get() > now)
+                } else if (now - lastRamp >= RAMP_UP_INTERVAL_MS) {
                     lastRamp = now
                     if (ceiling.get() < maxSafe.get() && rateLimitUntilMs.get() <= now) ceiling.incrementAndGet()
-                }
-                if (now - lastCheck >= DYNAMIC_ADJUST_INTERVAL_MS) {
-                    val doneBytes = bytesDone.get()
-                    val speed = (doneBytes - lastBytes) * 1000L / (now - lastCheck).coerceAtLeast(1L)
-                    val enoughWork = pending.size - nextPending.get() >= ceiling.get()
-                    if (enoughWork && lastSpeed > 0L && speed > 0L) {
-                        if (speed > lastSpeed * 1.1 && ceiling.get() < maxSafe.get()) {
-                            ceiling.incrementAndGet()
-                        } else if (speed < lastSpeed * 0.9 && ceiling.get() > 1) {
-                            ceiling.decrementAndGet()
-                        }
-                    }
-                    lastSpeed = speed
-                    lastBytes = doneBytes
-                    lastCheck = now
                 }
             }
         }
 
         try {
             val jobs = (0 until workerCount).map { workerId ->
-                async(Dispatchers.IO) {
+                async(DownloadDispatchers.network) {
                     while (true) {
+                        ensureActive()
                         if (isCancelled()) throw StreamCancelledException()
                         if (nextPending.get() >= pending.size) break
                         if (workerId >= ceiling.get()) {
@@ -204,6 +241,7 @@ object StreamTrackDownloader {
                         var attempt = 0
                         val segmentStartedAt = System.currentTimeMillis()
                         while (attempt < MAX_SEGMENT_ATTEMPTS && size == null) {
+                            ensureActive()
                             val waitMs = rateLimitUntilMs.get() - System.currentTimeMillis()
                             if (waitMs > 0L) {
                                 delay(waitMs)
@@ -215,9 +253,15 @@ object StreamTrackDownloader {
                                     if (seg.byteRangeOffset != null && seg.byteRangeLength != null) " \u00B7 bytes=${seg.byteRangeOffset}-${seg.byteRangeOffset + seg.byteRangeLength - 1}" else ""
                             }
                             inFlight[segmentIndex] = 0f
+                            var reported = 0L
                             val fetched = HostConnectionLimiter.withPermit(host) {
-                                fetchSegment(seg, tmpFile, referer, cookies, userAgent, extraHeaders, activeCalls, speedLimiter) { written, expected ->
+                                fetchSegment(
+                                    seg, tmpFile, referer, cookies, userAgent, extraHeaders, activeCalls, speedLimiter, logId,
+                                    multiplexed = multiplexed
+                                ) { written, expected ->
                                     inFlight[segmentIndex] = segmentFraction(written, expected)
+                                    transferred.addAndGet(written - reported)
+                                    reported = written
                                 }
                             }
                             val expectedLength = seg.byteRangeLength
@@ -238,7 +282,7 @@ object StreamTrackDownloader {
                                         (if (fetched.httpCode == 429) " \u00B7 rate limited, workers ${ceiling.get()}" else "") + "\n${seg.url}"
                                 }
                                 if (fetched.httpCode == 429) {
-                                    val backoffSeconds = fetched.retryAfterSeconds ?: (5L shl attempt).coerceIn(1L, 300L)
+                                    val backoffSeconds = (fetched.retryAfterSeconds ?: (5L shl attempt)).coerceIn(1L, MAX_RATE_LIMIT_WAIT_SEC)
                                     rateLimitUntilMs.updateAndGet { current ->
                                         maxOf(current, System.currentTimeMillis() + backoffSeconds * 1000L)
                                     }
@@ -283,6 +327,7 @@ object StreamTrackDownloader {
         } finally {
             controller.cancel()
             cancelWatcher.cancel()
+            if (autoSegments) DownloadAutoTuner.rememberSegments(tunerContext, host, ceiling.get())
         }
     }
 
@@ -294,19 +339,28 @@ object StreamTrackDownloader {
         isCancelled: () -> Boolean,
         extraHeaders: Map<String, String> = emptyMap(),
         onProgress: (completed: Int, total: Int) -> Unit
-    ) {
-        val encrypted = segments.filter { it.key != null }
-        if (encrypted.isEmpty()) return
+    ): List<DownloadedSegment> {
+        val encryptedTotal = segments.count { it.key != null }
+        if (encryptedTotal == 0) return segments
         var completed = 0
-        for (seg in encrypted) {
+        return segments.map { seg ->
+            val key = seg.key ?: return@map seg
             if (isCancelled()) throw StreamCancelledException()
-            val data = seg.file.readBytes()
-            val decrypted = HlsAesDecryptor.decrypt(data, seg.key!!, referer, cookies, userAgent, extraHeaders)
-                ?: throw IOException("Failed to decrypt segment: ${seg.file.name}")
-            seg.file.writeBytes(decrypted)
-            File(seg.file.path + ".dec").createNewFile()
+            val plain = File(seg.file.path + PLAIN_SUFFIX)
+            if (!plain.isFile || plain.length() == 0L) {
+                val decrypted = HlsAesDecryptor.decrypt(seg.file.readBytes(), key, referer, cookies, userAgent, extraHeaders)
+                    ?: throw IOException("Failed to decrypt segment: ${seg.file.name}")
+                val temp = File(seg.file.path + PLAIN_SUFFIX + ".tmp")
+                temp.writeBytes(decrypted)
+                if (!temp.renameTo(plain)) {
+                    plain.delete()
+                    if (!temp.renameTo(plain)) throw IOException("Could not store decrypted segment: ${seg.file.name}")
+                }
+            }
+            runCatching { seg.file.delete() }
             completed++
-            onProgress(completed, encrypted.size)
+            onProgress(completed, encryptedTotal)
+            DownloadedSegment(plain, null)
         }
     }
 

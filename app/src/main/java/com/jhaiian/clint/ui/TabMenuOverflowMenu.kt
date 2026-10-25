@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.FilterNone
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.VerticalAlignBottom
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
@@ -42,7 +43,9 @@ fun TabMenuOverflowMenu(
     onExpandAllGroups: (() -> Unit)? = null,
     onCloseDuplicates: (() -> Unit)? = null,
     listView: Boolean = false,
-    onToggleListView: (() -> Unit)? = null
+    onToggleListView: (() -> Unit)? = null,
+    buttonsAtBottom: Boolean = false,
+    onToggleButtonsAtBottom: (() -> Unit)? = null
 ) {
     val colors = LocalClintColors.current
     DropdownMenu(
@@ -79,7 +82,7 @@ fun TabMenuOverflowMenu(
         ListMenuItem(Icons.Filled.SelectAll, stringResource(R.string.tab_menu_select_mode_desc), checked = false) {
             onDismiss(); onSelectTabs()
         }
-        if (onCollapseAllGroups != null || onExpandAllGroups != null || onToggleGroupBar != null || onToggleListView != null) {
+        if (onCollapseAllGroups != null || onExpandAllGroups != null || onToggleGroupBar != null || onToggleListView != null || onToggleButtonsAtBottom != null) {
             HorizontalDivider(color = colors.divider)
         }
         onCollapseAllGroups?.let { action ->
@@ -99,6 +102,11 @@ fun TabMenuOverflowMenu(
         }
         onToggleListView?.let { action ->
             ListMenuItem(Icons.AutoMirrored.Filled.ViewList, stringResource(R.string.tab_menu_list_view), checked = listView) {
+                onDismiss(); action()
+            }
+        }
+        onToggleButtonsAtBottom?.let { action ->
+            ListMenuItem(Icons.Filled.VerticalAlignBottom, stringResource(R.string.tab_menu_buttons_at_bottom), checked = buttonsAtBottom) {
                 onDismiss(); action()
             }
         }

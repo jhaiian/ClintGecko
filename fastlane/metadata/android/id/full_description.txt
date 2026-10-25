@@ -1,0 +1,83 @@
+Clint Gecko adalah browser open source berbasis Firefox dengan ADM (Advanced Download Manager) dan Media Capture bawaan. Tujuan Clint Gecko adalah menjadi browser serba bisa andalan Anda, yang tetap nyaman dipakai dan bisa diatur sesuka hati. Di setiap update, Clint Gecko makin dekat dengan tujuan itu.
+
+Ekosistem Jhaiian menawarkan hingga 500 kombinasi tema, jadi Anda bisa mengatur tampilan browser sesuai selera.
+
+Privasi juga jadi prioritas. Clint Gecko diatur untuk menonaktifkan telemetri GeckoView dan Mozilla, sehingga data telemetri tidak dikirim ke Mozilla lewat layanan tersebut. Clint sendiri tidak mengumpulkan data pribadi Anda karena tidak punya backend, analitik, atau server pengumpul data. Semuanya dirancang untuk berjalan langsung di perangkat Anda.
+
+Fork resmi dari Clint Browser (github.com/jhaiian/ClintBrowser). Kalau Anda ingin versi yang lebih ringan berbasis Android WebView, coba Clint Browser versi aslinya.
+
+Dibuat dan dikelola oleh @jhaiian, developer tunggal dari Filipina.
+
+<b>MESIN GECKO</b>
+• Ditenagai GeckoView, mesin yang dipakai Firefox
+• Telemetri GeckoView dan Mozilla dinonaktifkan
+
+<b>EKSTENSI</b>
+• Pasang ekstensi Firefox langsung di browser
+• Jelajahi toko add-on Firefox atau buka file .xpi
+• Atur apakah ekstensi boleh berjalan di tab samaran
+• Buka halaman opsi ekstensi dari pengelola ekstensi
+
+<b>PUTAR DI LATAR BELAKANG</b>
+• Audio dan video tetap berjalan saat Anda pindah aplikasi atau mengunci layar
+• Kontrol pemutaran dari notifikasi media
+• Bisa diaktifkan atau dinonaktifkan di setelan browser
+
+<b>MEDIA CAPTURE</b>
+• Mendeteksi stream video, audio, dan subtitel di halaman yang Anda buka
+• Mendukung video biasa serta stream HLS/M3U8 dan DASH
+• Download media yang terdeteksi langsung dari browser
+
+<b>ADM (ADVANCED DOWNLOAD MANAGER)</b>
+• Download multi-thread dan multi-part
+• Jeda dan lanjutkan
+• Penjadwal download
+• Pembatas kecepatan
+• Lokasi download sesuai pilihan
+
+<b>TAMPILAN DAN PENYESUAIAN</b>
+Clint Gecko dibuat dengan Material 3 dan Jetpack Compose, dengan tampilan yang bisa diatur sesuka hati.
+• 50 warna aksen
+• Tema Terang dan Gelap
+• 5 tingkat intensitas permukaan
+• Total 500 kombinasi tema
+
+<b>PRIVASI DAN KEAMANAN</b>
+• Perlindungan Pelacakan yang Ditingkatkan dan Perlindungan Cookie Total
+• Hapus parameter pelacakan, perlindungan sidik jari digital, Global Privacy Control, dan perlindungan kebocoran WebRTC
+• DNS Aman lewat HTTPS (Cloudflare, Google, Quad9, atau kustom)
+• Kunci aplikasi dengan sidik jari, wajah, atau kunci layar
+• Blokir screenshot dan keyboard samaran
+• Hapus clipboard otomatis dan hapus data saat keluar
+• Pemeriksaan sertifikat ketat
+• Tanpa backend, analitik, atau pengumpulan data
+
+<b>PEMBLOKIR SITUS</b>
+• Memblokir pornografi, judi, dan kategori lain yang tidak diinginkan
+• Daftar filter per kategori (penyalahgunaan, iklan, kripto, narkoba, penipuan, judi, dan lainnya)
+• Tambahkan sendiri situs yang ingin diblokir
+
+<b>PROFIL</b>
+• Tetap masuk ke beberapa akun di situs yang sama secara bersamaan
+• Setiap profil punya cookie, login, dan data situsnya sendiri
+• Pilih profil saat membuka tab baru
+• Beri setiap profil nama dan warnanya sendiri
+
+<b>PINTASAN</b>
+• Tambahkan situs apa pun ke layar utama dengan nama dan ikon pilihan Anda
+• Mode tanpa bingkai menyembunyikan bilah pencarian dan bilah bawah agar terasa seperti aplikasi
+• Kelola semua pintasan di satu tempat dengan Pengelola Pintasan
+
+<b>BROWSER</b>
+• Banyak tab sekaligus
+• Grup tab
+• Mode samaran
+• Mode Baca
+• Mode Desktop
+• Perlindungan pop-up
+• Penghemat Data
+• Terjemahan halaman langsung di perangkat
+
+Download saja aplikasinya dan jelajahi sendiri.
+
+Membutuhkan Android 8.0 (API 26) atau yang lebih baru.

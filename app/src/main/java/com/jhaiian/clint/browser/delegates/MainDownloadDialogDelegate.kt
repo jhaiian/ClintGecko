@@ -15,7 +15,6 @@ import com.jhaiian.clint.downloads.DownloadRequestSubmission
 import com.jhaiian.clint.downloads.checkFat32FileSizeLimit
 import com.jhaiian.clint.downloads.checkStorageAvailable
 import com.jhaiian.clint.downloads.resolveSpeedLimitBytesPerSec
-import com.jhaiian.clint.downloads.estimateBase64DecodedSize
 import com.jhaiian.clint.downloads.ClintDownloadManager
 import com.jhaiian.clint.downloads.DownloadsActivity
 import com.jhaiian.clint.settings.downloads.DownloadSettingsKeys
@@ -69,7 +68,7 @@ internal fun MainActivity.showDownloadDialog(
 }
 
 internal fun MainActivity.showDownloadDialogForBlob(
-    base64: String,
+    blob: java.io.File,
     filename: String,
     mimeType: String,
     forceQuick: Boolean = false
@@ -80,8 +79,7 @@ internal fun MainActivity.showDownloadDialogForBlob(
         url = blobLabel,
         onCopyLink = { copyDownloadRequestLink(blobLabel) },
         initialFilename = filename,
-        contentLengthBytes = estimateBase64DecodedSize(base64),
-        fileSizeDisplayOverride = getString(R.string.download_dialog_file_size_unknown),
+        contentLengthBytes = blob.length(),
         checkStorage = false,
         showOptions = false,
         showStorageInfo = true,
@@ -101,7 +99,7 @@ internal fun MainActivity.showDownloadDialogForBlob(
                 )
             }
             dismiss()
-            ClintDownloadManager.enqueueBlob(this, base64, submission.filename, mimeType)
+            ClintDownloadManager.enqueueBlob(this, blob, submission.filename, mimeType)
         }
     )
 }

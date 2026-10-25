@@ -42,7 +42,6 @@ import com.jhaiian.clint.tabs.TabMenuScreen
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -50,7 +49,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.ui.viewinterop.AndroidView
@@ -67,12 +68,14 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
     val rawStatusBarPx = WindowInsets.statusBars.getTop(density)
     val rawNavBarPx = WindowInsets.navigationBars.getBottom(density)
     val rawImePx = WindowInsets.ime.getBottom(density)
+    @OptIn(ExperimentalLayoutApi::class)
+    val imeTargetPx = WindowInsets.imeAnimationTarget.getBottom(density)
 
     LaunchedEffect(rawStatusBarPx) {
         if (rawStatusBarPx > 0) state.cachedStatusBarInsetPx = rawStatusBarPx
     }
-    LaunchedEffect(rawImePx, state.searchOverlayOpen) {
-        state.imeInsetPx = if (state.searchOverlayOpen) 0 else rawImePx
+    LaunchedEffect(imeTargetPx, state.searchOverlayOpen) {
+        state.imeInsetPx = if (state.searchOverlayOpen) 0 else imeTargetPx
         activity.updateMainContentInsets()
     }
     LaunchedEffect(rawNavBarPx) {
@@ -100,7 +103,7 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
             factory = { activity.swipeRefreshView },
             modifier = Modifier.fillMaxSize(),
             update = { view ->
-                view.setPadding(0, state.contentPaddingTopPx, 0, maxOf(state.contentPaddingBottomPx, state.imeInsetPx))
+                view.setPadding(0, state.contentPaddingTopPx, 0, if (state.isFullscreen) 0 else maxOf(state.contentPaddingBottomPx, state.imeInsetPx))
             }
         )
 
@@ -191,6 +194,23 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
             )
         }
 
+        com.jhaiian.clint.translation.TranslateBar(
+            request = state.translateBarRequest,
+            visible = !state.isFullscreen && !state.searchOverlayOpen && !tabSwitcherOpen,
+            activeTabId = state.activeTabId,
+            onTranslate = { view, from, to -> activity.translatePage(view, from, to) },
+            onRestore = { view -> activity.restoreTranslatedPage(view) },
+            onOpenSettings = { activity.openTranslationSettings() },
+            onDismiss = { state.translateBarRequest = null },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(
+                    top = with(density) { state.contentPaddingTopPx.toDp() } + 8.dp,
+                    start = 12.dp,
+                    end = 12.dp
+                )
+        )
+
         AnimatedVisibility(
             visible = state.searchOverlayOpen,
             enter = fadeIn(tween(200)) + expandVertically(
@@ -224,13 +244,6 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
                 onSuggestionDelete = { activity.onSuggestionHistoryDelete(it) },
                 modifier = Modifier.fillMaxSize(),
                 incognitoKeyboard = state.isIncognito && com.jhaiian.clint.privacy.IncognitoKeyboard.isEnabled(activity)
-            )
-        }
-
-        if (state.isFullscreen) {
-            AndroidView(
-                factory = { activity.fullscreenContainerView },
-                modifier = Modifier.fillMaxSize().background(Color.Black)
             )
         }
 
@@ -292,6 +305,19 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
         }
         state.refreshLinkDialogRequest?.let { req ->
             com.jhaiian.clint.browser.dialogs.RefreshLinkDialog(req, hideStatusBarPref, hideSystemNavigationPref) { state.refreshLinkDialogRequest = null }
+        }
+        state.siteInfoRequest?.let { req ->
+            com.jhaiian.clint.browser.siteinfo.SiteInfoSheet(
+                request = req,
+                hideStatusBar = hideStatusBarPref,
+                hideSystemNavigation = hideSystemNavigationPref,
+                onPermissionChange = { type, newState -> activity.changeSiteInfoPermission(req.host, type, newState) },
+                onResetPermissions = { activity.resetSiteInfoPermissions(req.host) },
+                onTrackingProtectionChange = { enabled -> activity.setSiteInfoTrackingProtection(req.host, enabled) },
+                onCookiesClick = { activity.openSiteInfoCookies() },
+                onSiteSettingsClick = { activity.openSiteInfoSiteSettings() },
+                onDismiss = { state.siteInfoRequest = null }
+            )
         }
         state.cookiesControlRequest?.let { req ->
             com.jhaiian.clint.browser.dialogs.CookiesControlDialog(req, hideStatusBarPref, hideSystemNavigationPref) { state.cookiesControlRequest = null }
@@ -412,6 +438,7 @@ private fun TopToolbar(
             showHomeButton = state.showHomeButton,
             onHomeClick = { activity.navGoHome() },
             onSwipeTabChange = { direction -> activity.onSwipeTabChange(direction) },
+            onSiteInfoClick = { if (!activity.openSiteInfo()) activity.openSearchOverlay(isBottom = false) },
             openTabsSwipeDirection = 1
         )
         if (showTabGroupBar) TabGroupBarSlot(activity, state, onOpenTabGroup)
@@ -616,6 +643,7 @@ private fun BottomToolbar(
             showHomeButton = state.showHomeButton,
             onHomeClick = { activity.navGoHome() },
             onSwipeTabChange = { direction -> activity.onSwipeTabChange(direction) },
+            onSiteInfoClick = { if (!activity.openSiteInfo()) activity.openSearchOverlay(isBottom = true) },
             openTabsSwipeDirection = -1
         )
     }

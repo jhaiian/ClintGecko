@@ -38,7 +38,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
@@ -96,7 +95,7 @@ data class ManualDownloadSubmission(
     val streamAudioBandwidth: Long? = null,
     val streamPrimaryIsAudio: Boolean = false,
     val estimatedTotalBytes: Long = 0L,
-    val concurrentSegments: Int = 12,
+    val concurrentSegments: Int = DownloadAutoTuner.AUTO,
     val convertTsToMp4: Boolean = false
 )
 
@@ -268,7 +267,7 @@ fun DownloadManualDialog(
     var fetchedContentLength by remember { mutableStateOf(-1L) }
     var streamPlan by remember { mutableStateOf<ManualStreamPlan?>(null) }
     var concurrentSegments by remember {
-        mutableStateOf(prefs.getInt(DownloadSettingsKeys.PREF_STREAM_CONCURRENT_SEGMENTS, DownloadSettingsKeys.DEFAULT_STREAM_CONCURRENT_SEGMENTS).coerceIn(1, 24))
+        mutableStateOf(prefs.getInt(DownloadSettingsKeys.PREF_STREAM_CONCURRENT_SEGMENTS, DownloadSettingsKeys.DEFAULT_STREAM_CONCURRENT_SEGMENTS).coerceIn(0, 24))
     }
 
     var locationMode by remember {
@@ -288,8 +287,8 @@ fun DownloadManualDialog(
 
     var retryEnabled by remember { mutableStateOf(prefs.getBoolean(DownloadSettingsKeys.PREF_RETRY_ENABLED, DownloadSettingsKeys.DEFAULT_RETRY_ENABLED)) }
     var unmeteredOnly by remember { mutableStateOf(prefs.getBoolean(DownloadSettingsKeys.PREF_UNMETERED_ONLY, DownloadSettingsKeys.DEFAULT_UNMETERED_ONLY)) }
-    var splitParts by remember { mutableStateOf(prefs.getInt(DownloadSettingsKeys.PREF_SPLIT_PARTS, DownloadSettingsKeys.DEFAULT_SPLIT_PARTS).coerceIn(1, 32)) }
-    var multithreadingParts by remember { mutableStateOf(prefs.getInt(DownloadSettingsKeys.PREF_MULTITHREADING_PARTS, DownloadSettingsKeys.DEFAULT_MULTITHREADING_PARTS).coerceIn(1, 8)) }
+    var splitParts by remember { mutableStateOf(prefs.getInt(DownloadSettingsKeys.PREF_SPLIT_PARTS, DownloadSettingsKeys.DEFAULT_SPLIT_PARTS).coerceIn(0, 32)) }
+    var multithreadingParts by remember { mutableStateOf(prefs.getInt(DownloadSettingsKeys.PREF_MULTITHREADING_PARTS, DownloadSettingsKeys.DEFAULT_MULTITHREADING_PARTS).coerceIn(0, 8)) }
 
     val initSpeedLimitAmount = remember { prefs.getInt(DownloadSettingsKeys.PREF_SPEED_LIMIT_AMOUNT, DownloadSettingsKeys.DEFAULT_SPEED_LIMIT_AMOUNT) }
     val initSpeedLimitUnit = remember { prefs.getString(DownloadSettingsKeys.PREF_SPEED_LIMIT_UNIT, DEFAULT_SPEED_LIMIT_UNIT) ?: DEFAULT_SPEED_LIMIT_UNIT }
@@ -665,13 +664,13 @@ fun DownloadManualDialog(
                             fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 8.dp)
                         )
                         Text(
-                            pluralStringResource(R.plurals.download_split_parts_value, splitParts, splitParts),
+                            autoOrCountLabel(splitParts, R.plurals.download_split_parts_value),
                             color = colors.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp)
                         )
                         ClintSlider(
-                            value = splitParts.toFloat(),
-                            onValueChange = { splitParts = it.toInt() },
-                            valueRange = 1f..32f, steps = 30
+                            value = autoSliderPosition(splitParts, 32).toFloat(),
+                            onValueChange = { splitParts = autoSliderValue(it.toInt(), 32) },
+                            valueRange = 1f..33f, steps = 31
                         )
 
                         Text(
@@ -679,13 +678,13 @@ fun DownloadManualDialog(
                             fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 6.dp)
                         )
                         Text(
-                            pluralStringResource(R.plurals.download_multithreading_value, multithreadingParts, multithreadingParts),
+                            autoOrCountLabel(multithreadingParts, R.plurals.download_multithreading_value),
                             color = colors.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp)
                         )
                         ClintSlider(
-                            value = multithreadingParts.toFloat(),
-                            onValueChange = { multithreadingParts = it.toInt() },
-                            valueRange = 1f..8f, steps = 6
+                            value = autoSliderPosition(multithreadingParts, 8).toFloat(),
+                            onValueChange = { multithreadingParts = autoSliderValue(it.toInt(), 8) },
+                            valueRange = 1f..9f, steps = 7
                         )
                     } else {
                         Text(
@@ -693,13 +692,13 @@ fun DownloadManualDialog(
                             fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 8.dp)
                         )
                         Text(
-                            pluralStringResource(R.plurals.download_concurrent_segments_value, concurrentSegments, concurrentSegments),
+                            autoOrCountLabel(concurrentSegments, R.plurals.download_concurrent_segments_value),
                             color = colors.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp)
                         )
                         ClintSlider(
-                            value = concurrentSegments.toFloat(),
-                            onValueChange = { concurrentSegments = it.toInt() },
-                            valueRange = 1f..24f, steps = 22
+                            value = autoSliderPosition(concurrentSegments, 24).toFloat(),
+                            onValueChange = { concurrentSegments = autoSliderValue(it.toInt(), 24) },
+                            valueRange = 1f..25f, steps = 23
                         )
                     }
 

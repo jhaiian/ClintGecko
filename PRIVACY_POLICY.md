@@ -1,6 +1,6 @@
 # Privacy Policy for Clint Gecko
 
-*Last updated: October 20, 2026*
+*Last updated: October 25, 2026*
 
 ## Overview
 
@@ -21,6 +21,7 @@ Because GeckoView handles page rendering, JavaScript execution, and much of the 
 - **Network connectivity checks are turned off.** Gecko's captive portal detection and connectivity service are disabled, so the engine doesn't make background requests just to test your connection.
 - **`about:config` is off by default, and remote debugging is disabled.** Nobody can attach a debugger from outside the app. You can choose to turn on `about:config` in Settings. While it's on, you can change any engine setting, including privacy-related ones such as telemetry, and a wrong change can cause severe crashes. Leave it off unless you know exactly what you're doing.
 - **Incognito tabs use Gecko's private mode.** Cookies, cache, and site storage from incognito tabs aren't saved to disk.
+- **Website isolation is off by default.** You can turn it on in Settings under Privacy and Security. It runs each site in its own process, which makes it harder for one site to get at another site's data. It doesn't send anything anywhere, and the app needs to restart before the change takes effect.
 - **Clint Gecko adds its own tracking protection settings on top of the engine.** These are described in the Tracking Protection section below. Clint Gecko adds no Safe Browsing controls of its own. Any such features that are part of the GeckoView version you have installed are governed by Mozilla's engine defaults, and may involve the engine contacting Mozilla or its partners' servers to update lists. See Mozilla's privacy notices for details.
 
 ---
@@ -39,20 +40,35 @@ All browsing data, including history, cookies, cached content, and site storage,
 
 **Undo for closed tabs.** When you close tabs, Clint Gecko briefly keeps them in memory so you can tap Undo and bring them back. Nothing is written to storage for this. Incognito tabs are never kept for undo.
 
-Clint Gecko includes an optional **Block third-party cookies** setting and an optional **Do Not Track** signal. These are requests and restrictions applied inside your browser. Websites are free to ignore a Do Not Track request. More protections are described in the Tracking Protection and Data and Device Protection sections below.
+**Delete browsing data.** You can delete your browsing history, cookies and site data, cached images and files, open tabs, and site settings from History or from Settings under Privacy and Security. Browsing history is deleted for the time range you pick. Cookies and site data, cached images and files, and site settings are always deleted for all time, because the engine can't delete them for only part of a time range. The screen tells you when this will happen. Deleted data can't be recovered, except for closed tabs, which you can bring back with Undo right after. The time range and items you pick are remembered on your device.
+
+Clint Gecko includes a **Cookie protection** setting, described in the Tracking Protection section below, and an optional **Do Not Track** signal. These are requests and restrictions applied inside your browser. Websites are free to ignore a Do Not Track request. More protections are described in the Tracking Protection and Data and Device Protection sections below.
 
 ---
 
 ## Tracking Protection
 
-Clint Gecko includes optional settings that limit how much websites can learn about you. Each one can be turned on or off in Settings under Privacy and Security.
+Clint Gecko includes settings that limit how much websites can learn about you. Each one can be changed in Settings under Privacy and Security.
 
+- **Enhanced Tracking Protection.** Blocks known trackers using the Gecko engine's tracker lists. **Standard** (the default) blocks cryptominers and social media tracking cookies in every tab, and also blocks tracking content and email trackers in incognito tabs. **Strict** also blocks tracking content and social media trackers in every tab, which may break some sites. **Off** turns tracker blocking off. The tracker lists come from Mozilla, and the engine may download updates to them from Mozilla's servers. When it does, your IP address is visible to Mozilla for that request, the same as visiting any website. No browsing history or identifiers from Clint Gecko are sent along with it.
+- **Turning protection off for a site.** If a site doesn't work right, you can turn Enhanced Tracking Protection off for just that site from the site information sheet. This exception is stored by the engine on your device. Exceptions made in incognito tabs are forgotten when the incognito session ends.
+- **Cookie protection.** Controls whether websites can use cookies from other sites. **Total Cookie Protection** (the default) gives each site its own separate cookie jar, so cookies can't be used to follow you from one site to another. **Block third-party cookies** blocks cookies from other sites completely, which may break some sites. **Allow all cookies** lets them through in normal tabs. Incognito tabs always use at least Total Cookie Protection.
 - **Strip tracking parameters.** Removes tracking parameters such as `utm_` and `fbclid` from links before the page loads. This happens on your device. Nothing is sent anywhere to do it.
 - **Fingerprinting protection.** Makes it harder for sites to identify you by your browser and device traits. Some sites may look or behave differently when it's on.
 - **Send Global Privacy Control.** Sends a signal asking websites not to sell or share your data. Websites may choose to ignore it.
 - **WebRTC leak protection.** Stops websites from finding your real IP address through video call features. Some calls may not connect when it's on.
 
 These are requests and restrictions applied inside your browser. They reduce tracking but cannot guarantee that you won't be tracked, and websites may use other techniques that these settings don't cover.
+
+---
+
+## Site Information
+
+Tapping the lock icon in the address bar opens a sheet with information about the site you're on.
+
+- **Connection and certificate details** come from the Gecko engine for the page that's already loaded. Nothing extra is requested to show them.
+- **Blocked trackers** are read from the engine's own log for the current page when you open the sheet. This list isn't saved anywhere, and Clint Gecko doesn't keep a history of blocked trackers.
+- **Permissions** shown on the sheet are the same site permissions described in the Website Permissions section below. Changing them here is the same as changing them in Site Settings.
 
 ---
 
@@ -64,7 +80,7 @@ These optional settings help protect your data on your device. All of them are l
 - **Block screenshots.** Prevents screenshots and screen recording inside the app and hides the app preview in recent apps. It can't stop someone from photographing your screen with another device.
 - **Incognito keyboard.** Asks your keyboard not to learn from what you type in incognito tabs. Your keyboard app decides whether to honor this request, and Clint Gecko has no control over what it does.
 - **Auto-clear clipboard.** Clears the clipboard after the delay you choose (30 seconds, 1 minute, or 5 minutes). Clipboard contents are not sent anywhere.
-- **Clear data on exit.** Deletes the data you select when you close the app. You can choose any of browsing history, cookies and site data, and cache. Deleted data can't be recovered.
+- **Clear data on exit.** Deletes the data you select when you close the app. You can choose any of browsing history, cookies and site data, cache, and open tabs. Open tabs is off by default. When it's on, your saved tabs and their thumbnails are deleted when you exit. If the app is closed another way, such as being swiped away from recent apps, they're deleted the next time you open Clint Gecko. Deleted data can't be recovered.
 - **Strict certificate checking.** Never lets you continue to a site with an invalid security certificate.
 
 ---
@@ -161,6 +177,19 @@ You can review DuckDuckGo's privacy policy at https://duckduckgo.com/privacy and
 
 ---
 
+## Translations
+
+Clint Gecko can translate web pages using the translation engine built into GeckoView, the same one Firefox uses.
+
+- **Translation happens on your device.** The text of the page is translated locally. It's never sent to Mozilla, the developer, or any other translation service.
+- **Some files are downloaded from Mozilla.** The engine needs a few files to detect a page's language and to translate it. They're downloaded from Mozilla's servers when they're first needed, or when you download a language yourself in Settings. Your IP address is visible to Mozilla for that request, the same as visiting any website. These requests don't include the page you're translating, your browsing history, or any identifiers from Clint Gecko.
+- **Your choices are stored locally.** Your target language, your Always translate and Never translate choices, and the sites you never want translated are kept on your device. Never translate this site isn't available in incognito tabs.
+- **You're in control.** You can turn off translation offers, and delete downloaded language files at any time, in the Translations settings under Browser.
+
+You can review Mozilla's privacy notices at https://www.mozilla.org/privacy/
+
+---
+
 ## Extensions
 
 Clint Gecko supports browser extensions through Gecko's WebExtensions system. Extensions are optional. None are installed for you, and the app works the same way without them.
@@ -200,6 +229,12 @@ When you open the homepage, Clint Gecko connects to the address you entered the 
 
 ---
 
+## Long Shot
+
+Long Shot is a small game on the offline page and at `clint://longshot`. It runs entirely inside the app and makes no network requests. Your best score and sound setting are stored on your device. Websites can't open the game or change your score.
+
+---
+
 ---
 
 ## Bookmarks
@@ -230,6 +265,8 @@ Files you download are saved directly to your device. Clint Gecko does not uploa
 To give a file the right name and extension, Clint Gecko may read the server's response headers and the first few bytes of the file. This check happens on your device and nothing is sent anywhere.
 
 The download manager can split a download into segments, such as the pieces of a streaming video, and fetch them from the website. The website's server sees those requests and your IP address, the same as any download. The progress, segment counts, and average segment size shown in a download's Properties are kept on your device, and so is the download history. When a download needs to be combined into one file, this is done locally on your device, and its progress is tracked on your device.
+
+**Auto mode.** When the number of connections or segments is set to Auto, Clint Gecko remembers the number that worked best for each server, so the next download from it starts at the right speed. It remembers up to 100 servers. Server names are stored as a one-way hash instead of plain text, and this data never leaves your device.
 
 ---
 
@@ -338,7 +375,7 @@ You can define site-specific exceptions that override the default behavior.
 - These overrides take priority over global settings
 - If you select "Don't ask again" when responding to a prompt, the website is automatically added to Site Exceptions
 
-You can manage or remove these exceptions anytime from Site Settings.
+You can manage or remove these exceptions anytime from Site Settings or from the site information sheet.
 
 ---
 
@@ -372,6 +409,7 @@ Clint Gecko requests the following permissions:
 - **FOREGROUND_SERVICE_DATA_SYNC** – Works with `FOREGROUND_SERVICE` to tell Android the background activity is a file download.
 - **FOREGROUND_SERVICE_MEDIA_PROCESSING** – Works with `FOREGROUND_SERVICE` to tell Android the background activity is processing a downloaded video stream, such as combining its segments into a single file.
 - **FOREGROUND_SERVICE_MEDIA_PLAYBACK** – Works with `FOREGROUND_SERVICE` to tell Android the background activity is audio or video playback, so background playback keeps running with the app closed or the screen off.
+- **RUN_USER_INITIATED_JOBS** – Lets downloads you start run as user-initiated data transfers on Android 14 and newer, which Android lets run longer than other background work.
 
 ## Security
 - **USE_BIOMETRIC** – Lets App lock and the backup confirmation ask Android to verify you with your fingerprint, face, or screen lock. Android does the check, and Clint Gecko only receives a yes or no.
@@ -393,7 +431,7 @@ If the app crashes, Clint Gecko saves a crash log on your device so you can look
 
 ## Data Retention and Deletion
 
-Since no personal data is collected by the developer, there is nothing to delete on our servers. All local data (history, bookmarks, downloads, extensions and their data, etc.) is stored on your device. This includes your custom themes, homepage choices, and privacy settings. You can delete any or all of it at any time through the app's settings, with Clear data on exit, or by clearing the app's storage in your device settings.
+Since no personal data is collected by the developer, there is nothing to delete on our servers. All local data (history, bookmarks, downloads, extensions and their data, etc.) is stored on your device. This includes your custom themes, homepage choices, and privacy settings. You can delete any or all of it at any time through the app's settings, with Delete browsing data, with Clear data on exit, or by clearing the app's storage in your device settings.
 
 ---
 
@@ -412,6 +450,8 @@ However, the search engine or services you choose (such as DuckDuckGo, Brave Sea
 - The search suggestions feature uses DuckDuckGo's or Google's public suggestion API, or a custom one you configure, depending on which provider you've selected.
 - The favicon fallback feature uses DuckDuckGo's public API, and high-resolution icons may also use Google's favicon service, as described above.
 - If you turn on Secure DNS, the domain names of the sites you visit are sent to the DNS provider you choose (Cloudflare, Google, Quad9, or a custom one), as described above.
+- Translation files are downloaded from Mozilla, as described above. Pages are always translated on your device.
+- The tracker lists used by Enhanced Tracking Protection may be updated from Mozilla's servers, as described above.
 - Website Blocker list downloads and update checks are fetched from GitHub, as described above.
 - Extensions you install, and Mozilla's Add-ons site when you browse it, are run by third parties with their own privacy policies.
 - The GeckoView engine is developed by Mozilla and may contact Mozilla's servers for engine features Clint Gecko doesn't disable, as described above.

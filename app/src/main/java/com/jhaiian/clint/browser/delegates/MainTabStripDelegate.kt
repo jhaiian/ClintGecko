@@ -4,6 +4,7 @@ import com.jhaiian.clint.browser.MainActivity
 import com.jhaiian.clint.profiles.ProfileRepository
 import com.jhaiian.clint.profiles.WebProfiles
 import com.jhaiian.clint.tabs.TabBarPlacement
+import com.jhaiian.clint.tabs.TabGroupPrefs
 import com.jhaiian.clint.tabs.TabStripPrefs
 import com.jhaiian.clint.tabs.TabStripState
 
@@ -25,7 +26,8 @@ internal fun MainActivity.refreshTabStrip() {
         groups = tabManager.groups.filter { it.isIncognito == incognito },
         activeTabId = activeId,
         isIncognito = incognito,
-        profileColors = profileColors
+        profileColors = profileColors,
+        groupsEnabled = TabGroupPrefs.isEnabled(prefs)
     )
 }
 

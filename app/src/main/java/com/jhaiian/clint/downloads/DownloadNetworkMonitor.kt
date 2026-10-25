@@ -20,7 +20,7 @@ internal object DownloadNetworkMonitor {
 
     private sealed class NetworkEvent {
         object Available : NetworkEvent()
-        data class CapabilitiesChanged(val unmetered: Boolean) : NetworkEvent()
+        data class CapabilitiesChanged(val unmetered: Boolean, val usable: Boolean) : NetworkEvent()
         object Lost : NetworkEvent()
     }
 
@@ -32,7 +32,13 @@ internal object DownloadNetworkMonitor {
             }
 
             override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-                trySend(NetworkEvent.CapabilitiesChanged(caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)))
+                trySend(
+                    NetworkEvent.CapabilitiesChanged(
+                        unmetered = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED),
+                        usable = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                    )
+                )
             }
 
             override fun onLost(network: Network) {
@@ -51,7 +57,10 @@ internal object DownloadNetworkMonitor {
             networkEvents(appContext).collect { event ->
                 when (event) {
                     is NetworkEvent.Available -> handleAvailable(appContext)
-                    is NetworkEvent.CapabilitiesChanged -> handleCapabilitiesChanged(appContext, event.unmetered)
+                    is NetworkEvent.CapabilitiesChanged -> {
+                        if (event.usable && networkWaitingIds.isNotEmpty()) handleAvailable(appContext)
+                        handleCapabilitiesChanged(appContext, event.unmetered)
+                    }
                     is NetworkEvent.Lost -> pauseActiveForMetered(appContext)
                 }
             }

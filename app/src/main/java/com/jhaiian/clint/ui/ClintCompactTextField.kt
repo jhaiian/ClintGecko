@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldDecorator
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -36,15 +38,15 @@ fun ClintCompactTextField(
     val colors = LocalClintColors.current
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(10.dp)
+    val state = rememberSyncedTextFieldState(value, onValueChange)
     BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
+        state = state,
         modifier = modifier.onFocusChanged { focused = it.isFocused },
-        singleLine = true,
+        lineLimits = TextFieldLineLimits.SingleLine,
         keyboardOptions = keyboardOptions,
         textStyle = TextStyle(color = colors.onSurface, fontSize = 13.sp),
         cursorBrush = SolidColor(colors.primary),
-        decorationBox = { innerTextField ->
+        decorator = TextFieldDecorator { innerTextField ->
             Box(
                 Modifier
                     .fillMaxWidth()
@@ -53,7 +55,7 @@ fun ClintCompactTextField(
                     .padding(horizontal = 10.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
-                if (value.isEmpty() && placeholder.isNotEmpty()) {
+                if (state.text.isEmpty() && placeholder.isNotEmpty()) {
                     Text(placeholder, color = colors.secondaryText, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 innerTextField()

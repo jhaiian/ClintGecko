@@ -38,6 +38,12 @@ object DataSaverSiteException {
         com.jhaiian.clint.browser.webview.ClintGecko.pushConfig()
     }
 
+    fun invalidate() {
+        cache.clear()
+        com.jhaiian.clint.browser.webview.ClintGecko.scheduleBundle()
+        com.jhaiian.clint.browser.webview.ClintGecko.pushConfig()
+    }
+
     fun remove(context: Context, host: String) {
         SitePermissionManager.deleteEntry(
             context.applicationContext, host, SitePermissionDatabase.TYPE_DATA_SAVER_EXCEPTION

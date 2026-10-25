@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Apps
@@ -131,7 +133,8 @@ internal fun PartsStrip(
     columns: Int = fractions.size,
     cellHeight: Dp = 10.dp,
     gap: Dp = 2.dp,
-    minCellWidth: Dp? = null
+    minCellWidth: Dp? = null,
+    maxHeight: Dp? = null
 ) {
     val track = LocalClintColors.current.primary.copy(alpha = 0.12f)
     val partial = color.copy(alpha = 0.55f)
@@ -140,7 +143,10 @@ internal fun PartsStrip(
             ((maxWidth + gap) / (minCellWidth + gap)).toInt().coerceIn(1, fractions.size.coerceAtLeast(1))
         } else columns.coerceAtLeast(1)
         val rows = (fractions.size + safeColumns - 1) / safeColumns
-        Canvas(Modifier.fillMaxWidth().height(cellHeight * rows + gap * (rows - 1).coerceAtLeast(0))) {
+        val gridHeight = cellHeight * rows + gap * (rows - 1).coerceAtLeast(0)
+        val viewport = maxHeight?.takeIf { gridHeight > it }
+        val frame = if (viewport != null) Modifier.fillMaxWidth().height(viewport).verticalScroll(rememberScrollState()) else Modifier.fillMaxWidth()
+        Canvas(frame.height(gridHeight)) {
             val gapPx = gap.toPx()
             val cellW = (size.width - gapPx * (safeColumns - 1)) / safeColumns
             val cellH = cellHeight.toPx()
@@ -334,9 +340,9 @@ internal fun downloadPartFractions(item: DownloadItem): List<Float>? {
     if (item.isStream) {
         val total = item.segmentsTotal
         if (total <= 1) return null
-        if (item.partProgress.size == total) return item.partProgress
+        if (item.partProgress.size == SegmentMap.bucketCount(total)) return item.partProgress
         val done = item.segmentsCompleted.coerceIn(0, total)
-        return List(total) { index -> if (index < done) 1f else 0f }
+        return SegmentMap.build(total) { index -> if (index < done) 1f else 0f }
     }
     if (item.partProgress.size > 1) return item.partProgress
     PartMap.fractions(item.partMap, item.totalBytes)?.takeIf { it.size > 1 }?.let { return it }

@@ -1,0 +1,1 @@
+Navegador Android baseado no Firefox com ADM, captura de mídia e extensões

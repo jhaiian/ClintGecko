@@ -26,7 +26,7 @@ import com.jhaiian.clint.ui.ClintDialog
 import com.jhaiian.clint.settings.common.SettingsRow
 import com.jhaiian.clint.settings.common.SettingsScreenScaffold
 import com.jhaiian.clint.settings.common.SettingsSection
-import com.jhaiian.clint.setup.SectionLabel
+import com.jhaiian.clint.settings.common.SettingsSectionLabel
 import com.jhaiian.clint.ui.theme.LocalClintColors
 
 @Composable
@@ -83,7 +83,7 @@ fun UpdateSettingsScreen(
             }
         }
     ) {
-        SectionLabel(stringResource(R.string.update_section_updates), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.update_section_updates))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Refresh,
@@ -125,7 +125,7 @@ fun UpdateSettingsScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.update_section_channel), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.update_section_channel))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Warning,

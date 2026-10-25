@@ -1,7 +1,6 @@
 package com.jhaiian.clint.downloads
 
 import android.content.Context
-import android.util.Base64
 import android.widget.Toast
 import com.jhaiian.clint.R
 import com.jhaiian.clint.browser.MainActivity
@@ -24,16 +23,14 @@ object ResponseDownloads {
         val filename = DownloadFilenameResolver.resolve(source, header("Content-Disposition"), mime)
         val appContext = context.applicationContext
         ClintGecko.io.execute {
-            val encoded = runCatching {
-                Base64.encodeToString(body.use { it.readBytes() }, Base64.NO_WRAP)
-            }.getOrNull()
+            val blob = runCatching { body.use { DownloadBlobStore.fromStream(appContext, it) } }.getOrNull()
             ClintGecko.main.post {
-                if (encoded == null) {
+                if (blob == null) {
                     Toast.makeText(appContext, R.string.download_response_failed, Toast.LENGTH_SHORT).show()
                 } else if (context is MainActivity && !context.isFinishing && !context.isDestroyed) {
-                    context.showDownloadDialogForBlob(encoded, filename, mime ?: "application/octet-stream")
+                    context.showDownloadDialogForBlob(blob, filename, mime ?: "application/octet-stream")
                 } else {
-                    ClintDownloadManager.enqueueBlob(context, encoded, filename, mime ?: "application/octet-stream")
+                    ClintDownloadManager.enqueueBlob(context, blob, filename, mime ?: "application/octet-stream")
                 }
             }
         }

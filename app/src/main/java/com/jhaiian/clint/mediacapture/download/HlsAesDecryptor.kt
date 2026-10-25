@@ -13,6 +13,9 @@ object HlsAesDecryptor {
 
     fun isSupported(method: String): Boolean = method == "AES-128"
 
+    fun prefetch(key: HlsKeyInfo, referer: String, cookies: String, userAgent: String, extraHeaders: Map<String, String> = emptyMap()): Boolean =
+        isSupported(key.method) && fetchKey(key.keyUri, referer, cookies, userAgent, extraHeaders) != null
+
     private fun fetchKey(keyUri: String, referer: String, cookies: String, userAgent: String, extraHeaders: Map<String, String>): ByteArray? {
         keyCache[keyUri]?.let { return it }
         val builder = Request.Builder().url(keyUri)

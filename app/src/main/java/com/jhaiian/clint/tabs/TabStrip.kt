@@ -74,7 +74,8 @@ data class TabStripState(
     val groups: List<TabGroup>,
     val activeTabId: String?,
     val isIncognito: Boolean,
-    val profileColors: Map<String, Int> = emptyMap()
+    val profileColors: Map<String, Int> = emptyMap(),
+    val groupsEnabled: Boolean = true
 )
 
 private sealed class TabStripItem {
@@ -166,6 +167,7 @@ internal fun TabStrip(
                                 onNewTabInGroup = { item.group?.let { onNewTabInGroup(it.id) } },
                                 onAddToNewGroup = { onAddToNewGroup(item.preview.id) },
                                 onRemoveFromGroup = { onRemoveFromGroup(item.preview.id) },
+                                canGroup = state.groupsEnabled,
                                 canCloseOthers = state.tabs.size > 1,
                                 profileColor = state.profileColors[item.preview.profileId]
                             )
@@ -236,6 +238,7 @@ private fun TabStripTab(
     onNewTabInGroup: () -> Unit,
     onAddToNewGroup: () -> Unit,
     onRemoveFromGroup: () -> Unit,
+    canGroup: Boolean,
     canCloseOthers: Boolean,
     profileColor: Int?
 ) {
@@ -341,7 +344,7 @@ private fun TabStripTab(
                 ListMenuItem(Icons.Filled.LinkOff, stringResource(R.string.tab_strip_remove_from_group), checked = false) {
                     menuExpanded = false; onRemoveFromGroup()
                 }
-            } else {
+            } else if (canGroup) {
                 ListMenuItem(Icons.Filled.CreateNewFolder, stringResource(R.string.tab_strip_add_to_new_group), checked = false) {
                     menuExpanded = false; onAddToNewGroup()
                 }

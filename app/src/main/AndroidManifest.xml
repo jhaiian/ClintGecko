@@ -153,6 +153,12 @@
             android:parentActivityName=".browser.MainActivity" />
 
         <activity
+            android:name=".privacy.DeleteBrowsingDataActivity"
+            android:exported="false"
+            android:configChanges="uiMode|screenSize|smallestScreenSize|screenLayout|orientation"
+            android:parentActivityName=".browser.MainActivity" />
+
+        <activity
             android:name=".settings.sitepermissions.SitePermissionActivity"
             android:exported="false"
             android:configChanges="uiMode|screenSize|smallestScreenSize|screenLayout|orientation"
@@ -269,6 +275,11 @@
 
         <service
             android:name=".downloads.DownloadTransferJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <service
+            android:name=".downloads.DownloadBackgroundJobService"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
 

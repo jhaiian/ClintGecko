@@ -4,8 +4,9 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldDecorator
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -24,6 +25,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jhaiian.clint.R
+import com.jhaiian.clint.ui.rememberSyncedTextFieldState
 import com.jhaiian.clint.ui.theme.LocalClintColors
 
 @Composable
@@ -37,6 +39,7 @@ fun RowScope.ClintSearchField(
     val colors = LocalClintColors.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusRequester = remember { FocusRequester() }
+    val state = rememberSyncedTextFieldState(query, onQueryChange)
 
     LaunchedEffect(Unit) {
         if (autoFocus) {
@@ -46,15 +49,14 @@ fun RowScope.ClintSearchField(
     }
 
     BasicTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        singleLine = true,
+        state = state,
+        lineLimits = TextFieldLineLimits.SingleLine,
         textStyle = TextStyle(color = colors.onSurface, fontSize = 16.sp),
         cursorBrush = SolidColor(colors.primary),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
-        decorationBox = { inner ->
-            if (query.isEmpty()) {
+        onKeyboardAction = { keyboardController?.hide() },
+        decorator = TextFieldDecorator { inner ->
+            if (state.text.isEmpty()) {
                 Text(hint, color = colors.secondaryText, fontSize = 16.sp)
             }
             inner()

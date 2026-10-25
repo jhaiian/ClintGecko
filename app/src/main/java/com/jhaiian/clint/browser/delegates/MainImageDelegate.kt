@@ -72,15 +72,24 @@ internal fun MainActivity.handleImageDownload(imageUrl: String, altText: String)
         val content = imageUrl.substring(commaIdx + 1)
         val mimeType = dataUriMimeType(imageUrl)
         val filename = resolveImageFilename(imageUrl, altText)
-        val b64 = if (header.contains(";base64")) {
-            content
-        } else {
-            try {
-                val bytes = java.net.URLDecoder.decode(content, "UTF-8").toByteArray(Charsets.UTF_8)
-                android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-            } catch (_: Exception) { return }
+        val appContext = applicationContext
+        com.jhaiian.clint.browser.webview.ClintGecko.io.execute {
+            val blob = if (header.contains(";base64")) {
+                com.jhaiian.clint.downloads.DownloadBlobStore.fromBase64(appContext, content)
+            } else {
+                runCatching { java.net.URLDecoder.decode(content, "UTF-8").toByteArray(Charsets.UTF_8) }.getOrNull()
+                    ?.let { com.jhaiian.clint.downloads.DownloadBlobStore.fromBytes(appContext, it) }
+            }
+            runOnUiThread {
+                if (blob == null) {
+                    Toast.makeText(appContext, R.string.download_response_failed, Toast.LENGTH_SHORT).show()
+                } else if (isFinishing || isDestroyed) {
+                    com.jhaiian.clint.downloads.ClintDownloadManager.enqueueBlob(appContext, blob, filename, mimeType)
+                } else {
+                    showDownloadDialogForBlob(blob, filename, mimeType, quickImages)
+                }
+            }
         }
-        showDownloadDialogForBlob(b64, filename, mimeType, quickImages)
         return
     }
     val userAgent = tabManager.activeTab?.webView?.settings?.userAgentString ?: buildUserAgent()

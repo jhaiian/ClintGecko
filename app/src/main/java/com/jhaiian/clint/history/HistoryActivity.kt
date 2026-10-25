@@ -5,13 +5,17 @@ import com.jhaiian.clint.R
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
+import androidx.compose.material3.SnackbarHostState
 import com.jhaiian.clint.base.ClintActivity
+import com.jhaiian.clint.ui.ClintSnackbarHost
+import com.jhaiian.clint.ui.SnackbarHostActivity
+import com.jhaiian.clint.ui.UNDO_SNACKBAR_TIMEOUT_MS
+import com.jhaiian.clint.ui.showClintSnackbar
 import com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig
 import com.jhaiian.clint.ui.listscreen.ConfirmDialogHost
 import com.jhaiian.clint.ui.rememberMaxContentWidth
@@ -20,7 +24,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class HistoryActivity : ClintActivity() {
+class HistoryActivity : ClintActivity(), SnackbarHostActivity {
+
+    override val snackbarHostState = SnackbarHostState()
 
     private lateinit var uiState: HistoryUiState
     private lateinit var prefs: android.content.SharedPreferences
@@ -54,14 +60,24 @@ class HistoryActivity : ClintActivity() {
                     maxContentWidth = maxContentWidth,
                     onExit = { finish() },
                     onOpenItem = { item -> openHistoryItem(item) },
+                    onDeleteItem = { item -> deleteItem(item) },
                     onDeleteSelectedClick = { showDeleteConfirm() },
-                    onClearAllClick = { showClearAllConfirm() }
+                    onClearAllClick = { showClearAllConfirm() },
+                    onDeleteBrowsingDataClick = {
+                        startActivity(Intent(this, com.jhaiian.clint.privacy.DeleteBrowsingDataActivity::class.java))
+                    }
                 )
 
                 ConfirmDialogHost(uiState.deleteConfirm, hideStatusBar, hideSystemNavigation) { uiState.deleteConfirm = null }
                 ConfirmDialogHost(uiState.clearAllConfirm, hideStatusBar, hideSystemNavigation) { uiState.clearAllConfirm = null }
+                ClintSnackbarHost(hostState = snackbarHostState)
             }
         }
+    }
+
+    override fun onRestart() {
+        super.onRestart()
+        loadHistory()
     }
 
     private fun loadHistory() {
@@ -91,6 +107,27 @@ class HistoryActivity : ClintActivity() {
         finish()
     }
 
+    private fun deleteItem(item: HistoryItem) {
+        uiState.items = uiState.items.filterNot { it.query == item.query }
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) { SearchHistoryManager.delete(this@HistoryActivity, item.query) }
+            showClintSnackbar(
+                message = getString(R.string.history_items_deleted),
+                actionLabel = getString(R.string.action_undo),
+                timeoutMs = UNDO_SNACKBAR_TIMEOUT_MS
+            ) { restoreItem(item) }
+        }
+    }
+
+    private fun restoreItem(item: HistoryItem) {
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) { SearchHistoryManager.restore(this@HistoryActivity, item) }
+            if (uiState.items.none { it.query == item.query }) {
+                uiState.items = (uiState.items + item).sortedByDescending { it.timestamp }
+            }
+        }
+    }
+
     private fun showDeleteConfirm() {
         val count = uiState.selectedCount
         if (count == 0) return
@@ -111,7 +148,7 @@ class HistoryActivity : ClintActivity() {
             }
             uiState.items = uiState.items.filterNot { it.query in toDelete }
             uiState.exitSelectionMode()
-            Toast.makeText(this@HistoryActivity, getString(R.string.history_items_deleted), Toast.LENGTH_SHORT).show()
+            showClintSnackbar(getString(R.string.history_items_deleted))
         }
     }
 
@@ -131,7 +168,7 @@ class HistoryActivity : ClintActivity() {
             withContext(Dispatchers.IO) { SearchHistoryManager.clear(this@HistoryActivity) }
             uiState.items = emptyList()
             uiState.exitSelectionMode()
-            Toast.makeText(this@HistoryActivity, getString(R.string.history_all_cleared), Toast.LENGTH_SHORT).show()
+            showClintSnackbar(getString(R.string.history_all_cleared))
         }
     }
 }

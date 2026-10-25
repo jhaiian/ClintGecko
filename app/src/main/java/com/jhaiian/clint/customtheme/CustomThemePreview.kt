@@ -87,6 +87,7 @@ import com.jhaiian.clint.browser.menu.CustomizableMenuItem
 import com.jhaiian.clint.browser.menu.icon
 import com.jhaiian.clint.browser.menu.titleRes
 import com.jhaiian.clint.settings.common.SettingsRow
+import com.jhaiian.clint.settings.common.SettingsRowDividerInset
 import com.jhaiian.clint.settings.common.SettingsSection
 import com.jhaiian.clint.ui.ClintSwitch
 import com.jhaiian.clint.ui.theme.LocalClintColors
@@ -833,9 +834,9 @@ private fun SettingsScreenMock(palette: CustomPalette, showDialog: Boolean) {
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().background(colors.background)) {
             MockStatusStrip(palette.color(ThemeSlot.STATUS_BAR))
-            Surface(color = colors.surface, shadowElevation = 4.dp) {
+            Surface(color = colors.background) {
                 Row(
-                    Modifier.fillMaxWidth().height(56.dp).padding(start = 4.dp, end = 8.dp),
+                    Modifier.fillMaxWidth().height(64.dp).padding(start = 4.dp, end = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
@@ -844,14 +845,13 @@ private fun SettingsScreenMock(palette: CustomPalette, showDialog: Boolean) {
                     Text(
                         stringResource(R.string.settings),
                         color = colors.onSurface,
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(start = 4.dp)
                     )
                 }
             }
-            HorizontalDivider(color = colors.divider, thickness = 1.dp)
-            Column(Modifier.weight(1f).fillMaxWidth().clipToBounds().padding(16.dp)) {
+            Column(Modifier.weight(1f).fillMaxWidth().clipToBounds().padding(start = 16.dp, end = 16.dp, top = 8.dp)) {
                 SettingsSection(colors.cardBackground) {
                     SettingsRow(
                         icon = Icons.Filled.Palette,
@@ -913,7 +913,8 @@ private fun SettingsScreenMock(palette: CustomPalette, showDialog: Boolean) {
 
 @Composable
 private fun MockRowDivider() {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(LocalClintColors.current.divider))
+    val divider = LocalClintColors.current.divider
+    Box(Modifier.fillMaxWidth().padding(start = SettingsRowDividerInset, end = 16.dp).height(1.dp).background(divider.copy(alpha = divider.alpha * 0.6f)))
 }
 
 @Composable

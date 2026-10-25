@@ -192,9 +192,9 @@ private fun SiteListToolbar(
 ) {
     val colors = LocalClintColors.current
 
-    Surface(color = colors.surface, shadowElevation = 4.dp, modifier = Modifier.statusBarsPadding()) {
+    Surface(color = colors.background, modifier = Modifier.statusBarsPadding()) {
         Row(
-            Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp),
+            Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
@@ -215,8 +215,8 @@ private fun SiteListToolbar(
                 Text(
                     text = if (state.isInSelectionMode) stringResourceSelectedCount(state.selectedOrigins.size) else title,
                     color = colors.onSurface,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f).padding(start = 4.dp)

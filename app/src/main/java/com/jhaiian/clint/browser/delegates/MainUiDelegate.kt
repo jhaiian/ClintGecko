@@ -3,8 +3,11 @@ import androidx.compose.ui.graphics.toArgb
 import com.jhaiian.clint.browser.webview.ClintWebView
 import com.jhaiian.clint.browser.webview.ClintGecko
 import com.jhaiian.clint.browser.home.isClintHomeUrl
+import com.jhaiian.clint.browser.longshot.LongShot
 import com.jhaiian.clint.ui.theme.ThemeMode
 import com.jhaiian.clint.browser.*
+import com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_BOOKMARKS
+import com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_HISTORY
 import com.jhaiian.clint.browser.suggestions.SuggestionFetcher
 import com.jhaiian.clint.settings.datasaver.DataSaverMode
 import com.jhaiian.clint.browser.webview.loadJsAsset
@@ -43,13 +46,25 @@ internal fun MainActivity.setupAddressBar() {
     suggestionsBgHandler = android.os.Handler(bgThread.looper)
 }
 
+private fun MainActivity.clintPageSuggestions(query: String): List<SuggestionItem> =
+    if (LongShot.matchesSuggestion(query)) {
+        listOf(SuggestionItem(LongShot.URL, getString(R.string.long_shot_title), SuggestionType.CLINT_PAGE))
+    } else {
+        emptyList()
+    }
+
 private fun combineSuggestions(
+    pages: List<SuggestionItem>,
     bookmarks: List<Bookmark>,
     history: List<HistoryItem>,
     suggestions: List<String>
 ): List<SuggestionItem> {
     val seenUrls = mutableSetOf<String>()
     val items = mutableListOf<SuggestionItem>()
+    pages.forEach {
+        seenUrls.add(it.query)
+        items.add(it)
+    }
     bookmarks.forEach {
         seenUrls.add(it.url)
         items.add(SuggestionItem(it.url, it.title.ifBlank { it.url }, SuggestionType.BOOKMARK))
@@ -89,13 +104,14 @@ internal fun MainActivity.onSearchQueryChanged(query: String) {
     bgHandler.post {
         val isIncognito = tabManager.activeTab?.isIncognito == true
         val incognitoHistoryAllowed = prefs.getBoolean("incognito_search_history_enabled", false)
-        val historyAllowed = !isIncognito || incognitoHistoryAllowed
+        val historyAllowed = prefs.getBoolean(PREF_SUGGESTIONS_SHOW_HISTORY, true) && (!isIncognito || incognitoHistoryAllowed)
+        val bookmarksAllowed = prefs.getBoolean(PREF_SUGGESTIONS_SHOW_BOOKMARKS, true)
         if (query.isBlank()) {
             suggestionFetcher?.cancel()
             lastOnlineSuggestions = emptyList()
             val history = if (historyAllowed) SearchHistoryManager.getAll(this).take(SUGGESTION_HISTORY_LIMIT) else emptyList()
-            val bookmarks = BookmarkManager.getAll(this).take(SUGGESTION_BOOKMARK_LIMIT)
-            runOnUiThread { uiState.suggestions = combineSuggestions(bookmarks, history, emptyList()) }
+            val bookmarks = if (bookmarksAllowed) BookmarkManager.getAll(this).take(SUGGESTION_BOOKMARK_LIMIT) else emptyList()
+            runOnUiThread { uiState.suggestions = combineSuggestions(emptyList(), bookmarks, history, emptyList()) }
             return@post
         }
         val suggestionsApi = prefs.getString("search_suggestions_api", "duckduckgo") ?: "duckduckgo"
@@ -105,15 +121,16 @@ internal fun MainActivity.onSearchQueryChanged(query: String) {
             lastOnlineSuggestions = emptyList()
         }
         val history = if (historyAllowed) SearchHistoryManager.search(this, query).take(SUGGESTION_HISTORY_LIMIT) else emptyList()
-        val bookmarks = BookmarkManager.search(this, query).take(SUGGESTION_BOOKMARK_LIMIT)
-        runOnUiThread { uiState.suggestions = combineSuggestions(bookmarks, history, lastOnlineSuggestions) }
+        val bookmarks = if (bookmarksAllowed) BookmarkManager.search(this, query).take(SUGGESTION_BOOKMARK_LIMIT) else emptyList()
+        val pages = clintPageSuggestions(query)
+        runOnUiThread { uiState.suggestions = combineSuggestions(pages, bookmarks, history, lastOnlineSuggestions) }
         if (onlineBlocked) return@post
         val customSuggestionsUrl = if (suggestionsApi == "custom") {
             customSearchSuggestionsApiQueryUrl(prefs, android.net.Uri.encode(query))
         } else null
         suggestionFetcher?.fetch(query, suggestionsApi, customSuggestionsUrl) { suggestions ->
             lastOnlineSuggestions = suggestions
-            runOnUiThread { uiState.suggestions = combineSuggestions(bookmarks, history, suggestions) }
+            runOnUiThread { uiState.suggestions = combineSuggestions(pages, bookmarks, history, suggestions) }
         }
     }
 }
@@ -122,10 +139,7 @@ internal fun MainActivity.onSuggestionHistoryDelete(query: String) {
     val bgHandler = suggestionsBgHandler ?: return
     bgHandler.post {
         SearchHistoryManager.delete(this, query)
-        val currentQuery = uiState.searchQuery
-        val history = SearchHistoryManager.search(this, currentQuery).take(SUGGESTION_HISTORY_LIMIT)
-        val bookmarks = BookmarkManager.search(this, currentQuery).take(SUGGESTION_BOOKMARK_LIMIT)
-        runOnUiThread { uiState.suggestions = combineSuggestions(bookmarks, history, emptyList()) }
+        runOnUiThread { if (uiState.searchOverlayOpen) onSearchQueryChanged(uiState.searchQuery) }
     }
 }
 
@@ -157,8 +171,11 @@ internal fun MainActivity.onSuggestionChosen(query: String) {
     loadUrl(query)
 }
 
+private fun isSecureAddress(url: String): Boolean =
+    url.startsWith("https://") || LongShot.isLongShotUrl(url)
+
 private fun MainActivity.setAddressBarText(formatted: String, isBottom: Boolean) {
-    val secure = formatted.startsWith("https://")
+    val secure = isSecureAddress(formatted)
     if (isBottom) {
         uiState.addressBarTextBottom = formatted
         uiState.addressBarSecureBottom = secure
@@ -223,6 +240,7 @@ internal fun MainActivity.loadUrl(input: String) {
 internal fun MainActivity.formatUrl(input: String): String {
     val t = input.trim()
     return when {
+        LongShot.isLongShotUrl(t) -> LongShot.URL
         t.equals("about:config", ignoreCase = true) && prefs.getBoolean("about_config_enabled", false) -> "about:config"
         t.startsWith("http://") || t.startsWith("https://") || t.startsWith("moz-extension://") -> t
         t.contains(".") && !t.contains(" ") -> {
@@ -239,7 +257,7 @@ internal fun MainActivity.updateAddressBar(url: String) {
     uiState.isHomePage = isHome
     if (uiState.searchOverlayOpen) return
     val shown = if (isHome) "" else url
-    val secure = shown.startsWith("https://")
+    val secure = isSecureAddress(shown)
     uiState.addressBarTextTop = shown
     uiState.addressBarSecureTop = secure
     uiState.addressBarTextBottom = shown
@@ -340,6 +358,7 @@ internal fun MainActivity.updateNavigationState() {
 internal fun MainActivity.updateTabCount() {
     val count = tabManager.previews().size
     uiState.tabCountText = if (count > 99) ":D" else count.toString()
+    com.jhaiian.clint.privacy.BrowsingDataCleaner.openTabCount = count
     refreshTabGroupBar()
     refreshTabStrip()
 }

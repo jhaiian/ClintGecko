@@ -212,7 +212,13 @@ internal fun MainActivity.applyJavaScript() {
 }
 
 internal fun MainActivity.applyCookiePolicy() {
-    ClintGecko.setBlockThirdPartyCookies(prefs.getBoolean("block_third_party_cookies", true))
+    ClintGecko.setCookiePolicy(com.jhaiian.clint.privacy.PrivacyPrefs.cookiePolicy(prefs))
+    tabManager.activeTab?.webView?.reload()
+}
+
+internal fun MainActivity.applyTrackingProtectionSettings() {
+    ClintGecko.applyTrackingProtection(this)
+    tabManager.tabs.forEach { it.webView.applyTrackingProtection() }
     tabManager.activeTab?.webView?.reload()
 }
 

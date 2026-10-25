@@ -43,6 +43,7 @@ Clint Gecko is built with Material 3 and Jetpack Compose, with a highly customiz
 • In total, 500 possible theme combinations
 
 <b>PRIVACY AND SECURITY</b>
+• Enhanced Tracking Protection and Total Cookie Protection
 • Tracking protection: strips tracking parameters, fingerprinting protection, Global Privacy Control and WebRTC leak protection
 • Secure DNS over HTTPS (Cloudflare, Google, Quad9 or custom)
 • App lock with fingerprint, face or screen lock
@@ -69,11 +70,13 @@ Clint Gecko is built with Material 3 and Jetpack Compose, with a highly customiz
 
 <b>BROWSER</b>
 • Multi-tab browsing
+• Tab groups
 • Incognito mode
 • Reader Mode
 • Desktop Mode
 • Popup protection
 • Data Saver
+• On-device page translation
 
 Just download the app and explore it yourself.
 

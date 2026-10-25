@@ -8,6 +8,8 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 internal object DownloadPersistence {
 
@@ -15,6 +17,11 @@ internal object DownloadPersistence {
     private const val LEGACY_KEY_DOWNLOADS = "saved_downloads"
 
     @Volatile private var db: DownloadDatabase? = null
+
+    private val writeSequence = AtomicLong(0L)
+    private val lastWrittenSequence = ConcurrentHashMap<Int, Long>()
+
+    fun nextSequence(): Long = writeSequence.incrementAndGet()
 
     private val RECOVERABLE_STATUSES = setOf(
         DownloadStatus.CONNECTING, DownloadStatus.RETRYING, DownloadStatus.ALLOCATING, DownloadStatus.DOWNLOADING,
@@ -78,14 +85,14 @@ internal object DownloadPersistence {
                 var status = runCatching { DownloadStatus.valueOf(statusStr) }
                     .getOrDefault(DownloadStatus.FAILED)
                 val isStreamRow = it.getColumnIndex(DownloadDatabase.COL_STREAM_JSON).let { idx -> idx >= 0 && !it.isNull(idx) }
-                if (status == DownloadStatus.COPYING_TEMP || status == DownloadStatus.DELETING_TEMP) {
-                    if (isStreamRow) {
-                        DownloadLog.i(id, "RECOVER") { "Interrupted while ${statusStr.lowercase()}; the app was closed or killed. Re-queued to finish" }
-                        status = DownloadStatus.QUEUED
-                    } else {
-                        DownloadLog.w(id, "RECOVER") { "Interrupted while ${statusStr.lowercase()}; marked as failed" }
-                        status = DownloadStatus.FAILED
-                    }
+                val savedContentUriIdx = it.getColumnIndex(DownloadDatabase.COL_CONTENT_URI)
+                val hasSavedDocument = savedContentUriIdx >= 0 && !it.isNull(savedContentUriIdx)
+                if (status == DownloadStatus.DELETING_TEMP && hasSavedDocument) {
+                    DownloadLog.i(id, "RECOVER") { "Interrupted while deleting the temporary copy; the file was already saved, marked as complete" }
+                    status = DownloadStatus.COMPLETE
+                } else if (status == DownloadStatus.COPYING_TEMP || status == DownloadStatus.DELETING_TEMP) {
+                    DownloadLog.i(id, "RECOVER") { "Interrupted while ${statusStr.lowercase()}; the app was closed or killed. Re-queued to finish" }
+                    status = DownloadStatus.QUEUED
                 } else if (status in RECOVERABLE_STATUSES) {
                     DownloadLog.i(id, "RECOVER") { "Interrupted while ${statusStr.lowercase()}; the app was closed or killed. Re-queued to resume" }
                     status = DownloadStatus.QUEUED
@@ -127,6 +134,9 @@ internal object DownloadPersistence {
                 val etag = if (etagIdx >= 0) it.getString(etagIdx) else null
                 val lastModifiedIdx = it.getColumnIndex(DownloadDatabase.COL_LAST_MODIFIED)
                 val lastModified = if (lastModifiedIdx >= 0) it.getString(lastModifiedIdx) else null
+                val waitReasonIdx = it.getColumnIndex(DownloadDatabase.COL_WAIT_REASON)
+                val waitReason = if (waitReasonIdx >= 0 && status == DownloadStatus.PAUSED) it.getString(waitReasonIdx) else null
+                if (waitReason == DownloadDatabase.WAIT_SYSTEM) ClintDownloadManager.timeoutPausedIds.add(id)
                 val item = DownloadItem(
                     id = id,
                     url = it.getString(it.getColumnIndexOrThrow(DownloadDatabase.COL_URL)),
@@ -165,7 +175,10 @@ internal object DownloadPersistence {
                     queueOrder = queueOrder,
                     partMap = partMap,
                     etag = etag,
-                    lastModified = lastModified
+                    lastModified = lastModified,
+                    waitingForNetwork = waitReason == DownloadDatabase.WAIT_NETWORK,
+                    waitingForUnmetered = waitReason == DownloadDatabase.WAIT_UNMETERED,
+                    waitingForSchedule = waitReason == DownloadDatabase.WAIT_SCHEDULE
                 )
                 val streamJsonIdx = it.getColumnIndex(DownloadDatabase.COL_STREAM_JSON)
                 val streamJson = if (streamJsonIdx >= 0) it.getString(streamJsonIdx) else null
@@ -175,9 +188,18 @@ internal object DownloadPersistence {
         loaded
     }
 
-    suspend fun persistDownload(context: Context, item: DownloadItem, removedIds: Set<Int>) {
+    fun maxId(context: Context): Int =
+        db(context).readableDatabase.rawQuery("SELECT MAX(${DownloadDatabase.COL_ID}) FROM ${DownloadDatabase.TABLE}", null).use {
+            if (it.moveToFirst() && !it.isNull(0)) it.getInt(0) else 0
+        }
+
+    suspend fun persistDownload(context: Context, item: DownloadItem, removedIds: Set<Int>, sequence: Long = nextSequence()) {
         if (item.id in removedIds) return
-        withContext(Dispatchers.IO) {
+        withContext(DownloadDispatchers.database) {
+            if (item.id in removedIds) return@withContext
+            val previous = lastWrittenSequence[item.id]
+            if (previous != null && previous > sequence) return@withContext
+            lastWrittenSequence[item.id] = sequence
             val values = ContentValues().apply {
                 put(DownloadDatabase.COL_ID, item.id)
                 put(DownloadDatabase.COL_URL, item.url)
@@ -215,13 +237,25 @@ internal object DownloadPersistence {
                 put(DownloadDatabase.COL_PART_MAP, item.partMap)
                 if (item.etag != null) put(DownloadDatabase.COL_ETAG, item.etag) else putNull(DownloadDatabase.COL_ETAG)
                 if (item.lastModified != null) put(DownloadDatabase.COL_LAST_MODIFIED, item.lastModified) else putNull(DownloadDatabase.COL_LAST_MODIFIED)
+                val waitReason = waitReasonFor(item)
+                if (waitReason != null) put(DownloadDatabase.COL_WAIT_REASON, waitReason) else putNull(DownloadDatabase.COL_WAIT_REASON)
                 if (item.isStream) put(DownloadDatabase.COL_STREAM_JSON, encodeStreamState(item))
                 else putNull(DownloadDatabase.COL_STREAM_JSON)
             }
             db(context).writableDatabase.insertWithOnConflict(
                 DownloadDatabase.TABLE, null, values, SQLiteDatabase.CONFLICT_REPLACE
             )
+            Unit
         }
+    }
+
+    private fun waitReasonFor(item: DownloadItem): String? = when {
+        item.status != DownloadStatus.PAUSED -> null
+        item.waitingForNetwork -> DownloadDatabase.WAIT_NETWORK
+        item.waitingForUnmetered -> DownloadDatabase.WAIT_UNMETERED
+        item.waitingForSchedule -> DownloadDatabase.WAIT_SCHEDULE
+        item.id in ClintDownloadManager.timeoutPausedIds -> DownloadDatabase.WAIT_SYSTEM
+        else -> null
     }
 
     private fun encodeStreamState(item: DownloadItem): String = JSONObject().apply {
@@ -308,7 +342,8 @@ internal object DownloadPersistence {
         }
     }
 
-    suspend fun deletePersistedDownload(context: Context, id: Int) = withContext(Dispatchers.IO) {
+    suspend fun deletePersistedDownload(context: Context, id: Int) = withContext(DownloadDispatchers.database) {
+        lastWrittenSequence[id] = Long.MAX_VALUE
         db(context).writableDatabase.delete(
             DownloadDatabase.TABLE,
             "${DownloadDatabase.COL_ID} = ?",

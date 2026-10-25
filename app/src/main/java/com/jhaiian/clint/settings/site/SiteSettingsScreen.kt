@@ -9,11 +9,8 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Videocam
 
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.jhaiian.clint.R
 import com.jhaiian.clint.settings.common.RowDivider
 import com.jhaiian.clint.settings.common.SettingsRow
@@ -21,7 +18,7 @@ import com.jhaiian.clint.settings.common.SettingsScreenScaffold
 import com.jhaiian.clint.settings.common.SettingsSection
 import com.jhaiian.clint.settings.desktopmode.DesktopModeActivity
 import com.jhaiian.clint.settings.sitepermissions.SitePermissionActivity
-import com.jhaiian.clint.setup.SectionLabel
+import com.jhaiian.clint.settings.common.SettingsSectionLabel
 import com.jhaiian.clint.ui.theme.LocalClintColors
 
 @Composable
@@ -39,7 +36,7 @@ fun SiteSettingsScreen(
     val colors = LocalClintColors.current
 
     SettingsScreenScaffold {
-        SectionLabel(stringResource(R.string.site_section_permissions), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.site_section_permissions))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Videocam,
@@ -82,7 +79,7 @@ fun SiteSettingsScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.site_section_open_in_app), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.site_section_open_in_app))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.AutoMirrored.Filled.OpenInNew,
@@ -93,7 +90,7 @@ fun SiteSettingsScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.site_section_desktop_mode), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.site_section_desktop_mode))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.DesktopWindows,
@@ -109,7 +106,7 @@ fun SiteSettingsScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.site_section_data_saver), colors.primary, Modifier.padding(start = 4.dp, bottom = 8.dp))
+        SettingsSectionLabel(stringResource(R.string.site_section_data_saver))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.DataSaverOff,

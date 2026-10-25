@@ -51,6 +51,22 @@ object SearchHistoryManager {
         trimToMax(writable)
     }
 
+    fun restore(context: Context, item: HistoryItem) {
+        val writable = db(context).writableDatabase
+        val values = ContentValues().apply {
+            put(SearchHistoryDatabase.COL_QUERY, item.query)
+            put(SearchHistoryDatabase.COL_TITLE, item.title)
+            put(SearchHistoryDatabase.COL_TIMESTAMP, item.timestamp.takeIf { it > 0L } ?: System.currentTimeMillis())
+        }
+        writable.insertWithOnConflict(
+            SearchHistoryDatabase.TABLE,
+            null,
+            values,
+            SQLiteDatabase.CONFLICT_REPLACE
+        )
+        trimToMax(writable)
+    }
+
     fun getAll(context: Context): List<HistoryItem> {
         val cursor = db(context).readableDatabase.query(
             SearchHistoryDatabase.TABLE,
@@ -86,6 +102,28 @@ object SearchHistoryManager {
             SearchHistoryDatabase.TABLE,
             "${SearchHistoryDatabase.COL_QUERY} = ?",
             arrayOf(query)
+        )
+    }
+
+    fun getSince(context: Context, since: Long): List<HistoryItem> {
+        val cursor = db(context).readableDatabase.query(
+            SearchHistoryDatabase.TABLE,
+            arrayOf(SearchHistoryDatabase.COL_QUERY, SearchHistoryDatabase.COL_TITLE, SearchHistoryDatabase.COL_TIMESTAMP),
+            "${SearchHistoryDatabase.COL_TIMESTAMP} >= ?",
+            arrayOf(since.toString()),
+            null, null,
+            "${SearchHistoryDatabase.COL_TIMESTAMP} DESC"
+        )
+        val list = mutableListOf<HistoryItem>()
+        cursor.use { while (it.moveToNext()) list.add(HistoryItem(it.getString(0), it.getString(1), it.getLong(2))) }
+        return list
+    }
+
+    fun deleteSince(context: Context, since: Long) {
+        db(context).writableDatabase.delete(
+            SearchHistoryDatabase.TABLE,
+            "${SearchHistoryDatabase.COL_TIMESTAMP} >= ?",
+            arrayOf(since.toString())
         )
     }
 

@@ -3,6 +3,7 @@ package com.jhaiian.clint.downloads
 import android.app.NotificationManager
 import android.content.Context
 import android.media.MediaScannerConnection
+import android.net.Uri
 import android.os.Environment
 import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
@@ -15,16 +16,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import java.io.File
 import java.io.IOException
-import java.io.RandomAccessFile
 import java.io.SequenceInputStream
+import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -35,7 +39,17 @@ internal object DownloadWorker {
     private const val MIN_PART_BYTES = 512 * 1024L
     private const val SPACE_MARGIN_BYTES = 16L * 1024L * 1024L
     private const val MONITOR_TICK_MS = 200L
-    private const val PROGRESS_CHECKPOINT_INTERVAL_MS = 1500L
+    private const val PROGRESS_CHECKPOINT_INTERVAL_MS = 2000L
+    private const val PUBLISH_INTERVAL_MS = 250L
+    private const val SPEED_WINDOW_MS = 400L
+    private const val COPY_BUFFER_BYTES = 256 * 1024
+    private const val SAF_COPY_BUFFER_BYTES = 256 * 1024
+    private const val MAX_RETRY_DELAY_SEC = 600L
+    private const val MAX_PARALLEL_RESTARTS = 2
+
+    internal enum class FailureKind { TRANSIENT, SERVER_REJECTED, DISK_FULL, NEEDS_USER_ACTION }
+
+    private class SafAccessException(message: String) : IOException(message)
 
     private fun finalizeElapsed(item: DownloadItem): DownloadItem =
         if (item.activeStartedAt > 0L) {
@@ -44,6 +58,102 @@ internal object DownloadWorker {
                 activeStartedAt = 0L
             )
         } else item
+
+    internal fun DownloadItem.resetRetriesIfProgressed(startBytes: Long): DownloadItem =
+        if (retryAttempt > 0 && bytesDownloaded > startBytes) copy(retryAttempt = 0) else this
+
+    internal fun isCompleteOnDisk(context: Context, item: DownloadItem): Boolean {
+        if (item.totalBytes <= 0L || item.bytesDownloaded < item.totalBytes) return false
+        val target = DownloadTarget.of(item) ?: return false
+        return target.length(context) == item.totalBytes
+    }
+
+    internal fun isCompleteInSafTemp(context: Context, item: DownloadItem): Boolean =
+        DownloadFileHelper.isSafCustomMode(context, item) && DownloadFileHelper.isInTempDir(context, item.file) && isCompleteOnDisk(context, item)
+
+    private suspend fun finishDownloaded(context: Context, downloaded: DownloadItem, safMode: Boolean) {
+        if (DownloadTarget.of(downloaded) is DownloadTarget.Document) {
+            finishDocument(context, downloaded)
+            return
+        }
+        if (safMode) {
+            moveTempToSaf(context, downloaded)
+            return
+        }
+        var item = finalizeElapsed(downloaded)
+        val partFile = item.file?.takeIf { DownloadFileHelper.isPartFile(it) }
+        if (partFile != null) {
+            val promoted = withContext(Dispatchers.IO) { DownloadFileHelper.promotePartFile(partFile) }
+            if (promoted != null) {
+                item = item.copy(file = promoted, filename = promoted.name)
+            } else {
+                DownloadLog.w(item.id, "FILE") { "Could not rename ${partFile.name}; keeping the finished file under its temporary name" }
+            }
+        }
+        item = item.copy(completedAt = System.currentTimeMillis(), status = DownloadStatus.COMPLETE)
+        ClintDownloadManager.persistDownload(item)
+        ClintDownloadManager.publish(item)
+        DownloadNotificationHelper.showCompleteNotification(context, item)
+        ClintDownloadManager.tryDequeueNext(context)
+        scanCompletedFile(context, item)
+    }
+
+    private suspend fun finishDocument(context: Context, downloaded: DownloadItem) {
+        var item = finalizeElapsed(downloaded)
+        val partUri = item.contentUri?.let(Uri::parse)
+        if (partUri != null) {
+            val desiredName = item.filename
+            val promoted = withContext(Dispatchers.IO) { SafDirectWriter.promote(context, partUri, desiredName) }
+            if (promoted != null) {
+                val name = withContext(Dispatchers.IO) { SafDirectWriter.displayName(context, promoted) }
+                item = item.copy(contentUri = promoted.toString(), filename = name ?: desiredName)
+            } else {
+                DownloadLog.w(item.id, "FILE") { "Could not rename the finished file in the chosen folder; it keeps its temporary name" }
+            }
+        }
+        item = item.copy(completedAt = System.currentTimeMillis(), status = DownloadStatus.COMPLETE, copyProgress = 100)
+        ClintDownloadManager.persistDownload(item)
+        ClintDownloadManager.publish(item)
+        DownloadNotificationHelper.showCompleteNotification(context, item)
+        ClintDownloadManager.tryDequeueNext(context)
+        scanCompletedFile(context, item)
+    }
+
+    private suspend fun restartFromScratch(context: Context, item: DownloadItem) {
+        withContext(Dispatchers.IO) { DownloadTarget.of(item)?.delete(context) }
+        ClintDownloadManager.requestNextAttempt(
+            finalizeElapsed(item).copy(
+                bytesDownloaded = 0L, file = null, contentUri = null, resumable = false, partMap = "", completedPartsMask = 0L,
+                partOffsets = "", partProgress = emptyList(), etag = null, lastModified = null, speedBytesPerSec = 0L
+            )
+        )
+    }
+
+    private fun contentRangeMatches(header: String?, start: Long, totalBytes: Long): Boolean {
+        val range = ContentRangeInfo.parse(header) ?: return true
+        if (range.start != start) return false
+        val total = range.total ?: return true
+        return totalBytes <= 0L || total == totalBytes
+    }
+
+    internal fun httpFailureKind(code: Int): FailureKind = when (code) {
+        408, 425, 429 -> FailureKind.TRANSIENT
+        in 400..499 -> FailureKind.SERVER_REJECTED
+        else -> FailureKind.TRANSIENT
+    }
+
+    private fun safFailureKind(e: Throwable): FailureKind = when {
+        e is SafAccessException || e is SecurityException -> FailureKind.NEEDS_USER_ACTION
+        isDiskFull(e.message.orEmpty()) -> FailureKind.DISK_FULL
+        else -> FailureKind.TRANSIENT
+    }
+
+    private fun backoffSeconds(baseSeconds: Long, attempt: Int): Long {
+        val base = baseSeconds.coerceAtLeast(1L)
+        val exponential = base shl (attempt - 1).coerceIn(0, 16)
+        val capped = maxOf(base, minOf(MAX_RETRY_DELAY_SEC, exponential))
+        return capped + kotlin.random.Random.nextLong(0L, capped / 5L + 1L)
+    }
 
     suspend fun run(context: Context, initialItem: DownloadItem) {
         var item = initialItem
@@ -66,21 +176,34 @@ internal object DownloadWorker {
             SpeedLimiter(item.speedLimitBytesPerSec)
         }
 
+        if (withContext(Dispatchers.IO) { isCompleteOnDisk(context, item) }) {
+            DownloadLog.i(item.id, "RESUME") { "All ${DownloadLog.formatBytes(item.totalBytes)} are already on disk; finishing without downloading again" }
+            finishDownloaded(context, item, safMode)
+            return
+        }
+
+        val existingTarget = DownloadTarget.of(item)
+        val targetExists = existingTarget != null && withContext(Dispatchers.IO) { existingTarget.exists(context) }
+
         val resumeEffectiveParts = if (
             item.resumable && !item.parallelRateLimited && item.totalBytes > 0L &&
-            item.file?.exists() == true && item.bytesDownloaded < item.totalBytes
+            targetExists && item.bytesDownloaded < item.totalBytes
         ) {
-            maxOf(1, minOf(item.splitParts, (item.totalBytes / MIN_PART_BYTES).toInt()))
+            DownloadAutoTuner.plannedParts(context, item, item.url.toHttpUrlOrNull()?.host.orEmpty(), MIN_PART_BYTES)
         } else 1
 
-        val isResumingFile = item.bytesDownloaded > 0L && item.file?.exists() == true
+        val isResumingFile = item.bytesDownloaded > 0L && targetExists
 
         DownloadLog.section(item.id, if (isResumingFile) "Resuming download attempt" else "Starting download attempt") {
             listOf(
                 "File" to item.filename,
                 "URL" to item.url,
                 "Mode" to if (resumeEffectiveParts > 1) "parallel resume, $resumeEffectiveParts parts" else "probe then decide",
-                "Storage" to if (safMode) "temporary file, copied to the chosen folder" else "written in place",
+                "Storage" to when {
+                    existingTarget is DownloadTarget.Document -> "written directly to the chosen folder"
+                    safMode -> "chosen folder, written directly when possible"
+                    else -> "written in place"
+                },
                 "Resume from" to if (isResumingFile) DownloadLog.formatBytes(item.bytesDownloaded) else null,
                 "Finished parts" to if (item.completedPartsMask != 0L) java.lang.Long.bitCount(item.completedPartsMask) else null,
                 "Retry attempt" to item.retryAttempt.takeIf { it > 0 },
@@ -88,13 +211,15 @@ internal object DownloadWorker {
             )
         }
 
+        var transferredBytes = -1L
+
         try {
             if (resumeEffectiveParts > 1) {
                 item = item.copy(status = DownloadStatus.DOWNLOADING, activeStartedAt = System.currentTimeMillis())
                 ClintDownloadManager.persistDownload(item)
                 ClintDownloadManager.publish(item)
                 runParallelDownload(
-                    context, item, item.file!!, resumeEffectiveParts, item.multithreadingParts, safMode,
+                    context, item, checkNotNull(existingTarget), resumeEffectiveParts, item.multithreadingParts, safMode,
                     speedLimiter = speedLimiter,
                     resumeFromMask = item.completedPartsMask
                 )
@@ -112,12 +237,14 @@ internal object DownloadWorker {
                 .header("User-Agent", item.userAgent)
                 .header("Accept", "*/*")
                 .header("Accept-Language", "en-US,en;q=0.9")
+                .header("Accept-Encoding", "identity")
                 .apply {
                     if (item.referer.isNotEmpty()) header("Referer", item.referer)
                     if (item.cookies.isNotEmpty()) header("Cookie", item.cookies)
                     if (isResumingFile) {
                         header("Range", "bytes=${item.bytesDownloaded}-")
-                        (item.etag?.takeIf { it.isNotBlank() && !it.startsWith("W/") } ?: item.lastModified)?.let { header("If-Range", it) }
+                        (item.etag?.takeIf { it.isNotBlank() && !it.startsWith("W/") }
+                            ?: item.lastModified?.takeIf { it.isNotBlank() && item.restarts == 0 })?.let { header("If-Range", it) }
                     }
                 }
                 .build()
@@ -126,7 +253,7 @@ internal object DownloadWorker {
 
             DownloadLog.i(item.id, "HTTP") { "GET ${item.url}" + if (isResumingFile) " \u00B7 Range bytes=${item.bytesDownloaded}-" else "" }
             val requestStartedAt = System.currentTimeMillis()
-            val response = withContext(Dispatchers.IO) {
+            val response = withContext(DownloadDispatchers.network) {
                 runInterruptible { ClintDownloadManager.httpClient.newCall(request).execute() }
             }
             DownloadLog.i(item.id, "HTTP") {
@@ -150,13 +277,39 @@ internal object DownloadWorker {
             }
 
             if (!response.isSuccessful) {
+                if (response.code == 416 && isResumingFile) {
+                    val remoteTotal = ContentRangeInfo.parseUnsatisfiedTotal(response.header("Content-Range"))
+                    response.close()
+                    val localLength = withContext(Dispatchers.IO) { existingTarget.length(context) }
+                    if (remoteTotal != null && remoteTotal > 0L && localLength == remoteTotal &&
+                        (item.totalBytes <= 0L || item.totalBytes == remoteTotal) && item.bytesDownloaded >= remoteTotal
+                    ) {
+                        DownloadLog.i(item.id, "RESUME") { "Server reports the file is already complete (${DownloadLog.formatBytes(remoteTotal)})" }
+                        finishDownloaded(context, item.copy(totalBytes = remoteTotal, bytesDownloaded = remoteTotal), safMode)
+                    } else {
+                        DownloadLog.w(item.id, "RESUME") { "Server rejected the resume position (HTTP 416); restarting from the beginning" }
+                        restartFromScratch(context, item)
+                    }
+                    return
+                }
                 DownloadLog.e(item.id, "HTTP") { "Server refused the request with ${response.code} ${response.message}" }
                 response.close()
-                fail(context, item, "Server error ${response.code}")
+                fail(context, item, "Server error ${response.code}", kind = httpFailureKind(response.code))
                 return
             }
 
             val serverAcceptedRange = response.code == 206
+
+            if (isResumingFile && serverAcceptedRange &&
+                !contentRangeMatches(response.header("Content-Range"), item.bytesDownloaded, item.totalBytes)
+            ) {
+                DownloadLog.w(item.id, "RESUME") {
+                    "Server answered with a different range or file size (${response.header("Content-Range")}); restarting from the beginning"
+                }
+                response.close()
+                restartFromScratch(context, item)
+                return
+            }
 
             if (isResumingFile && !serverAcceptedRange) {
                 val contentType = response.header("Content-Type")?.substringBefore(";")?.trim()?.lowercase()
@@ -168,8 +321,8 @@ internal object DownloadWorker {
                     return
                 }
                 DownloadLog.w(item.id, "RESUME") { "Server ignored the range request (HTTP ${response.code}); restarting from the beginning" }
-                item = item.copy(bytesDownloaded = 0L, resumable = false, file = null)
-                withContext(Dispatchers.IO) { initialItem.file.delete() }
+                item = item.copy(bytesDownloaded = 0L, resumable = false, file = null, contentUri = null)
+                withContext(Dispatchers.IO) { existingTarget.delete(context) }
             }
 
             val effectiveResume = isResumingFile && serverAcceptedRange
@@ -178,10 +331,10 @@ internal object DownloadWorker {
             var peekedBytes: ByteArray? = null
 
             var writeStartPos = item.bytesDownloaded
-            var outputFile: File
+            var outputTarget: DownloadTarget
 
             if (effectiveResume) {
-                outputFile = item.file!!
+                outputTarget = checkNotNull(existingTarget)
             } else {
                 item = item.copy(
                     resumable = response.header("Accept-Ranges") == "bytes",
@@ -196,7 +349,7 @@ internal object DownloadWorker {
                 writeStartPos = 0L
                 ClintDownloadManager.publish(item)
 
-                val peeked = withContext(Dispatchers.IO) {
+                val peeked = withContext(DownloadDispatchers.network) {
                     runInterruptible { DownloadFilenameResolver.readHead(rawStream) }
                 }
                 peekedBytes = peeked
@@ -208,25 +361,41 @@ internal object DownloadWorker {
                 )
                 item = item.copy(filename = finalFilename)
 
-                outputFile = withContext(Dispatchers.IO) {
-                    val existing = item.file
-                    if (existing != null && existing.exists() && item.totalBytes > 0 && existing.length() == item.totalBytes) {
-                        existing
+                val planned = item
+                val (createdTarget, createdName) = withContext(Dispatchers.IO) {
+                    val existing = DownloadTarget.of(planned)
+                    if (existing != null && planned.totalBytes > 0 && existing.length(context) == planned.totalBytes) {
+                        existing to when (existing) {
+                            is DownloadTarget.Local -> DownloadFileHelper.finalNameOf(existing.file)
+                            is DownloadTarget.Document -> initialItem.filename
+                        }
                     } else {
-                        val rawDestDir = directCustomDir
-                            ?: if (safMode) DownloadFileHelper.tempDownloadDir(context) else DownloadFileHelper.resolveDownloadDir()
-                        val destDir = if (safMode) rawDestDir else DownloadCategories.resolveDir(item.categorizeEnabled, rawDestDir, finalFilename)
-                        destDir.mkdirs()
-                        DownloadFileHelper.uniqueFile(destDir, finalFilename)
+                        if (existing != null) runCatching { existing.delete(context) }
+                        val document = if (safMode) SafDirectWriter.createPart(context, planned, finalFilename) else null
+                        if (document != null) {
+                            DownloadTarget.Document(document.uri) to document.finalName
+                        } else {
+                            val rawDestDir = directCustomDir
+                                ?: if (safMode) DownloadFileHelper.tempDownloadDir(context) else DownloadFileHelper.resolveDownloadDir()
+                            val destDir = if (safMode) rawDestDir else DownloadCategories.resolveDir(planned.categorizeEnabled, rawDestDir, finalFilename)
+                            destDir.mkdirs()
+                            val file = if (safMode) DownloadFileHelper.uniqueFile(destDir, finalFilename)
+                            else DownloadFileHelper.uniquePartFile(destDir, finalFilename)
+                            DownloadTarget.Local(file) to DownloadFileHelper.finalNameOf(file)
+                        }
                     }
                 }
-                item = item.copy(filename = outputFile.name, file = outputFile)
+                outputTarget = createdTarget
+                item = when (createdTarget) {
+                    is DownloadTarget.Local -> item.copy(filename = createdName, file = createdTarget.file, contentUri = null)
+                    is DownloadTarget.Document -> item.copy(filename = createdName, file = null, contentUri = createdTarget.uri.toString())
+                }
                 DownloadLog.i(item.id, "FILE") {
-                    "Saving to ${outputFile.absolutePath} \u00B7 size ${DownloadLog.formatBytes(item.totalBytes)} \u00B7 resumable ${item.resumable}"
+                    "Saving to ${createdTarget.location} \u00B7 size ${DownloadLog.formatBytes(item.totalBytes)} \u00B7 resumable ${item.resumable}"
                 }
 
                 if (item.totalBytes > 0) {
-                    val free = availableBytes(outputFile.parentFile)
+                    val free = withContext(Dispatchers.IO) { createdTarget.availableBytes(context) }
                     if (free >= 0L && free < item.totalBytes + SPACE_MARGIN_BYTES) {
                         DownloadLog.e(item.id, "STORAGE") { "Not enough space: needs ${DownloadLog.formatBytes(item.totalBytes)}, ${DownloadLog.formatBytes(free)} free" }
                         response.close()
@@ -237,7 +406,7 @@ internal object DownloadWorker {
                         )
                         return
                     }
-                    val allocated = preAllocateFile(context, item, outputFile)
+                    val allocated = preAllocateFile(context, item, createdTarget)
                     if (allocated == null) return
                     item = allocated
 
@@ -246,14 +415,14 @@ internal object DownloadWorker {
                         return
                     }
 
-                    val effectiveParts = maxOf(1, minOf(item.splitParts, (item.totalBytes / MIN_PART_BYTES).toInt()))
+                    val effectiveParts = DownloadAutoTuner.plannedParts(context, item, item.url.toHttpUrlOrNull()?.host.orEmpty(), MIN_PART_BYTES)
                     if (item.resumable && effectiveParts > 1 && !item.parallelRateLimited) {
-                        DownloadLog.i(item.id, "PARTS") { "Server supports ranges; switching to $effectiveParts parts with ${item.multithreadingParts} connections" }
+                        DownloadLog.i(item.id, "PARTS") { "Server supports ranges; switching to $effectiveParts parts with ${if (DownloadAutoTuner.isAuto(item.multithreadingParts)) "auto" else item.multithreadingParts} connections" }
                         response.close()
                         item = item.copy(status = DownloadStatus.DOWNLOADING, activeStartedAt = System.currentTimeMillis())
                         ClintDownloadManager.persistDownload(item)
                         ClintDownloadManager.publish(item)
-                        runParallelDownload(context, item, outputFile, effectiveParts, item.multithreadingParts, safMode, speedLimiter = speedLimiter)
+                        runParallelDownload(context, item, createdTarget, effectiveParts, item.multithreadingParts, safMode, speedLimiter = speedLimiter)
                         return
                     }
                 }
@@ -277,7 +446,7 @@ internal object DownloadWorker {
                 }
             }
 
-            val copyResult = copyToFile(context, item, inputStream, outputFile, writeStartPos, speedLimiter)
+            val copyResult = copyToFile(context, item, inputStream, outputTarget, writeStartPos, speedLimiter) { transferredBytes = it }
             item = copyResult.item
 
             if (!copyResult.completed) {
@@ -288,26 +457,20 @@ internal object DownloadWorker {
             if (item.totalBytes > 0L && item.bytesDownloaded != item.totalBytes) {
                 DownloadLog.e(item.id, "VERIFY") { "Size check failed: received ${item.bytesDownloaded} of ${item.totalBytes} bytes" }
                 fail(
-                    context, item,
+                    context, item.resetRetriesIfProgressed(initialItem.bytesDownloaded),
                     context.getString(R.string.download_error_size_mismatch, formatFileSize(item.bytesDownloaded), formatFileSize(item.totalBytes))
                 )
                 return
             }
             DownloadLog.i(item.id, "VERIFY") { "Size check passed: ${DownloadLog.formatBytes(item.bytesDownloaded)}" }
+            if (item.totalBytes <= 0L) item = item.copy(totalBytes = item.bytesDownloaded)
 
-            if (safMode) {
-                moveTempToSaf(context, item)
-            } else {
-                item = finalizeElapsed(item)
-                item = item.copy(completedAt = System.currentTimeMillis(), status = DownloadStatus.COMPLETE)
-                ClintDownloadManager.persistDownload(item)
-                ClintDownloadManager.publish(item)
-                DownloadNotificationHelper.showCompleteNotification(context, item)
-                ClintDownloadManager.tryDequeueNext(context)
-                scanCompletedFile(context, item)
-            }
+            finishDownloaded(context, item, safMode)
         } catch (e: Throwable) {
-            handleAttemptFailure(context, item, e)
+            val failedItem = if (transferredBytes > item.bytesDownloaded) {
+                item.copy(bytesDownloaded = transferredBytes, speedBytesPerSec = 0L)
+            } else item
+            handleAttemptFailure(context, failedItem.resetRetriesIfProgressed(initialItem.bytesDownloaded), e)
             if (e is CancellationException) throw e
         }
     }
@@ -342,9 +505,9 @@ internal object DownloadWorker {
         suspend fun cleanup() {
             if (item.status != DownloadStatus.PAUSED) {
                 if (e is CancellationException) {
-                    item.file?.delete()
-                    ClintDownloadManager.persistDownload(item)
-                    ClintDownloadManager.publish(item)
+                    if (ClintDownloadManager.isRemoved(item.id)) {
+                        withContext(Dispatchers.IO) { DownloadTarget.of(item)?.delete(context) }
+                    }
                 } else {
                     fail(context, item, e.message ?: context.getString(R.string.download_error_unknown))
                 }
@@ -363,21 +526,26 @@ internal object DownloadWorker {
         context: Context,
         item: DownloadItem,
         inputStream: java.io.InputStream,
-        outputFile: File,
+        target: DownloadTarget,
         writeStartPos: Long,
-        speedLimiter: SpeedLimiter
+        speedLimiter: SpeedLimiter,
+        onProgress: (Long) -> Unit
     ): CopyResult {
-        var current = item
+        val id = item.id
+        var downloaded = item.bytesDownloaded
+        var speed = item.speedBytesPerSec
         var reachedEof = false
-        var lastNotifyBytes = current.bytesDownloaded
-        var lastSpeedBytes = current.bytesDownloaded
+        var lastPublishAt = 0L
+        var lastSpeedBytes = downloaded
         var lastSpeedTime = System.currentTimeMillis()
         var lastCheckpointTime = System.currentTimeMillis()
+
+        fun snapshot(): DownloadItem = item.copy(bytesDownloaded = downloaded, speedBytesPerSec = speed)
 
         coroutineScope {
             val pauseWatcher = launch(Dispatchers.IO) {
                 while (isActive) {
-                    if (ClintDownloadManager.pauseRequested.contains(current.id)) {
+                    if (ClintDownloadManager.pauseRequested.contains(id)) {
                         runCatching { inputStream.close() }
                         break
                     }
@@ -385,45 +553,56 @@ internal object DownloadWorker {
                 }
             }
             try {
-                withContext(Dispatchers.IO) {
+                withContext(DownloadDispatchers.network) {
                     runInterruptible {
-                        RandomAccessFile(outputFile, "rw").use { raf ->
-                            raf.seek(writeStartPos)
+                        target.openChannel(context).use { channel ->
+                            var position = writeStartPos
                             inputStream.use { input ->
-                                val buffer = ByteArray(262144)
+                                val reader = BatchedReader(input, ByteArray(COPY_BUFFER_BYTES))
                                 while (true) {
-                                    if (ClintDownloadManager.isRemoved(current.id)) throw CancellationException("removed")
-                                    if (ClintDownloadManager.pauseRequested.contains(current.id)) break
+                                    if (ClintDownloadManager.isRemoved(id)) throw CancellationException("removed")
+                                    if (ClintDownloadManager.pauseRequested.contains(id)) break
+                                    val batch = minOf(
+                                        speedLimiter.batchBytes(COPY_BUFFER_BYTES),
+                                        ClintDownloadManager.globalSpeedLimiter.batchBytes(COPY_BUFFER_BYTES)
+                                    )
                                     val read = try {
-                                        input.read(buffer)
+                                        reader.fill(batch)
                                     } catch (e: IOException) {
-                                        if (ClintDownloadManager.isRemoved(current.id)) throw CancellationException("removed")
-                                        if (ClintDownloadManager.pauseRequested.contains(current.id)) break else throw e
+                                        if (ClintDownloadManager.isRemoved(id)) throw CancellationException("removed")
+                                        if (ClintDownloadManager.pauseRequested.contains(id)) break else throw e
                                     }
                                     if (read == -1) {
+                                        if (ClintDownloadManager.pauseRequested.contains(id)) break
                                         reachedEof = true
                                         break
                                     }
-                                    raf.write(buffer, 0, read)
+                                    val chunk = ByteBuffer.wrap(reader.buffer, 0, read)
+                                    while (chunk.hasRemaining()) position += channel.write(chunk, position)
+                                    downloaded += read
+                                    onProgress(downloaded)
+                                    ClintDownloadManager.noteActivity(id)
                                     speedLimiter.acquire(read)
                                     ClintDownloadManager.globalSpeedLimiter.acquire(read)
-                                    current = current.copy(bytesDownloaded = current.bytesDownloaded + read)
-                                    if (current.bytesDownloaded - lastNotifyBytes >= 65536) {
-                                        lastNotifyBytes = current.bytesDownloaded
-                                        val now = System.currentTimeMillis()
-                                        val elapsed = now - lastSpeedTime
-                                        if (elapsed >= 400) {
-                                            val delta = current.bytesDownloaded - lastSpeedBytes
-                                            current = current.copy(speedBytesPerSec = if (elapsed > 0) delta * 1000L / elapsed else 0L)
-                                            lastSpeedBytes = current.bytesDownloaded
-                                            lastSpeedTime = now
-                                        }
+                                    val now = System.currentTimeMillis()
+                                    val elapsed = now - lastSpeedTime
+                                    if (elapsed >= SPEED_WINDOW_MS) {
+                                        speed = (downloaded - lastSpeedBytes) * 1000L / elapsed
+                                        lastSpeedBytes = downloaded
+                                        lastSpeedTime = now
+                                    }
+                                    if (now - lastPublishAt >= PUBLISH_INTERVAL_MS) {
+                                        lastPublishAt = now
+                                        val current = snapshot()
                                         DownloadNotificationHelper.showProgressNotificationThrottled(context, current)
-                                        ClintDownloadManager.publish(ClintDownloadManager.withLiveSettings(current))
-                                        if (now - lastCheckpointTime >= PROGRESS_CHECKPOINT_INTERVAL_MS) {
-                                            lastCheckpointTime = now
-                                            ClintDownloadManager.checkpointProgress(current.id, current.bytesDownloaded, 0L, "")
-                                        }
+                                        ClintDownloadManager.publish(current)
+                                    }
+                                    if (now - lastCheckpointTime >= PROGRESS_CHECKPOINT_INTERVAL_MS) {
+                                        lastCheckpointTime = now
+                                        runCatching { channel.force(false) }
+                                        ClintDownloadManager.checkpointProgress(
+                                            id, downloaded, 0L, "", generation = item.generation
+                                        )
                                     }
                                 }
                             }
@@ -434,7 +613,7 @@ internal object DownloadWorker {
                 pauseWatcher.cancel()
             }
         }
-        return CopyResult(current, reachedEof)
+        return CopyResult(snapshot(), reachedEof)
     }
 
     internal suspend fun moveTempToSaf(context: Context, initialItem: DownloadItem) {
@@ -457,27 +636,30 @@ internal object DownloadWorker {
         ClintDownloadManager.publish(item)
         DownloadNotificationHelper.showCopyingTempNotification(context, item)
 
+        var createdDoc: DocumentFile? = null
+        var copied = false
         try {
             var lastNotifiedProgress = 0
             item = withContext(Dispatchers.IO) {
                 runInterruptible {
                     val docDir = DocumentFile.fromTreeUri(context, treeUri)
-                        ?: throw IOException(context.getString(R.string.download_error_saf_no_access))
-                    if (!docDir.canWrite()) throw IOException(context.getString(R.string.download_error_saf_not_writable))
+                        ?: throw SafAccessException(context.getString(R.string.download_error_saf_no_access))
+                    if (!docDir.canWrite()) throw SafAccessException(context.getString(R.string.download_error_saf_not_writable))
 
                     val targetDir = DownloadCategories.resolveSafDir(item.categorizeEnabled, docDir, item.filename)
                     val finalName = DownloadFileHelper.uniqueSafName(targetDir, item.filename)
                     val docFile = targetDir.createFile("application/octet-stream", finalName)
-                        ?: throw IOException(context.getString(R.string.download_error_saf_create_failed))
+                        ?: throw SafAccessException(context.getString(R.string.download_error_saf_create_failed))
+                    createdDoc = docFile
 
                     var working = item.copy(filename = docFile.name ?: item.filename)
 
                     val totalBytes = tempFile.length()
                     var bytesCopied = 0L
-                    val buffer = ByteArray(65536)
+                    val buffer = ByteArray(SAF_COPY_BUFFER_BYTES)
 
                     val output = context.contentResolver.openOutputStream(docFile.uri)
-                        ?: throw IOException(context.getString(R.string.download_error_saf_no_stream))
+                        ?: throw SafAccessException(context.getString(R.string.download_error_saf_no_stream))
                     output.use { out ->
                         tempFile.inputStream().use { input ->
                             while (true) {
@@ -501,6 +683,7 @@ internal object DownloadWorker {
                     working.copy(file = null, contentUri = docFile.uri.toString(), copyProgress = 100)
                 }
             }
+            copied = true
 
             item = item.copy(status = DownloadStatus.DELETING_TEMP)
             ClintDownloadManager.persistDownload(item)
@@ -516,32 +699,45 @@ internal object DownloadWorker {
             ClintDownloadManager.tryDequeueNext(context)
             scanCompletedFile(context, item)
         } catch (e: Throwable) {
-            withContext(Dispatchers.IO) { tempFile.delete() }
-            if (e is CancellationException) throw e
+            if (copied) {
+                runCatching { tempFile.delete() }
+            } else {
+                createdDoc?.let { doc -> runCatching { doc.delete() } }
+            }
+            if (e is CancellationException) {
+                if (ClintDownloadManager.isRemoved(initialItem.id)) runCatching { tempFile.delete() }
+                throw e
+            }
             if (item.status != DownloadStatus.PAUSED) {
-                fail(context, item, e.message ?: context.getString(R.string.download_error_unknown))
+                DownloadLog.e(item.id, "SAF") {
+                    "Copying to the chosen folder failed (${e.javaClass.simpleName}: ${e.message})" +
+                        if (copied) "" else "; the downloaded file is kept so only the copy is retried"
+                }
+                fail(
+                    context, item, e.message ?: context.getString(R.string.download_error_unknown),
+                    kind = if (copied) null else safFailureKind(e)
+                )
             }
         }
     }
 
-    private suspend fun preAllocateFile(context: Context, initialItem: DownloadItem, file: File): DownloadItem? {
+    private suspend fun preAllocateFile(context: Context, initialItem: DownloadItem, target: DownloadTarget): DownloadItem? {
         var item = initialItem.copy(status = DownloadStatus.ALLOCATING, allocationProgress = 0)
         ClintDownloadManager.persistDownload(item)
         ClintDownloadManager.publish(item)
         DownloadNotificationHelper.showAllocationNotification(context, item)
 
         if (item.id in ClintDownloadManager.removedIds) {
-            withContext(Dispatchers.IO) { file.delete() }
+            withContext(Dispatchers.IO) { target.delete(context) }
             ClintDownloadManager.persistDownload(item)
             ClintDownloadManager.publish(item)
             return null
         }
 
         return try {
+            val length = item.totalBytes
             withContext(Dispatchers.IO) {
-                runInterruptible {
-                    RandomAccessFile(file, "rw").use { it.setLength(item.totalBytes) }
-                }
+                runInterruptible { target.setLength(context, length) }
             }
             item = item.copy(allocationProgress = 100)
             ClintDownloadManager.publish(item)
@@ -549,7 +745,7 @@ internal object DownloadWorker {
             item
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
-            withContext(Dispatchers.IO) { file.delete() }
+            withContext(Dispatchers.IO) { target.delete(context) }
             fail(context, item, e.message ?: context.getString(R.string.download_error_unknown), scheduleRetry = false)
             null
         }
@@ -558,7 +754,7 @@ internal object DownloadWorker {
     private suspend fun runParallelDownload(
         context: Context,
         initialItem: DownloadItem,
-        outputFile: File,
+        target: DownloadTarget,
         totalParts: Int,
         simultaneousParts: Int,
         safMode: Boolean,
@@ -566,21 +762,8 @@ internal object DownloadWorker {
         resumeFromMask: Long = 0L
     ) {
         val seeded = if (resumeFromMask != 0L && initialItem.completedPartsMask == 0L) initialItem.copy(completedPartsMask = resumeFromMask) else initialItem
-        when (val outcome = ParallelDownloader.download(context, seeded, outputFile, totalParts, simultaneousParts, speedLimiter)) {
-            is ParallelOutcome.Completed -> {
-                var item = outcome.item
-                if (safMode) {
-                    moveTempToSaf(context, item)
-                } else {
-                    item = finalizeElapsed(item)
-                    item = item.copy(completedAt = System.currentTimeMillis(), status = DownloadStatus.COMPLETE)
-                    ClintDownloadManager.persistDownload(item)
-                    ClintDownloadManager.publish(item)
-                    DownloadNotificationHelper.showCompleteNotification(context, item)
-                    ClintDownloadManager.tryDequeueNext(context)
-                    scanCompletedFile(context, item)
-                }
-            }
+        when (val outcome = ParallelDownloader.download(context, seeded, target, totalParts, simultaneousParts, speedLimiter)) {
+            is ParallelOutcome.Completed -> finishDownloaded(context, outcome.item, safMode)
             is ParallelOutcome.Paused -> handlePauseTransition(context, outcome.item)
             is ParallelOutcome.FallbackSingle -> {
                 var item = outcome.item.copy(parallelRateLimited = true, speedBytesPerSec = 0L)
@@ -588,25 +771,34 @@ internal object DownloadWorker {
                 ClintDownloadManager.persistDownload(item)
                 ClintDownloadManager.publish(item)
                 if (outcome.waitMs > 0L) delay(outcome.waitMs)
-                run(context, item)
+                ClintDownloadManager.requestNextAttempt(item)
             }
             is ParallelOutcome.Restart -> {
-                DownloadLog.w(outcome.item.id, "RESUME") { "Restarting from the beginning: ${outcome.reason}" }
-                withContext(Dispatchers.IO) { outputFile.delete() }
+                val restarts = outcome.item.restarts + 1
+                val singleConnection = restarts >= MAX_PARALLEL_RESTARTS
+                DownloadLog.w(outcome.item.id, "RESUME") {
+                    "Restarting from the beginning: ${outcome.reason}" + when {
+                        singleConnection -> " · repeated restarts, continuing with one connection"
+                        else -> " · date validators are ignored from now on"
+                    }
+                }
+                withContext(Dispatchers.IO) { target.delete(context) }
                 val item = finalizeElapsed(outcome.item).copy(
                     bytesDownloaded = 0L, partMap = "", completedPartsMask = 0L, partOffsets = "",
-                    partProgress = emptyList(), etag = null, lastModified = null, speedBytesPerSec = 0L
+                    partProgress = emptyList(), etag = null, lastModified = null, speedBytesPerSec = 0L,
+                    restarts = restarts, parallelRateLimited = outcome.item.parallelRateLimited || singleConnection
                 )
                 ClintDownloadManager.persistDownload(item)
                 ClintDownloadManager.publish(item)
-                run(context, item)
+                ClintDownloadManager.requestNextAttempt(item)
             }
-            is ParallelOutcome.Failed -> fail(context, finalizeElapsed(outcome.item), outcome.message)
+            is ParallelOutcome.Failed -> fail(
+                context,
+                finalizeElapsed(outcome.item).resetRetriesIfProgressed(initialItem.bytesDownloaded),
+                outcome.message
+            )
         }
     }
-
-    private fun availableBytes(dir: File?): Long =
-        if (dir == null) -1L else runCatching { android.os.StatFs(dir.absolutePath).availableBytes }.getOrDefault(-1L)
 
     private fun isServerError(msg: String): Boolean {
         val match = Regex("Server error (\\d+)").find(msg) ?: return false
@@ -616,11 +808,28 @@ internal object DownloadWorker {
 
     private fun isDiskFull(msg: String): Boolean = msg.contains("No space left on device", ignoreCase = true)
 
-    suspend fun fail(context: Context, initialItem: DownloadItem, msg: String, scheduleRetry: Boolean = true) {
+    private fun classify(msg: String): FailureKind = when {
+        isServerError(msg) -> FailureKind.SERVER_REJECTED
+        isDiskFull(msg) -> FailureKind.DISK_FULL
+        else -> FailureKind.TRANSIENT
+    }
+
+    suspend fun fail(
+        context: Context,
+        initialItem: DownloadItem,
+        msg: String,
+        scheduleRetry: Boolean = true,
+        kind: FailureKind? = null
+    ) {
+        currentCoroutineContext().ensureActive()
+        if (ClintDownloadManager.isStale(initialItem)) return
         val ctx = ClintDownloadManager.appContext ?: context
         var item = initialItem
+        val failureKind = kind ?: classify(msg)
 
-        if (!isServerError(msg) &&
+        if (scheduleRetry &&
+            failureKind == FailureKind.TRANSIENT &&
+            item.generation != 0L &&
             item.id !in ClintDownloadManager.removedIds &&
             !DownloadNetworkMonitor.isNetworkAvailable(ctx)
         ) {
@@ -636,6 +845,9 @@ internal object DownloadWorker {
             ClintDownloadManager.persistDownload(item)
             ClintDownloadManager.publish(item)
             ClintDownloadManager.tryDequeueNext(ctx)
+            if (DownloadNetworkMonitor.isNetworkAvailable(ctx) && DownloadNetworkMonitor.networkWaitingIds.remove(item.id)) {
+                ClintDownloadManager.resume(ctx, item.id)
+            }
             return
         }
 
@@ -651,25 +863,29 @@ internal object DownloadWorker {
             DownloadSettingsKeys.PREF_RETRY_INTERVAL, DownloadSettingsKeys.DEFAULT_RETRY_INTERVAL
         ).toLong()
 
-        val serverError = isServerError(msg)
-        val diskFull = isDiskFull(msg)
+        val serverError = failureKind == FailureKind.SERVER_REJECTED
+        val diskFull = failureKind == FailureKind.DISK_FULL
+        val needsUserAction = failureKind == FailureKind.NEEDS_USER_ACTION
         val displayMsg = if (diskFull) context.getString(R.string.download_error_disk_full) else msg
         val canRetry = scheduleRetry &&
+            !needsUserAction &&
+            item.generation != 0L &&
             retryEnabled &&
             (retryUnrecoverable || (!serverError && !diskFull)) &&
             item.id !in ClintDownloadManager.removedIds &&
             (retryCount == 0 || item.retryAttempt < retryCount)
+        val delaySeconds = if (canRetry) backoffSeconds(retryInterval, item.retryAttempt + 1) else 0L
 
         DownloadLog.i(item.id, "RETRY") {
-            "Error \"$msg\" \u00B7 server error $serverError \u00B7 disk full $diskFull \u00B7 retry enabled $retryEnabled \u00B7 " +
+            "Error \"$msg\" \u00B7 ${failureKind.name.lowercase()} \u00B7 retry enabled $retryEnabled \u00B7 " +
                 "attempt ${item.retryAttempt + 1}/${if (retryCount == 0) "\u221E" else retryCount} \u00B7 " +
-                if (canRetry) "retrying in ${retryInterval}s" else "giving up"
+                if (canRetry) "retrying in ${delaySeconds}s" else "giving up"
         }
         if (canRetry) {
             item = item.copy(
                 retryAttempt = item.retryAttempt + 1,
                 status = DownloadStatus.RETRYING,
-                retryDelaySec = retryInterval.toInt(),
+                retryDelaySec = delaySeconds.toInt(),
                 lastErrorWasServerError = serverError,
                 errorMessage = displayMsg,
                 speedBytesPerSec = 0L
@@ -679,20 +895,16 @@ internal object DownloadWorker {
             if (item.retryAttempt == 1) {
                 DownloadNotificationHelper.showRetryingNotification(ctx, item)
             }
-            delay(retryInterval * 1000L)
-            if (item.id in ClintDownloadManager.removedIds) {
+            delay(delaySeconds * 1000L)
+            if (item.id in ClintDownloadManager.removedIds || ClintDownloadManager.isStale(item)) {
 
             } else if (ClintDownloadManager.pauseRequested.remove(item.id)) {
                 item = item.copy(retryDelaySec = 0)
                 handlePauseTransition(context, item)
             } else {
-                item = item.copy(retryDelaySec = 0)
+                item = ClintDownloadManager.withLiveSettings(item.copy(retryDelaySec = 0))
                 ClintDownloadManager.publish(item)
-                if (item.isStream) {
-                    com.jhaiian.clint.mediacapture.download.StreamDownloadJob.run(context, item)
-                } else {
-                    run(context, item)
-                }
+                ClintDownloadManager.requestNextAttempt(item)
             }
         } else if (item.id !in ClintDownloadManager.removedIds) {
             item = item.copy(

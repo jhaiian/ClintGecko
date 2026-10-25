@@ -19,6 +19,7 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -100,6 +101,7 @@ private val CellPadding = 5.dp
 private val CellMinWidth = 160.dp
 private val ListCellMinWidth = 340.dp
 private const val PREF_TAB_MENU_LIST_VIEW = "tab_menu_list_view"
+private const val PREF_TAB_MENU_BUTTONS_AT_BOTTOM = "tab_menu_buttons_at_bottom"
 private val GroupCorner = 18.dp
 
 private sealed class TabMenuItem {
@@ -217,12 +219,14 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
     val hideStatusBar = remember { prefs.getBoolean("hide_status_bar", false) }
     val hideSystemNavigation = remember { prefs.getBoolean("hide_system_navigation", false) }
     var showGroupBar by remember { mutableStateOf(prefs.getBoolean(TabGroupPrefs.PREF_SHOW_GROUP_BAR, true)) }
+    val groupsEnabled = remember { TabGroupPrefs.isEnabled(prefs) }
     var editorRequest by remember { mutableStateOf<TabGroupEditorRequest?>(null) }
     var showMovePicker by remember { mutableStateOf(false) }
     var scrollToGroupId by remember { mutableStateOf<String?>(null) }
     var searchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var listView by remember { mutableStateOf(prefs.getBoolean(PREF_TAB_MENU_LIST_VIEW, false)) }
+    var buttonsAtBottom by remember { mutableStateOf(prefs.getBoolean(PREF_TAB_MENU_BUTTONS_AT_BOTTOM, false)) }
     val hasDuplicates by remember { derivedStateOf { duplicateTabIds(tabs, activeTabId).isNotEmpty() } }
 
     fun closeSearch() {
@@ -413,6 +417,7 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
         SideEffect {
             dragState.collapsedGroupIds = collapsedGroupIds
             dragState.columns = columns
+            dragState.mergeEnabled = groupsEnabled
         }
         val shownGroups = visibleGroups(tabs, groups)
         val groupCounts = tabs.groupingBy { it.groupId ?: "" }.eachCount()
@@ -471,7 +476,7 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
             if (draggedId == null) return
             val dragged = tabs.find { it.id == draggedId }
             val mergeTarget = mergeTargetTabId(dropKey)?.let { id -> tabs.find { it.id == id } }
-                ?.takeIf { dragged != null && canMergeTabs(dragged, it) }
+                ?.takeIf { groupsEnabled && dragged != null && canMergeTabs(dragged, it) }
             val dropGroupId = dropTargetGroupId(dropKey) ?: mergeTarget?.groupId
             val previousOrder = tabManager.tabs.map { it.id }
             val previousAssignments = tabManager.tabs.associate { it.id to it.groupId }
@@ -633,11 +638,12 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
                 )
             }
 
-        Column(Modifier.fillMaxSize()) {
+        val topBar: @Composable () -> Unit = {
             TabMenuTopBar(
                 tabCount = tabs.size,
                 selectionMode = uiState.selectionMode,
                 selectedCount = uiState.selectedIds.size,
+                groupsEnabled = groupsEnabled,
                 hasGroups = shownGroups.isNotEmpty(),
                 allGroupsCollapsed = shownGroups.isNotEmpty() && shownGroups.all { it.collapsed },
                 showGroupBar = showGroupBar,
@@ -676,40 +682,74 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
                         showProfilePicker = true
                     }
                 },
-                onCloseAllTabs = { closeTabs(tabs.map { it.id }) }
+                onCloseAllTabs = { closeTabs(tabs.map { it.id }) },
+                buttonsAtBottom = buttonsAtBottom,
+                onToggleButtonsAtBottom = {
+                    buttonsAtBottom = !buttonsAtBottom
+                    prefs.edit().putBoolean(PREF_TAB_MENU_BUTTONS_AT_BOTTOM, buttonsAtBottom).apply()
+                }
             )
+        }
 
+        val newTabButtons: @Composable () -> Unit = {
+            Row(
+                Modifier.fillMaxWidth().padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = if (buttonsAtBottom) 4.dp else 0.dp,
+                    bottom = if (buttonsAtBottom) 4.dp else 10.dp
+                )
+            ) {
+                NewTabButton(
+                    text = stringResource(R.string.new_tab),
+                    iconRes = Icons.Filled.Add,
+                    modifier = Modifier.weight(1f).padding(end = 6.dp),
+                    onClick = { activity.onNewTab(); onDismiss() }
+                )
+                NewTabButton(
+                    text = stringResource(R.string.new_incognito_tab),
+                    iconRes = Icons.Filled.VisibilityOff,
+                    modifier = Modifier.weight(1f).padding(start = 6.dp),
+                    onClick = { activity.onNewIncognitoTab(); onDismiss() }
+                )
+            }
+        }
+
+        val groupChips: @Composable () -> Unit = {
+            TabGroupChipsRow(
+                groups = shownGroups,
+                counts = groupCounts,
+                activeGroupId = activeGroupId,
+                hoverKey = dragState.hoverKey,
+                onChipClick = { revealGroup(it.id) },
+                onNewGroup = { editorRequest = TabGroupEditorRequest.CreateWithNewTab(false) },
+                onChipBounds = { id, bounds -> if (bounds == null) dragState.chipBounds.remove(id) else dragState.chipBounds[id] = bounds },
+                modifier = Modifier.padding(top = if (buttonsAtBottom) 6.dp else 0.dp, bottom = 6.dp)
+            )
+        }
+
+        val quickActions: @Composable ColumnScope.() -> Unit = {
             AnimatedVisibility(
                 visible = !uiState.selectionMode && !searchActive,
                 enter = fadeIn(tween(180)) + expandVertically(spring(dampingRatio = 0.85f)),
                 exit = fadeOut(tween(120)) + shrinkVertically(tween(150))
             ) {
                 Column {
-                    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp)) {
-                        NewTabButton(
-                            text = stringResource(R.string.new_tab),
-                            iconRes = Icons.Filled.Add,
-                            modifier = Modifier.weight(1f).padding(end = 6.dp),
-                            onClick = { activity.onNewTab(); onDismiss() }
-                        )
-                        NewTabButton(
-                            text = stringResource(R.string.new_incognito_tab),
-                            iconRes = Icons.Filled.VisibilityOff,
-                            modifier = Modifier.weight(1f).padding(start = 6.dp),
-                            onClick = { activity.onNewIncognitoTab(); onDismiss() }
-                        )
+                    if (buttonsAtBottom) {
+                        if (groupsEnabled) groupChips()
+                        newTabButtons()
+                    } else {
+                        newTabButtons()
+                        if (groupsEnabled) groupChips()
                     }
-                    TabGroupChipsRow(
-                        groups = shownGroups,
-                        counts = groupCounts,
-                        activeGroupId = activeGroupId,
-                        hoverKey = dragState.hoverKey,
-                        onChipClick = { revealGroup(it.id) },
-                        onNewGroup = { editorRequest = TabGroupEditorRequest.CreateWithNewTab(false) },
-                        onChipBounds = { id, bounds -> if (bounds == null) dragState.chipBounds.remove(id) else dragState.chipBounds[id] = bounds },
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
                 }
+            }
+        }
+
+        Column(Modifier.fillMaxSize()) {
+            if (!buttonsAtBottom) {
+                topBar()
+                quickActions()
             }
 
             Box(
@@ -1010,6 +1050,7 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
                 TabSelectionActionBar(
                     hasSelection = selectedIds.isNotEmpty(),
                     canUngroup = tabs.any { it.id in selectedIds && it.groupId != null },
+                    groupsEnabled = groupsEnabled,
                     onGroup = { editorRequest = TabGroupEditorRequest.CreateFromTabs(selectedIds) },
                     onMove = { showMovePicker = true },
                     onUngroup = {
@@ -1021,6 +1062,11 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
                         uiState.exitSelectionMode()
                     }
                 )
+            }
+
+            if (buttonsAtBottom) {
+                quickActions()
+                topBar()
             }
         }
     }
@@ -1044,6 +1090,7 @@ private fun TabMenuTopBar(
     tabCount: Int,
     selectionMode: Boolean,
     selectedCount: Int,
+    groupsEnabled: Boolean,
     hasGroups: Boolean,
     allGroupsCollapsed: Boolean,
     showGroupBar: Boolean,
@@ -1066,12 +1113,19 @@ private fun TabMenuTopBar(
     onCollapseAllGroups: () -> Unit,
     onExpandAllGroups: () -> Unit,
     onNewProfileTab: () -> Unit,
-    onCloseAllTabs: () -> Unit
+    onCloseAllTabs: () -> Unit,
+    buttonsAtBottom: Boolean,
+    onToggleButtonsAtBottom: () -> Unit
 ) {
     val colors = LocalClintColors.current
     var overflowMenuExpanded by remember { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 8.dp, bottom = 4.dp),
+        Modifier.fillMaxWidth().padding(
+            start = 20.dp,
+            end = 8.dp,
+            top = if (buttonsAtBottom) 4.dp else 8.dp,
+            bottom = if (buttonsAtBottom) 8.dp else 4.dp
+        ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (searchActive && !selectionMode) {
@@ -1136,14 +1190,16 @@ private fun TabMenuTopBar(
                             onSelectTabs = onToggleSelectionMode,
                             showProfileTab = com.jhaiian.clint.profiles.WebProfiles.isSupported(),
                             onNewProfileTab = onNewProfileTab,
-                            onNewTabGroup = onNewTabGroup,
+                            onNewTabGroup = if (groupsEnabled) onNewTabGroup else null,
                             showGroupBar = showGroupBar,
-                            onToggleGroupBar = onToggleGroupBar,
+                            onToggleGroupBar = if (groupsEnabled) onToggleGroupBar else null,
                             onCollapseAllGroups = if (hasGroups && !allGroupsCollapsed) onCollapseAllGroups else null,
                             onExpandAllGroups = if (hasGroups && allGroupsCollapsed) onExpandAllGroups else null,
                             onCloseDuplicates = onCloseDuplicates,
                             listView = listView,
-                            onToggleListView = onToggleListView
+                            onToggleListView = onToggleListView,
+                            buttonsAtBottom = buttonsAtBottom,
+                            onToggleButtonsAtBottom = onToggleButtonsAtBottom
                         )
                     }
                 }
