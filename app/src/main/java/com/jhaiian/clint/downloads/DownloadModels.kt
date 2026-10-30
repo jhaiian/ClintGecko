@@ -1,5 +1,6 @@
 package com.jhaiian.clint.downloads
 
+import com.jhaiian.clint.downloads.mega.MegaSource
 import java.io.File
 
 enum class DownloadStatus {
@@ -45,6 +46,7 @@ data class DownloadItem(
     val filename: String,
     val userAgent: String,
     val referer: String = "",
+    val pageUrl: String = "",
     val cookies: String = "",
     val bytesDownloaded: Long = 0L,
     val totalBytes: Long = -1L,
@@ -118,6 +120,8 @@ data class DownloadItem(
     val streamSegDone: Int = 0,
     val streamSegTotal: Int = 0,
     val streamSegBytes: Long = 0L,
+    val mega: MegaSource? = null,
+    val isIncognito: Boolean = false,
     @Transient val generation: Long = 0L,
     @Transient val restarts: Int = 0,
     @Transient val activeConnections: Int = 0

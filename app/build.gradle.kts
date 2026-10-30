@@ -34,8 +34,8 @@ android {
         applicationId = "com.jhaiian.clint.gecko"
         minSdk = 26
         targetSdk = 37
-        versionCode = 5
-        versionName = "1.0.4"
+        versionCode = 6
+        versionName = "1.0.5"
 
         externalNativeBuild {
             cmake {
@@ -48,6 +48,7 @@ android {
                 if (ccacheExecutable != null) {
                     arguments.add("-DCMAKE_CXX_COMPILER_LAUNCHER=$ccacheExecutable")
                 }
+                abiFilters("arm64-v8a", "armeabi-v7a", "x86_64")
             }
         }
     }
@@ -109,7 +110,7 @@ android {
         abi {
             isEnable = true
             reset()
-            include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
             isUniversalApk = true
         }
     }
@@ -151,11 +152,11 @@ dependencies {
     implementation("androidx.documentfile:documentfile:1.1.0")
     implementation("androidx.appcompat:appcompat:1.8.0")
     implementation("com.google.android.material:material:1.14.0")
-    implementation("org.mozilla.geckoview:geckoview:158.0.20261021001945")
+    implementation("org.mozilla.geckoview:geckoview:159.0.20261022150525")
     implementation("androidx.preference:preference-ktx:1.2.1")
     implementation("androidx.recyclerview:recyclerview:1.4.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.2.0")
-    implementation("com.squareup.okhttp3:okhttp:5.5.0")
+    implementation("com.squareup.okhttp3:okhttp:5.5.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("io.noties.markwon:core:4.6.2")
     implementation("io.noties.markwon:image:4.6.2")

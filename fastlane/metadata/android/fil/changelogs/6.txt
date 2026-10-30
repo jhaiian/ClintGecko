@@ -1,0 +1,11 @@
+• Pag-download ng file at folder sa MEGA
+• Magdagdag ng download nang naka-pause, ayos sa duplicate
+• Mas mabilis at magaan na GeckoView
+• Mas maraming video na nahahanap ng Media Capture
+• Sariling search engine at suggestions sa Incognito
+• Notification para isara ang mga Incognito tab
+• Accessibility para sa laki ng font at zoom
+• Extension na hindi naka-sign ng Mozilla
+• Pagbura ng data ayon sa napiling oras
+• Kopyahin, I-paste at I-paste at pumunta
+• GeckoView 159 at ayos sa mga shortcut

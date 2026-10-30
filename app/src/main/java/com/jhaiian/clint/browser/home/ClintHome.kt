@@ -121,6 +121,7 @@ const val PREF_HOMEPAGE_SHOW_FAVORITES = "homepage_show_favorites"
 const val PREF_HOMEPAGE_SHOW_QUICK_ACTIONS = "homepage_show_quick_actions"
 const val PREF_HOMEPAGE_SHOW_RECENT = "homepage_show_recent"
 const val PREF_HOMEPAGE_CENTER_CONTENT = "homepage_center_content"
+const val PREF_HOMEPAGE_IMAGE_FULL_BRIGHTNESS = "homepage_image_full_brightness"
 const val HOMEPAGE_DESIGN_GRADIENT = "gradient"
 const val HOMEPAGE_DESIGN_PLAIN = "plain"
 
@@ -212,8 +213,8 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
     }
     val topTint = colors.primary.copy(alpha = if (colors.isLight) 0.10f else 0.18f)
     val engineName = engineDisplayName(
-        activity.prefs.getString("search_engine", "duckduckgo") ?: "duckduckgo",
-        customSearchEngineName(activity.prefs)
+        com.jhaiian.clint.browser.searchEngineFor(activity.prefs, isIncognito),
+        customSearchEngineName(activity.prefs, isIncognito)
     )
     val hint = stringResource(R.string.search_bar_hint, engineName)
     val isBottomBar = state.addressBarPosition == AddressBarPosition.BOTTOM
@@ -239,7 +240,7 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
             }
         }
     }
-    LaunchedEffect(state.activeTabId, isIncognito, design, bgImage, tiles, recent, iconVersion, refreshTick, colors.background, state.homepageShowQuickActions) {
+    LaunchedEffect(state.activeTabId, isIncognito, design, bgImage, tiles, recent, iconVersion, refreshTick, colors.background, state.homepageShowQuickActions, state.homepageImageFullBrightness) {
         delay(800)
         captureThumbnail()
     }
@@ -326,16 +327,18 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = bgAlpha }
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = bgAlpha }
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(colors.background.copy(alpha = scrimTop), colors.background.copy(alpha = scrimBottom))
+            if (!state.homepageImageFullBrightness) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer { alpha = bgAlpha }
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(colors.background.copy(alpha = scrimTop), colors.background.copy(alpha = scrimBottom))
+                            )
                         )
-                    )
-            )
+                )
+            }
         }
         val viewportHeight = maxHeight
         val compact = viewportHeight < 480.dp

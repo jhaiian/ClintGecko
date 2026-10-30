@@ -1,13 +1,16 @@
 package com.jhaiian.clint.browser.delegates
 
+import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
 import com.jhaiian.clint.browser.MainActivity
+import com.jhaiian.clint.browser.dialogs.RefreshLinkDialogRequest
 import com.jhaiian.clint.downloads.ClintDownloadManager
 import com.jhaiian.clint.downloads.DownloadConflictDialogRequest
 import com.jhaiian.clint.downloads.DownloadFileHelper
@@ -39,6 +42,8 @@ import kotlinx.coroutines.withContext
 internal fun MainActivity.mountMediaCaptureDialog() {
     val tabId = tabManager.activeTab?.id ?: return
     val pageUrl = tabManager.activeTab?.webView?.url ?: ""
+    val isYouTube = isYouTubeUrl(pageUrl)
+    if (isYouTube && openInYtdlnis(pageUrl)) return
     val pageTitle = tabManager.activeTab?.title?.takeIf { it.isNotBlank() } ?: pageUrl
     val theme = prefs.getString("app_theme", "system") ?: "system"
     val hideStatusBar = prefs.getBoolean("hide_status_bar", false)
@@ -57,11 +62,80 @@ internal fun MainActivity.mountMediaCaptureDialog() {
                     tabManager.activeTab?.webView?.evaluateJavascript(com.jhaiian.clint.browser.webview.TabMediaControl.PAUSE_SCRIPT, null)
                 },
                 onDownload = { media, audio, allItems, estimatedBytes, containerExtension ->
-                    showMediaCaptureDownloadDialog(media, audio, pageUrl, pageTitle, allItems, estimatedBytes, containerExtension)
+                    val proceed = { showMediaCaptureDownloadDialog(media, audio, pageUrl, pageTitle, allItems, estimatedBytes, containerExtension) }
+                    if (!offerRefreshLinkUpdate(media, audio, pageUrl, proceed)) proceed()
+                },
+                isYouTube = isYouTube,
+                onGetYtdlnis = {
+                    overlayContent = null
+                    handleLinkOpenInNewTab(YTDLNIS_DOWNLOAD_URL)
                 }
             )
         }
     }
+}
+
+private const val YTDLNIS_PACKAGE = "com.deniscerri.ytdl"
+
+private const val YTDLNIS_DOWNLOAD_URL = "https://github.com/deniscerri/ytdlnis/releases/latest"
+
+private val YOUTUBE_DOMAINS = listOf("youtube.com", "youtu.be", "youtube-nocookie.com")
+
+private fun isYouTubeUrl(url: String): Boolean {
+    val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return false
+    if (uri.scheme?.lowercase() !in setOf("http", "https")) return false
+    val host = uri.host?.lowercase() ?: return false
+    return YOUTUBE_DOMAINS.any { host == it || host.endsWith(".$it") }
+}
+
+private fun MainActivity.openInYtdlnis(url: String): Boolean {
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, url)
+        setPackage(YTDLNIS_PACKAGE)
+    }
+    return try {
+        startActivity(intent)
+        true
+    } catch (_: ActivityNotFoundException) {
+        false
+    } catch (_: SecurityException) {
+        false
+    }
+}
+
+private fun MainActivity.offerRefreshLinkUpdate(
+    media: DetectedMedia,
+    audio: DetectedMedia?,
+    pageUrl: String,
+    onAddNew: () -> Unit
+): Boolean {
+    val session = refreshLinkSession ?: return false
+    if (tabManager.activeTab?.isRefreshLinkTab != true) return false
+    val existing = ClintDownloadManager.downloadsFlow.value.firstOrNull { it.id == session.downloadId } ?: return false
+    if (existing.isStream != isMediaCaptureManifestBased(media)) return false
+    if (!isRelatedToSession(media.url, pageUrl, session)) return false
+    uiState.refreshLinkDialogRequest = RefreshLinkDialogRequest(
+        existingFilename = session.filename,
+        onUpdateExisting = {
+            if (existing.isStream) {
+                ClintDownloadManager.updateStreamUrls(existing.id, media.url, audio?.takeIf { media.kind != MediaKind.AUDIO }?.url)
+            } else {
+                ClintDownloadManager.updateDownloadUrl(
+                    existing.id,
+                    media.url,
+                    mediaCaptureRequestHeader(media, "Referer"),
+                    mediaCaptureCookies(media),
+                    pageUrl
+                )
+            }
+            overlayContent = null
+            Toast.makeText(this, getString(R.string.refresh_link_updated_toast, session.filename), Toast.LENGTH_SHORT).show()
+            refreshLinkSession = null
+        },
+        onAddNew = onAddNew
+    )
+    return true
 }
 
 private fun MainActivity.copyMediaCaptureLink(text: String) {
@@ -164,11 +238,15 @@ private fun MainActivity.showMediaCaptureDownloadDialogReady(
             fun proceed() {
                 if (isStreamJob) {
                     if (DownloadFileHelper.isCustomLocationAccessible(this, submission.locationMode, submission.customLocationUri)) {
-                        showClintSnackbar(
-                            message = getString(R.string.toast_downloading, submission.filename),
-                            actionLabel = getString(R.string.download_started_view_action),
-                            onAction = { DownloadsActivity.open(this) }
-                        )
+                        if (submission.startPaused) {
+                            showDownloadAddedSnackbar(submission.filename)
+                        } else {
+                            showClintSnackbar(
+                                message = getString(R.string.toast_downloading, submission.filename),
+                                actionLabel = getString(R.string.download_started_view_action),
+                                onAction = { DownloadsActivity.open(this) }
+                            )
+                        }
                     }
                     dismiss()
                     if (isHlsSubtitle) {
@@ -186,7 +264,12 @@ private fun MainActivity.showMediaCaptureDownloadDialogReady(
                         submission.locationMode, submission.customLocationUri, submission.categorizeEnabled, submission.scheduledStartAtMillis,
                         onDismiss = dismiss,
                         onRename = onRename,
-                        onStarted = { showDownloadStartedSnackbar(submission.filename, submission.locationMode, submission.customLocationUri) }
+                        onStarted = {
+                            if (submission.startPaused) showDownloadAddedSnackbar(submission.filename)
+                            else showDownloadStartedSnackbar(submission.filename, submission.locationMode, submission.customLocationUri)
+                        },
+                        pageUrl = pageUrl,
+                        startPaused = submission.startPaused
                     )
                 }
             }
@@ -194,7 +277,7 @@ private fun MainActivity.showMediaCaptureDownloadDialogReady(
             val existing = findExistingMediaCaptureDownload(media, pairedAudio)
             if (existing != null) {
                 val isPending = existing.status in DownloadStatus.NOT_FINISHED
-                uiState.conflictDialogRequest = DownloadConflictDialogRequest(
+                uiState.conflictDialogRequest = com.jhaiian.clint.downloads.resolveDownloadConflict(this, !isPending, DownloadConflictDialogRequest(
                     onAddDuplicate = { proceed() },
                     onOverride = {
                         ClintDownloadManager.remove(this, existing.id, deleteFile = true)
@@ -204,12 +287,12 @@ private fun MainActivity.showMediaCaptureDownloadDialogReady(
                     onUpdateLink = if (isPending) {
                         {
                             if (existing.isStream) ClintDownloadManager.updateStreamUrls(existing.id, media.url, pairedAudio?.url)
-                            else ClintDownloadManager.updateDownloadUrl(existing.id, media.url)
+                            else ClintDownloadManager.updateDownloadUrl(existing.id, media.url, pageUrl = pageUrl)
                             dismiss()
                             showClintSnackbar(message = getString(R.string.media_capture_duplicate_link_updated))
                         }
                     } else null
-                )
+                ))
             } else {
                 proceed()
             }
@@ -276,7 +359,8 @@ private fun MainActivity.enqueueMediaCaptureStream(
         videoRepresentationId = media.representationId,
         audioRepresentationId = audio?.representationId ?: (if (isAudioPrimary) media.representationId else null),
         audioLanguage = (audio ?: media.takeIf { isAudioPrimary })?.language,
-        audioLabel = audio?.let { audioTrackName(it) }
+        audioLabel = audio?.let { audioTrackName(it) },
+        startPaused = submission.startPaused
     )
 }
 
@@ -310,7 +394,8 @@ private fun MainActivity.enqueueMediaCaptureHlsSubtitle(
         audioBandwidth = null,
         locationMode = submission.locationMode,
         customLocationUri = submission.customLocationUri,
-        categorizeEnabled = submission.categorizeEnabled
+        categorizeEnabled = submission.categorizeEnabled,
+        startPaused = submission.startPaused
     )
 }
 

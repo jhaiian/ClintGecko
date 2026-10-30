@@ -17,10 +17,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -72,6 +74,9 @@ fun ExtensionHost() {
 
     ClintExtensions.prompt?.let { prompt ->
         ExtensionPromptDialog(prompt, hideStatusBar, hideSystemNavigation)
+    }
+    ClintExtensions.unsignedRequest?.let { request ->
+        UnsignedInstallDialog(request, hideStatusBar, hideSystemNavigation)
     }
     ClintExtensions.popup?.let { popup ->
         ExtensionPopupDialog(popup)
@@ -213,6 +218,68 @@ private fun ExtensionPromptDialog(prompt: ExtensionPrompt, hideStatusBar: Boolea
                     ClintSwitch(checked = allowPrivate)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun UnsignedInstallDialog(request: UnsignedInstallRequest, hideStatusBar: Boolean, hideSystemNavigation: Boolean) {
+    val colors = LocalClintColors.current
+    val deny = { ClintExtensions.answerUnsigned(request, false) }
+    ClintDialog(
+        title = stringResource(R.string.ext_unsigned_title),
+        hideStatusBar = hideStatusBar,
+        hideSystemNavigation = hideSystemNavigation,
+        onDismiss = deny,
+        cancelable = true,
+        footer = {
+            ClintDialogActionFooter(
+                onCancel = deny,
+                positiveLabel = stringResource(R.string.ext_unsigned_install_anyway),
+                onPositive = { ClintExtensions.answerUnsigned(request, true) }
+            )
+        }
+    ) {
+        Column(Modifier.padding(horizontal = 8.dp)) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(colors.colorErrorContainer)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Filled.Warning,
+                    contentDescription = null,
+                    tint = colors.colorError,
+                    modifier = Modifier.size(22.dp)
+                )
+                Text(
+                    request.fileName,
+                    color = colors.colorOnErrorContainer,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(start = 12.dp)
+                )
+            }
+            Text(
+                stringResource(R.string.ext_unsigned_message),
+                color = colors.onSurface,
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+            )
+            Text(
+                stringResource(R.string.ext_unsigned_note),
+                color = colors.secondaryText,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 8.dp)
+            )
         }
     }
 }

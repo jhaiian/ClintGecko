@@ -8,6 +8,7 @@ import android.provider.DocumentsContract
 import android.system.Os
 import android.system.OsConstants
 import androidx.documentfile.provider.DocumentFile
+import com.jhaiian.clint.downloads.mega.MegaPaths
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.RandomAccessFile
@@ -101,7 +102,7 @@ internal object SafDirectWriter {
         if (docDir == null || !docDir.canWrite()) {
             null
         } else {
-            val targetDir = DownloadCategories.resolveSafDir(item.categorizeEnabled, docDir, finalName)
+            val targetDir = MegaPaths.safDir(DownloadCategories.resolveSafDir(item.categorizeEnabled, docDir, finalName), item)
             val chosen = freeName(targetDir, finalName)
             val partName = chosen + DownloadFileHelper.PART_SUFFIX
             val doc = targetDir.createFile(PART_MIME_TYPE, partName)

@@ -1,6 +1,5 @@
 package com.jhaiian.clint.mediacapture
 
-import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,12 +11,15 @@ object MediaCaptureStore {
 
     private const val SEGMENT_SPAM_WINDOW_MILLIS = 15_000L
     private const val SEGMENT_SPAM_THRESHOLD = 5
+    private const val MAX_SEEN_URLS = 2048
+    private const val MAX_TEMPLATES = 512
+    private const val MAX_ITEMS = 256
 
     private data class TemplateWindow(val windowStartMillis: Long, val count: Int)
 
     private class TabState {
         val items = MutableStateFlow<List<DetectedMedia>>(emptyList())
-        val seenUrls: MutableSet<String> = Collections.newSetFromMap(ConcurrentHashMap<String, Boolean>())
+        val seenUrls = LinkedHashSet<String>()
         val templateCounts = ConcurrentHashMap<String, TemplateWindow>()
         val generation = AtomicInteger(0)
         @Volatile var pageUrl: String? = null
@@ -31,7 +33,21 @@ object MediaCaptureStore {
 
     fun countForTab(tabId: String?): Int = if (tabId == null) 0 else tabs[tabId]?.items?.value?.size ?: 0
 
-    fun markSeen(tabId: String, url: String): Boolean = stateFor(tabId).seenUrls.add(url)
+    fun markSeen(tabId: String, url: String): Boolean {
+        val seen = stateFor(tabId).seenUrls
+        return synchronized(seen) {
+            val added = seen.add(url)
+            if (added && seen.size > MAX_SEEN_URLS) {
+                val oldest = seen.iterator()
+                oldest.next()
+                oldest.remove()
+            }
+            added
+        }
+    }
+
+    fun contains(tabId: String, url: String): Boolean =
+        tabs[tabId]?.items?.value?.any { it.url == url || it.groupUrl == url } == true
 
     fun updatePageUrl(tabId: String, url: String?) {
         stateFor(tabId).pageUrl = url
@@ -41,6 +57,9 @@ object MediaCaptureStore {
 
     fun registerAndCheckSpam(tabId: String, templateKey: String, nowMillis: Long): Boolean {
         val counts = stateFor(tabId).templateCounts
+        if (counts.size > MAX_TEMPLATES) {
+            counts.entries.removeAll { nowMillis - it.value.windowStartMillis > SEGMENT_SPAM_WINDOW_MILLIS }
+        }
         var isSpam = false
         counts.compute(templateKey) { _, existing ->
             val window = if (existing == null || nowMillis - existing.windowStartMillis > SEGMENT_SPAM_WINDOW_MILLIS) {
@@ -71,11 +90,16 @@ object MediaCaptureStore {
                 current.any { dedupeKey(it) == key } -> current
                 isDirectHlsPlaylist(media) && current.any { isHlsVariant(it) && it.url == media.url } -> current
                 isHlsVariant(media) -> {
-                    added = true
                     val direct = current.firstOrNull { isDirectHlsPlaylist(it) && it.url == media.url }
                     if (direct == null) {
-                        current + media
+                        if (current.size >= MAX_ITEMS) {
+                            current
+                        } else {
+                            added = true
+                            current + media
+                        }
                     } else {
+                        added = true
                         val merged = media.copy(
                             width = media.width ?: direct.width,
                             height = media.height ?: direct.height,
@@ -86,6 +110,7 @@ object MediaCaptureStore {
                         current.map { if (it.id == direct.id) merged else it }
                     }
                 }
+                current.size >= MAX_ITEMS -> current
                 else -> {
                     added = true
                     current + media
@@ -113,7 +138,7 @@ object MediaCaptureStore {
 
     fun clearForTab(tabId: String) {
         val state = tabs[tabId] ?: return
-        state.seenUrls.clear()
+        synchronized(state.seenUrls) { state.seenUrls.clear() }
         state.templateCounts.clear()
         state.generation.incrementAndGet()
         state.items.value = emptyList()

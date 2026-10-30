@@ -23,11 +23,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ManageSearch
 import androidx.compose.material.icons.automirrored.filled.AddToHomeScreen
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowDropDownCircle
 import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material.icons.filled.Workspaces
 import androidx.compose.material.icons.filled.BatterySaver
@@ -58,6 +60,7 @@ import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.FileCopy
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.Fullscreen
@@ -92,6 +95,7 @@ import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Splitscreen
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Tune
@@ -131,6 +135,7 @@ import com.jhaiian.clint.BuildConfig
 import com.jhaiian.clint.R
 import com.jhaiian.clint.browser.webview.ClintAutofill
 import com.jhaiian.clint.settings.DEST_ABOUT
+import com.jhaiian.clint.settings.DEST_ACCESSIBILITY
 import com.jhaiian.clint.settings.DEST_BACKUP_RESTORE
 import com.jhaiian.clint.settings.DEST_BROWSER
 import com.jhaiian.clint.settings.DEST_DATA_SAVER
@@ -264,6 +269,7 @@ private val AccentNames = listOf(
 internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEntry> = buildList {
     category(DEST_BROWSER, R.string.browser_settings, R.string.browser_settings_summary, Icons.Filled.Explore)
     category(DEST_LOOK_AND_FEEL, R.string.look_and_feel, R.string.look_and_feel_summary, Icons.Filled.Palette)
+    category(DEST_ACCESSIBILITY, R.string.accessibility_title, R.string.accessibility_summary, Icons.Filled.Accessibility)
     category(DEST_PRIVACY, R.string.privacy_settings, R.string.privacy_settings_summary, Icons.Filled.Lock)
     category(DEST_SITE_SETTINGS, R.string.site_settings, R.string.site_settings_summary, Icons.Filled.WebAsset)
     category(DEST_DOWNLOADS, R.string.download_settings_title, R.string.download_settings_summary, Icons.Filled.Download)
@@ -357,6 +363,9 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
         )
         item(R.string.website_blocker_title, R.string.website_blocker_settings_summary, R.string.pref_category_protection, icon = Icons.Filled.Shield)
         item(R.string.incognito_search_history_title, R.string.incognito_search_history_summary, R.string.pref_category_incognito, icon = Icons.Filled.VisibilityOff)
+        item(R.string.remember_browsing_mode_title, R.string.remember_browsing_mode_summary, R.string.pref_category_incognito, icon = Icons.Filled.Restore)
+        item(R.string.incognito_search_engine_title, section = R.string.pref_category_incognito, icon = Icons.Filled.Search)
+        item(R.string.incognito_search_suggestions_api_title, section = R.string.pref_category_incognito, icon = Icons.AutoMirrored.Filled.ManageSearch)
         item(R.string.javascript_enabled, R.string.javascript_enabled_summary, R.string.pref_category_web_content, icon = Icons.Filled.DesktopWindows)
         item(R.string.background_playback_title, R.string.background_playback_summary, R.string.pref_category_web_content, icon = androidx.compose.material.icons.Icons.Filled.Headphones)
         item(R.string.profiles_title, R.string.profiles_settings_summary, R.string.pref_category_tools, icon = androidx.compose.material.icons.Icons.Filled.AccountCircle)
@@ -409,6 +418,12 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
         item(R.string.data_saver_title, R.string.site_settings_data_saver_summary, R.string.site_section_data_saver, icon = Icons.Filled.DataSaverOff)
     }
 
+    page(DEST_ACCESSIBILITY, R.string.accessibility_title, Icons.Filled.Accessibility) {
+        item(R.string.accessibility_auto_font_size_title, R.string.accessibility_auto_font_size_summary, R.string.accessibility_section_text, icon = Icons.Filled.TextFields)
+        item(R.string.accessibility_font_size_title, R.string.accessibility_font_size_summary, R.string.accessibility_section_text, icon = Icons.Filled.FormatSize)
+        item(R.string.accessibility_force_zoom_title, R.string.accessibility_force_zoom_summary, R.string.accessibility_section_zoom, icon = Icons.Filled.ZoomIn)
+    }
+
     page(DEST_DATA_SAVER, R.string.data_saver_title, Icons.Filled.DataSaverOn) {
         item(R.string.data_saver_title, R.string.data_saver_summary, R.string.data_saver_section, icon = Icons.Filled.DataSaverOn)
         item(R.string.data_saver_metered_only_title, R.string.data_saver_metered_only_summary, R.string.data_saver_section, icon = Icons.Filled.SignalCellularAlt)
@@ -443,11 +458,15 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
         item(R.string.download_retry_unrecoverable_title, R.string.download_retry_unrecoverable_summary, R.string.download_section_retry, icon = Icons.Filled.Storage)
         item(R.string.download_retry_count_title, section = R.string.download_section_retry, icon = Icons.Filled.Numbers)
         item(R.string.download_retry_interval_title, section = R.string.download_section_retry, icon = Icons.Filled.HourglassEmpty)
+        item(R.string.download_duplicate_handling_title, section = R.string.download_section_general, icon = Icons.Filled.FileCopy)
         item(R.string.download_quick_download_title, R.string.download_quick_download_summary, R.string.download_section_general, icon = Icons.Filled.FlashOn)
         item(R.string.download_quick_download_images_title, R.string.download_quick_download_images_summary, R.string.download_section_general, icon = Icons.Filled.Image)
+        item(R.string.download_detect_mega_title, R.string.download_detect_mega_summary, R.string.download_section_general, icon = Icons.Filled.CloudDownload)
         item(R.string.download_keep_screen_on_title, R.string.download_keep_screen_on_summary, R.string.download_section_general, icon = Icons.Filled.Visibility)
         item(R.string.download_dialog_ui_title, section = R.string.download_section_dialog_ui, icon = Icons.Filled.ViewCompact)
         item(R.string.download_push_notifications_title, R.string.download_push_notifications_summary, R.string.download_section_notifications, icon = Icons.Filled.Notifications)
+        item(R.string.download_history_normal_title, R.string.download_history_normal_summary, R.string.download_section_history, icon = Icons.Filled.History)
+        item(R.string.download_history_incognito_title, R.string.download_history_incognito_summary, R.string.download_section_history, icon = Icons.Filled.VisibilityOff)
         item(R.string.download_ignore_battery_opt_title, R.string.download_ignore_battery_opt_summary, R.string.download_section_permissions, icon = Icons.Filled.BatterySaver)
         if (!BuildConfig.IS_FOSS && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             item(R.string.download_grant_all_files_access_title, R.string.download_grant_all_files_access_summary, R.string.download_section_permissions, icon = Icons.Filled.Folder)

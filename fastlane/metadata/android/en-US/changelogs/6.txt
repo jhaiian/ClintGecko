@@ -1,0 +1,11 @@
+• MEGA file and folder downloads
+• Add downloads paused, duplicate file handling
+• Faster, lighter GeckoView and tab switching
+• Better stream detection in Media Capture
+• Separate Incognito search engine and suggestions
+• Notification to close all Incognito tabs
+• Accessibility settings for font size and zoom
+• Install extensions not signed by Mozilla
+• Delete browsing data follows the time range
+• Address bar Copy, Paste and Paste & Go
+• GeckoView 159 and shortcut fixes

@@ -49,7 +49,10 @@ class ClintWebViewClient(
 
     companion object {
         private const val COOLDOWN_MS = 4000L
+        private const val BROWSER_PACKAGES_TTL_MS = 60_000L
         private val internalSchemes = setOf("about", "data", "blob", "javascript", "file", "view-source", "moz-extension", "resource")
+        @Volatile private var browserPackagesCache: Set<String>? = null
+        @Volatile private var browserPackagesCachedAt = 0L
     }
 
     fun upgradeForHttpsOnly(url: String): String {
@@ -98,9 +101,10 @@ class ClintWebViewClient(
     }
 
     fun doUpdateVisitedHistory(view: ClintWebView, url: String) {
+        val changed = cachedPageUrl?.substringBefore('#') != url.substringBefore('#')
         cachedPageUrl = url
         MediaCaptureStore.updatePageUrl(getTabId(), url)
-        MediaCaptureStore.clearForTab(getTabId())
+        if (changed) MediaCaptureStore.clearForTab(getTabId())
         onTabUrlUpdatedCallback(view, url)
     }
 
@@ -271,9 +275,11 @@ class ClintWebViewClient(
         }
     }
 
-    fun resolveAppMatches(uri: Uri, context: android.content.Context): List<ResolveInfo> {
-        val pm = context.packageManager
-        val browserPackages = (
+    private fun cachedBrowserPackages(pm: PackageManager): Set<String> {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val cached = browserPackagesCache
+        if (cached != null && now - browserPackagesCachedAt < BROWSER_PACKAGES_TTL_MS) return cached
+        val packages = (
             queryActivities(pm, Intent(Intent.ACTION_VIEW).apply {
                 addCategory(Intent.CATEGORY_BROWSABLE)
                 data = Uri.parse("http://example.com/")
@@ -283,6 +289,14 @@ class ClintWebViewClient(
                 data = Uri.parse("https://example.com/")
             })
         ).map { it.activityInfo.packageName }.toSet()
+        browserPackagesCache = packages
+        browserPackagesCachedAt = now
+        return packages
+    }
+
+    fun resolveAppMatches(uri: Uri, context: android.content.Context): List<ResolveInfo> {
+        val pm = context.packageManager
+        val browserPackages = cachedBrowserPackages(pm)
 
         return queryActivities(pm, Intent(Intent.ACTION_VIEW, uri).apply {
             addCategory(Intent.CATEGORY_BROWSABLE)
@@ -305,16 +319,7 @@ class ClintWebViewClient(
 
         val pm = context.packageManager
 
-        val browserPackages = (
-            queryActivities(pm, Intent(Intent.ACTION_VIEW).apply {
-                addCategory(Intent.CATEGORY_BROWSABLE)
-                data = Uri.parse("http://example.com/")
-            }) +
-            queryActivities(pm, Intent(Intent.ACTION_VIEW).apply {
-                addCategory(Intent.CATEGORY_BROWSABLE)
-                data = Uri.parse("https://example.com/")
-            })
-        ).map { it.activityInfo.packageName }.toSet()
+        val browserPackages = cachedBrowserPackages(pm)
 
         val appMatches = queryActivities(pm, Intent(Intent.ACTION_VIEW, uri).apply {
             addCategory(Intent.CATEGORY_BROWSABLE)

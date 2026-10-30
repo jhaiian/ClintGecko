@@ -69,6 +69,7 @@ internal const val DEST_BROWSER = "browser"
 internal const val DEST_PRIVACY = "privacy"
 internal const val DEST_SITE_SETTINGS = "site_settings"
 internal const val DEST_DATA_SAVER = "data_saver"
+internal const val DEST_ACCESSIBILITY = "accessibility"
 internal const val DEST_DOWNLOADS = "downloads"
 internal const val DEST_BACKUP_RESTORE = "backup_restore"
 internal const val DEST_UPDATES = "updates"
@@ -287,6 +288,7 @@ private fun SettingsListPane(
                     selectedEntry = selectedDestination?.let(::mainEntryFor),
                     onSearchClick = { onSearchActiveChange(true) },
                     onLookAndFeelClick = { onNavigate(DEST_LOOK_AND_FEEL, null) },
+                    onAccessibilityClick = { onNavigate(DEST_ACCESSIBILITY, null) },
                     onBrowserClick = { onNavigate(DEST_BROWSER, null) },
                     onPrivacyClick = { onNavigate(DEST_PRIVACY, null) },
                     onSiteSettingsClick = { onNavigate(DEST_SITE_SETTINGS, null) },
@@ -322,6 +324,7 @@ private fun SettingsDetailPane(
             CompositionLocalProvider(LocalSettingsSearchTarget provides searchTarget) {
                 when (destination) {
                     DEST_LOOK_AND_FEEL -> LookAndFeelPane(activity)
+                    DEST_ACCESSIBILITY -> AccessibilityPane(activity)
                     DEST_BROWSER -> BrowserSettingsPane(activity, onTranslationsClick = { onNavigate(DEST_TRANSLATIONS) })
                     DEST_PRIVACY -> PrivacySettingsPane(activity)
                     DEST_SITE_SETTINGS -> SiteSettingsPane(activity)
@@ -341,6 +344,7 @@ private fun SettingsDetailPane(
 
 private fun mainEntryFor(destination: String): MainSettingsEntry? = when (destination) {
     DEST_LOOK_AND_FEEL -> MainSettingsEntry.LOOK_AND_FEEL
+    DEST_ACCESSIBILITY -> MainSettingsEntry.ACCESSIBILITY
     DEST_BROWSER -> MainSettingsEntry.BROWSER
     DEST_PRIVACY -> MainSettingsEntry.PRIVACY
     DEST_SITE_SETTINGS -> MainSettingsEntry.SITE_SETTINGS
@@ -362,6 +366,7 @@ private fun parentDestination(destination: String): String? = when (destination)
 
 private fun destinationTitleRes(destination: String): Int = when (destination) {
     DEST_LOOK_AND_FEEL -> R.string.look_and_feel
+    DEST_ACCESSIBILITY -> R.string.accessibility_title
     DEST_BROWSER -> R.string.browser_settings
     DEST_PRIVACY -> R.string.privacy_settings
     DEST_SITE_SETTINGS -> R.string.site_settings

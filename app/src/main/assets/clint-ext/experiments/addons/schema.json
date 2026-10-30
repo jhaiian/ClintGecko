@@ -1,0 +1,15 @@
+[
+  {
+    "namespace": "clintAddons",
+    "functions": [
+      {
+        "name": "installUnsigned",
+        "type": "function",
+        "async": true,
+        "parameters": [
+          { "name": "path", "type": "string" }
+        ]
+      }
+    ]
+  }
+]

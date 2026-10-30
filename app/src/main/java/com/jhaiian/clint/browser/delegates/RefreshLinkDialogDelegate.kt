@@ -12,15 +12,16 @@ internal fun MainActivity.showRefreshLinkDownloadDialog(
     userAgent: String,
     referer: String,
     cookies: String,
-    session: MainActivity.RefreshLinkSession
+    session: MainActivity.RefreshLinkSession,
+    pageUrl: String = referer
 ) {
     uiState.refreshLinkDialogRequest = RefreshLinkDialogRequest(
         existingFilename = session.filename,
         onUpdateExisting = {
-            ClintDownloadManager.updateDownloadUrl(session.downloadId, url, referer, cookies)
+            ClintDownloadManager.updateDownloadUrl(session.downloadId, url, referer, cookies, pageUrl)
             Toast.makeText(this, getString(R.string.refresh_link_updated_toast, session.filename), Toast.LENGTH_SHORT).show()
             refreshLinkSession = null
         },
-        onAddNew = { showDownloadDialog(url, filename, userAgent, referer, cookies) }
+        onAddNew = { showDownloadDialog(url, filename, userAgent, referer, cookies, pageUrl = pageUrl) }
     )
 }

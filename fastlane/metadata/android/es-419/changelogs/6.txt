@@ -1,0 +1,11 @@
+• Descargas de archivos y carpetas de MEGA
+• Agregar descargas en pausa y manejo de duplicados
+• GeckoView más rápido y ligero
+• Captura de medios encuentra más videos
+• Buscador y sugerencias propios para incógnito
+• Notificación para cerrar las pestañas de incógnito
+• Accesibilidad con tamaño de fuente y zoom
+• Extensiones sin firma de Mozilla
+• Borrar datos respeta el período elegido
+• Copiar, Pegar y Pegar e ir en la barra de direcciones
+• GeckoView 159 y arreglos en accesos directos

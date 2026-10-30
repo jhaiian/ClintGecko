@@ -9,6 +9,12 @@ import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
 import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
+import com.jhaiian.clint.downloads.mega.MegaApi
+import com.jhaiian.clint.downloads.mega.MegaCtrDecryptor
+import com.jhaiian.clint.downloads.mega.MegaErrors
+import com.jhaiian.clint.downloads.mega.MegaException
+import com.jhaiian.clint.downloads.mega.MegaPaths
+import com.jhaiian.clint.downloads.mega.MegaRanges
 import com.jhaiian.clint.util.formatFileSize
 import com.jhaiian.clint.settings.downloads.DownloadSettingsKeys
 import kotlinx.coroutines.CancellationException
@@ -46,6 +52,7 @@ internal object DownloadWorker {
     private const val SAF_COPY_BUFFER_BYTES = 256 * 1024
     private const val MAX_RETRY_DELAY_SEC = 600L
     private const val MAX_PARALLEL_RESTARTS = 2
+    internal const val MEGA_QUOTA_HTTP_CODE = 509
 
     internal enum class FailureKind { TRANSIENT, SERVER_REJECTED, DISK_FULL, NEEDS_USER_ACTION }
 
@@ -93,7 +100,7 @@ internal object DownloadWorker {
         item = item.copy(completedAt = System.currentTimeMillis(), status = DownloadStatus.COMPLETE)
         ClintDownloadManager.persistDownload(item)
         ClintDownloadManager.publish(item)
-        DownloadNotificationHelper.showCompleteNotification(context, item)
+        ClintDownloadManager.onDownloadCompleted(context, item)
         ClintDownloadManager.tryDequeueNext(context)
         scanCompletedFile(context, item)
     }
@@ -114,7 +121,7 @@ internal object DownloadWorker {
         item = item.copy(completedAt = System.currentTimeMillis(), status = DownloadStatus.COMPLETE, copyProgress = 100)
         ClintDownloadManager.persistDownload(item)
         ClintDownloadManager.publish(item)
-        DownloadNotificationHelper.showCompleteNotification(context, item)
+        ClintDownloadManager.onDownloadCompleted(context, item)
         ClintDownloadManager.tryDequeueNext(context)
         scanCompletedFile(context, item)
     }
@@ -214,6 +221,10 @@ internal object DownloadWorker {
         var transferredBytes = -1L
 
         try {
+            if (item.mega != null) {
+                item = refreshMegaLink(context, item) ?: return
+            }
+
             if (resumeEffectiveParts > 1) {
                 item = item.copy(status = DownloadStatus.DOWNLOADING, activeStartedAt = System.currentTimeMillis())
                 ClintDownloadManager.persistDownload(item)
@@ -231,8 +242,10 @@ internal object DownloadWorker {
             ClintDownloadManager.publish(item)
             DownloadNotificationHelper.showProgressNotification(context, item)
 
+            val megaRangeRequest = item.mega != null && isResumingFile && item.totalBytes > item.bytesDownloaded
+            val requestUrl = if (megaRangeRequest) MegaRanges.url(item.url, item.bytesDownloaded, item.totalBytes - 1) else item.url
             val request = Request.Builder()
-                .url(item.url)
+                .url(requestUrl)
                 .tag(ClintDownloadManager.CallTag::class.java, ClintDownloadManager.CallTag(item.id))
                 .header("User-Agent", item.userAgent)
                 .header("Accept", "*/*")
@@ -241,7 +254,7 @@ internal object DownloadWorker {
                 .apply {
                     if (item.referer.isNotEmpty()) header("Referer", item.referer)
                     if (item.cookies.isNotEmpty()) header("Cookie", item.cookies)
-                    if (isResumingFile) {
+                    if (isResumingFile && item.mega == null) {
                         header("Range", "bytes=${item.bytesDownloaded}-")
                         (item.etag?.takeIf { it.isNotBlank() && !it.startsWith("W/") }
                             ?: item.lastModified?.takeIf { it.isNotBlank() && item.restarts == 0 })?.let { header("If-Range", it) }
@@ -251,7 +264,7 @@ internal object DownloadWorker {
 
             if (ClintDownloadManager.isRemoved(item.id)) throw CancellationException("removed")
 
-            DownloadLog.i(item.id, "HTTP") { "GET ${item.url}" + if (isResumingFile) " \u00B7 Range bytes=${item.bytesDownloaded}-" else "" }
+            DownloadLog.i(item.id, "HTTP") { "GET $requestUrl" + if (isResumingFile && !megaRangeRequest) " \u00B7 Range bytes=${item.bytesDownloaded}-" else "" }
             val requestStartedAt = System.currentTimeMillis()
             val response = withContext(DownloadDispatchers.network) {
                 runInterruptible { ClintDownloadManager.httpClient.newCall(request).execute() }
@@ -294,11 +307,18 @@ internal object DownloadWorker {
                 }
                 DownloadLog.e(item.id, "HTTP") { "Server refused the request with ${response.code} ${response.message}" }
                 response.close()
+                if (item.mega != null && response.code == MEGA_QUOTA_HTTP_CODE) {
+                    fail(context, item, context.getString(R.string.mega_error_quota), kind = FailureKind.TRANSIENT)
+                    return
+                }
                 fail(context, item, "Server error ${response.code}", kind = httpFailureKind(response.code))
                 return
             }
 
-            val serverAcceptedRange = response.code == 206
+            val serverAcceptedRange = if (megaRangeRequest) {
+                response.code == 200 &&
+                    response.header("Content-Length")?.toLongOrNull().let { it == null || it == item.totalBytes - item.bytesDownloaded }
+            } else response.code == 206
 
             if (isResumingFile && serverAcceptedRange &&
                 !contentRangeMatches(response.header("Content-Range"), item.bytesDownloaded, item.totalBytes)
@@ -337,7 +357,7 @@ internal object DownloadWorker {
                 outputTarget = checkNotNull(existingTarget)
             } else {
                 item = item.copy(
-                    resumable = response.header("Accept-Ranges") == "bytes",
+                    resumable = item.mega != null || response.header("Accept-Ranges") == "bytes",
                     totalBytes = response.header("Content-Length")?.toLongOrNull() ?: -1L,
                     bytesDownloaded = 0L,
                     etag = response.header("ETag"),
@@ -354,7 +374,7 @@ internal object DownloadWorker {
                 }
                 peekedBytes = peeked
 
-                val finalFilename = DownloadFilenameResolver.refine(
+                val finalFilename = if (item.mega != null) item.filename else DownloadFilenameResolver.refine(
                     item.filename,
                     response.header("Content-Type"),
                     peeked
@@ -377,7 +397,7 @@ internal object DownloadWorker {
                         } else {
                             val rawDestDir = directCustomDir
                                 ?: if (safMode) DownloadFileHelper.tempDownloadDir(context) else DownloadFileHelper.resolveDownloadDir()
-                            val destDir = if (safMode) rawDestDir else DownloadCategories.resolveDir(planned.categorizeEnabled, rawDestDir, finalFilename)
+                            val destDir = if (safMode) rawDestDir else MegaPaths.localDir(DownloadCategories.resolveDir(planned.categorizeEnabled, rawDestDir, finalFilename), planned)
                             destDir.mkdirs()
                             val file = if (safMode) DownloadFileHelper.uniqueFile(destDir, finalFilename)
                             else DownloadFileHelper.uniquePartFile(destDir, finalFilename)
@@ -475,6 +495,28 @@ internal object DownloadWorker {
         }
     }
 
+    private suspend fun refreshMegaLink(context: Context, item: DownloadItem): DownloadItem? {
+        val source = item.mega ?: return item
+        DownloadLog.i(item.id, "MEGA") { "Requesting a fresh download link for MEGA file ${source.handle}" }
+        val info = try {
+            withContext(DownloadDispatchers.network) {
+                runInterruptible { MegaApi.fileInfo(source, item.userAgent) }
+            }
+        } catch (e: MegaException) {
+            DownloadLog.e(item.id, "MEGA") { "MEGA refused the link request (code ${e.code})" }
+            fail(
+                context, item, MegaErrors.message(context, e),
+                kind = if (e.isPermanent) FailureKind.NEEDS_USER_ACTION else FailureKind.TRANSIENT
+            )
+            return null
+        }
+        if (item.totalBytes > 0L && info.size > 0L && info.size != item.totalBytes) {
+            DownloadLog.w(item.id, "MEGA") { "MEGA reports ${info.size} bytes but ${item.totalBytes} were expected" }
+        }
+        if (info.downloadUrl != item.url) ClintDownloadManager.updateResolvedUrl(item.id, info.downloadUrl)
+        return item.copy(url = info.downloadUrl)
+    }
+
     private suspend fun handlePauseTransition(context: Context, item: DownloadItem) {
         var paused = finalizeElapsed(item)
         val waitingForSchedule = paused.id in DownloadScheduleMonitor.scheduleWaitingIds
@@ -556,6 +598,7 @@ internal object DownloadWorker {
                 withContext(DownloadDispatchers.network) {
                     runInterruptible {
                         target.openChannel(context).use { channel ->
+                            val decryptor = item.mega?.let { MegaCtrDecryptor(it) }
                             var position = writeStartPos
                             inputStream.use { input ->
                                 val reader = BatchedReader(input, ByteArray(COPY_BUFFER_BYTES))
@@ -577,6 +620,7 @@ internal object DownloadWorker {
                                         reachedEof = true
                                         break
                                     }
+                                    decryptor?.process(position, reader.buffer, 0, read)
                                     val chunk = ByteBuffer.wrap(reader.buffer, 0, read)
                                     while (chunk.hasRemaining()) position += channel.write(chunk, position)
                                     downloaded += read
@@ -626,7 +670,7 @@ internal object DownloadWorker {
             item = item.copy(completedAt = System.currentTimeMillis(), status = DownloadStatus.COMPLETE)
             ClintDownloadManager.persistDownload(item)
             ClintDownloadManager.publish(item)
-            DownloadNotificationHelper.showCompleteNotification(context, item)
+            ClintDownloadManager.onDownloadCompleted(context, item)
             ClintDownloadManager.tryDequeueNext(context)
             return
         }
@@ -646,7 +690,7 @@ internal object DownloadWorker {
                         ?: throw SafAccessException(context.getString(R.string.download_error_saf_no_access))
                     if (!docDir.canWrite()) throw SafAccessException(context.getString(R.string.download_error_saf_not_writable))
 
-                    val targetDir = DownloadCategories.resolveSafDir(item.categorizeEnabled, docDir, item.filename)
+                    val targetDir = MegaPaths.safDir(DownloadCategories.resolveSafDir(item.categorizeEnabled, docDir, item.filename), item)
                     val finalName = DownloadFileHelper.uniqueSafName(targetDir, item.filename)
                     val docFile = targetDir.createFile("application/octet-stream", finalName)
                         ?: throw SafAccessException(context.getString(R.string.download_error_saf_create_failed))
@@ -695,7 +739,7 @@ internal object DownloadWorker {
             item = item.copy(completedAt = System.currentTimeMillis(), status = DownloadStatus.COMPLETE)
             ClintDownloadManager.persistDownload(item)
             ClintDownloadManager.publish(item)
-            DownloadNotificationHelper.showCompleteNotification(context, item)
+            ClintDownloadManager.onDownloadCompleted(context, item)
             ClintDownloadManager.tryDequeueNext(context)
             scanCompletedFile(context, item)
         } catch (e: Throwable) {
@@ -825,7 +869,9 @@ internal object DownloadWorker {
         if (ClintDownloadManager.isStale(initialItem)) return
         val ctx = ClintDownloadManager.appContext ?: context
         var item = initialItem
-        val failureKind = kind ?: classify(msg)
+        val failureKind = kind ?: classify(msg).let {
+            if (it == FailureKind.SERVER_REJECTED && initialItem.mega != null) FailureKind.TRANSIENT else it
+        }
 
         if (scheduleRetry &&
             failureKind == FailureKind.TRANSIENT &&

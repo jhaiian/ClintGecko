@@ -89,6 +89,38 @@ internal fun MainActivity.openSearchOverlay(isBottom: Boolean) {
     onSearchQueryChanged(current)
 }
 
+internal fun MainActivity.clipboardHasText(): Boolean {
+    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    if (!clipboard.hasPrimaryClip()) return false
+    val description = clipboard.primaryClipDescription ?: return false
+    return description.hasMimeType(android.content.ClipDescription.MIMETYPE_TEXT_PLAIN) ||
+        description.hasMimeType(android.content.ClipDescription.MIMETYPE_TEXT_HTML) ||
+        description.hasMimeType(android.content.ClipDescription.MIMETYPE_TEXT_URILIST)
+}
+
+private fun MainActivity.clipboardText(): String? {
+    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    val clip = clipboard.primaryClip ?: return null
+    if (clip.itemCount == 0) return null
+    return clip.getItemAt(0).coerceToText(this)?.toString()
+        ?.replace(Regex("\\s*[\\r\\n]+\\s*"), " ")
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+}
+
+internal fun MainActivity.pasteIntoSearch(isBottom: Boolean) {
+    val text = clipboardText() ?: return
+    uiState.searchOverlayIsBottom = isBottom
+    uiState.searchOverlayOpen = true
+    onSearchQueryChanged(text)
+}
+
+internal fun MainActivity.pasteAndGo(isBottom: Boolean) {
+    val text = clipboardText() ?: return
+    uiState.searchOverlayIsBottom = isBottom
+    onSearchSubmitted(text)
+}
+
 internal fun MainActivity.closeSearchOverlay() {
     uiState.searchOverlayOpen = false
     suggestionFetcher?.cancel()
@@ -114,7 +146,7 @@ internal fun MainActivity.onSearchQueryChanged(query: String) {
             runOnUiThread { uiState.suggestions = combineSuggestions(emptyList(), bookmarks, history, emptyList()) }
             return@post
         }
-        val suggestionsApi = prefs.getString("search_suggestions_api", "duckduckgo") ?: "duckduckgo"
+        val suggestionsApi = com.jhaiian.clint.browser.searchSuggestionsApiFor(prefs, isIncognito)
         val onlineBlocked = suggestionsApi == "off" || (DataSaverMode.isActive(prefs) && prefs.getBoolean("data_saver_disable_suggestions", true))
         if (onlineBlocked) {
             suggestionFetcher?.cancel()
@@ -126,7 +158,7 @@ internal fun MainActivity.onSearchQueryChanged(query: String) {
         runOnUiThread { uiState.suggestions = combineSuggestions(pages, bookmarks, history, lastOnlineSuggestions) }
         if (onlineBlocked) return@post
         val customSuggestionsUrl = if (suggestionsApi == "custom") {
-            customSearchSuggestionsApiQueryUrl(prefs, android.net.Uri.encode(query))
+            customSearchSuggestionsApiQueryUrl(prefs, android.net.Uri.encode(query), isIncognito)
         } else null
         suggestionFetcher?.fetch(query, suggestionsApi, customSuggestionsUrl) { suggestions ->
             lastOnlineSuggestions = suggestions
@@ -270,6 +302,7 @@ internal fun MainActivity.onTabUrlUpdated(webView: ClintWebView, url: String) {
         updateAddressBar(url)
     }
     if (uiState.tabStrip != null) refreshTabStrip()
+    maybeOfferMegaDownload(webView, url)
 }
 
 internal fun MainActivity.onPageStarted(url: String) {
@@ -358,7 +391,11 @@ internal fun MainActivity.updateNavigationState() {
 internal fun MainActivity.updateTabCount() {
     val count = tabManager.previews().size
     uiState.tabCountText = if (count > 99) ":D" else count.toString()
-    com.jhaiian.clint.privacy.BrowsingDataCleaner.openTabCount = count
+    val activeTabId = tabManager.activeTab?.id
+    com.jhaiian.clint.privacy.BrowsingDataCleaner.openTabs = tabManager.tabs
+        .filter { !tabManager.isGhostTab(it) }
+        .map { com.jhaiian.clint.privacy.OpenTabSnapshot(it.url, it.lastActiveAt, it.id == activeTabId) }
+    com.jhaiian.clint.privacy.IncognitoNotification.sync(this, tabManager.tabs.any { it.isIncognito })
     refreshTabGroupBar()
     refreshTabStrip()
 }

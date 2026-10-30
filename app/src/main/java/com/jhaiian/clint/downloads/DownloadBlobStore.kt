@@ -47,6 +47,18 @@ internal object DownloadBlobStore {
         input.copyTo(out, COPY_BUFFER_BYTES)
     }
 
+    private const val PAUSED_DIR = "paused_blobs"
+
+    fun keepPaused(context: Context, source: File, id: Int): File? = runCatching {
+        val dir = File(context.filesDir, PAUSED_DIR).apply { mkdirs() }
+        val target = File(dir, "blob_$id.bin")
+        moveTo(source, target)
+        target
+    }.getOrNull()
+
+    fun isPausedBlob(context: Context, file: File): Boolean =
+        file.parentFile?.absolutePath == File(context.filesDir, PAUSED_DIR).absolutePath
+
     fun moveTo(source: File, target: File) {
         if (source.renameTo(target)) return
         source.inputStream().use { input ->

@@ -6,7 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 enum class DownloadSettingsDialog {
-    MEASUREMENT_SYSTEM, RETRY_COUNT, RETRY_INTERVAL, SPEED_LIMIT, TOTAL_SPEED_LIMIT, DOWNLOAD_MANAGER, DIALOG_UI
+    MEASUREMENT_SYSTEM, RETRY_COUNT, RETRY_INTERVAL, SPEED_LIMIT, TOTAL_SPEED_LIMIT, DOWNLOAD_MANAGER, DIALOG_UI, DUPLICATE_HANDLING
 }
 
 class DownloadSettingsUiState(
@@ -15,6 +15,7 @@ class DownloadSettingsUiState(
     initialCustomUri: Uri?,
     initialCategorizeDownloads: Boolean,
     initialDialogUi: String,
+    initialDuplicateHandling: String,
     initialMeasurementSystemDecimal: Boolean,
     initialUnmeteredOnly: Boolean,
     initialScheduleEnabled: Boolean,
@@ -36,10 +37,13 @@ class DownloadSettingsUiState(
     initialShowGrantAllFilesAccessRow: Boolean,
     initialAllFilesAccessGranted: Boolean,
     initialPushNotifications: Boolean,
+    initialHistoryNormal: Boolean,
+    initialHistoryIncognito: Boolean,
     initialKeepScreenOn: Boolean,
     initialDownloadLog: Boolean,
     initialQuickDownload: Boolean,
     initialQuickDownloadImages: Boolean,
+    initialDetectMegaLinks: Boolean,
     initialHideStatusBar: Boolean,
 initialHideSystemNavigation: Boolean
 ) {
@@ -48,6 +52,7 @@ initialHideSystemNavigation: Boolean
     var customUri by mutableStateOf(initialCustomUri)
     var categorizeDownloads by mutableStateOf(initialCategorizeDownloads)
     var dialogUi by mutableStateOf(initialDialogUi)
+    var duplicateHandling by mutableStateOf(initialDuplicateHandling)
     var measurementSystemDecimal by mutableStateOf(initialMeasurementSystemDecimal)
     var unmeteredOnly by mutableStateOf(initialUnmeteredOnly)
 
@@ -76,10 +81,13 @@ initialHideSystemNavigation: Boolean
     var allFilesAccessGranted by mutableStateOf(initialAllFilesAccessGranted)
 
     var pushNotifications by mutableStateOf(initialPushNotifications)
+    var historyNormal by mutableStateOf(initialHistoryNormal)
+    var historyIncognito by mutableStateOf(initialHistoryIncognito)
     var keepScreenOn by mutableStateOf(initialKeepScreenOn)
     var downloadLog by mutableStateOf(initialDownloadLog)
     var quickDownload by mutableStateOf(initialQuickDownload)
     var quickDownloadImages by mutableStateOf(initialQuickDownloadImages)
+    var detectMegaLinks by mutableStateOf(initialDetectMegaLinks)
     var hideStatusBar by mutableStateOf(initialHideStatusBar)
     var hideSystemNavigation by mutableStateOf(initialHideSystemNavigation)
 

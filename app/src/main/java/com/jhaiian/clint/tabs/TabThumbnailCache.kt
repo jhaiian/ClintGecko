@@ -35,7 +35,7 @@ object TabThumbnailCache {
         if (webView.width <= 0 || webView.height <= 0) return
         val context = webView.context.applicationContext
         webView.captureBitmap { bitmap ->
-            if (bitmap != null) put(context, tabId, bitmap, isIncognito)
+            if (bitmap != null) ioExecutor.execute { put(context, tabId, bitmap, isIncognito) }
         }
     }
 
@@ -72,7 +72,11 @@ object TabThumbnailCache {
         cache.remove(tabId)
         incognitoCache.remove(tabId)
         val appContext = context.applicationContext
-        ioExecutor.execute { diskFiles(appContext, tabId).forEach { it.delete() } }
+        ioExecutor.execute {
+            cache.remove(tabId)
+            incognitoCache.remove(tabId)
+            diskFiles(appContext, tabId).forEach { it.delete() }
+        }
     }
 
     fun clear() {

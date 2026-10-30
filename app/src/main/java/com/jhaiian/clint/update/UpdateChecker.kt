@@ -181,7 +181,6 @@ object UpdateChecker {
             foundAbis.contains("arm64-v8a") -> "arm64-v8a"
             foundAbis.contains("armeabi-v7a") -> "armeabi-v7a"
             foundAbis.contains("x86_64") -> "x86_64"
-            foundAbis.contains("x86") -> "x86"
             else -> ARCH_UNIVERSAL
         }
         return Pair(arch, isUniversal)

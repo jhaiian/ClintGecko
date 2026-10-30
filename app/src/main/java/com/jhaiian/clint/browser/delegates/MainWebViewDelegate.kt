@@ -284,10 +284,10 @@ internal fun MainActivity.syncDesktopModeForUrl(url: String): Boolean {
     return true
 }
 
-internal fun MainActivity.getHomepageUrl(): String {
+internal fun MainActivity.getHomepageUrl(incognito: Boolean = tabManager.activeTab?.isIncognito == true): String {
     val homepage = prefs.getString(com.jhaiian.clint.browser.home.PREF_HOMEPAGE, com.jhaiian.clint.browser.home.HOMEPAGE_CLINT)
     return when (homepage) {
-        com.jhaiian.clint.browser.home.HOMEPAGE_SEARCH_ENGINE -> getSearchEngineHomeUrl()
+        com.jhaiian.clint.browser.home.HOMEPAGE_SEARCH_ENGINE -> getSearchEngineHomeUrl(incognito)
         com.jhaiian.clint.browser.home.HOMEPAGE_CUSTOM -> com.jhaiian.clint.browser.home.normalizeCustomHomepageUrl(
             prefs.getString(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_CUSTOM_URL, "") ?: ""
         ) ?: com.jhaiian.clint.browser.home.CLINT_HOME_URL
@@ -295,28 +295,28 @@ internal fun MainActivity.getHomepageUrl(): String {
     }
 }
 
-internal fun MainActivity.getSearchEngineHomeUrl(): String {
-    return when (prefs.getString("search_engine", "duckduckgo")) {
+internal fun MainActivity.getSearchEngineHomeUrl(incognito: Boolean = tabManager.activeTab?.isIncognito == true): String {
+    return when (com.jhaiian.clint.browser.searchEngineFor(prefs, incognito)) {
         "brave" -> "https://search.brave.com"
         "ecosia" -> "https://www.ecosia.org"
         "google" -> "https://www.google.com"
-        "custom" -> com.jhaiian.clint.browser.customSearchEngineHomeUrl(prefs)
+        "custom" -> com.jhaiian.clint.browser.customSearchEngineHomeUrl(prefs, incognito)
         else -> "https://duckduckgo.com"
     }
 }
 
-internal fun MainActivity.getSearchQueryUrl(query: String): String {
+internal fun MainActivity.getSearchQueryUrl(query: String, incognito: Boolean = tabManager.activeTab?.isIncognito == true): String {
     val encoded = android.net.Uri.encode(query)
-    return when (prefs.getString("search_engine", "duckduckgo")) {
+    return when (com.jhaiian.clint.browser.searchEngineFor(prefs, incognito)) {
         "brave" -> "https://search.brave.com/search?q=$encoded"
         "ecosia" -> "https://www.ecosia.org/search?q=$encoded"
         "google" -> "https://www.google.com/search?q=$encoded"
-        "custom" -> com.jhaiian.clint.browser.customSearchEngineQueryUrl(prefs, encoded)
+        "custom" -> com.jhaiian.clint.browser.customSearchEngineQueryUrl(prefs, encoded, incognito)
         else -> "https://duckduckgo.com/?q=$encoded"
     }
 }
 
-private fun isRelatedToSession(
+internal fun isRelatedToSession(
     downloadUrl: String,
     pageUrl: String,
     session: MainActivity.RefreshLinkSession
@@ -325,15 +325,17 @@ private fun isRelatedToSession(
         ?.let { registeredDomain(it) }
     val originalRefererDomain = session.originalReferer.toHttpUrlOrNull()?.host
         ?.let { registeredDomain(it) }
+    val originalPageDomain = session.pageUrl.toHttpUrlOrNull()?.host
+        ?.let { registeredDomain(it) }
 
-    if (originalDownloadDomain == null && originalRefererDomain == null) return true
+    if (originalDownloadDomain == null && originalRefererDomain == null && originalPageDomain == null) return true
 
     val newDownloadDomain = downloadUrl.toHttpUrlOrNull()?.host
         ?.let { registeredDomain(it) }
     val newPageDomain = pageUrl.toHttpUrlOrNull()?.host
         ?.let { registeredDomain(it) }
 
-    val originalDomains = setOfNotNull(originalDownloadDomain, originalRefererDomain)
+    val originalDomains = setOfNotNull(originalDownloadDomain, originalRefererDomain, originalPageDomain)
     return newDownloadDomain in originalDomains || newPageDomain in originalDomains
 }
 

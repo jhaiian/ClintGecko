@@ -78,13 +78,6 @@ jobs:
           path: app/build/outputs/apk/github/release/app-github-armeabi-v7a-release.apk
           if-no-files-found: warn
 
-      - name: Upload x86 APK
-        uses: actions/upload-artifact@v7
-        with:
-          name: Clint-x86
-          path: app/build/outputs/apk/github/release/app-github-x86-release.apk
-          if-no-files-found: warn
-
       - name: Upload x86_64 APK
         uses: actions/upload-artifact@v7
         with:

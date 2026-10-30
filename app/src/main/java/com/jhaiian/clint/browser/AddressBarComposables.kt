@@ -14,12 +14,16 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
@@ -34,6 +38,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,19 +47,35 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import com.jhaiian.clint.R
+import com.jhaiian.clint.browser.delegates.clipboardHasText
+import com.jhaiian.clint.browser.delegates.copyCurrentPageLink
+import com.jhaiian.clint.browser.delegates.pasteAndGo
+import com.jhaiian.clint.browser.delegates.pasteIntoSearch
 import com.jhaiian.clint.browser.delegates.openTranslatePage
 import com.jhaiian.clint.ui.theme.LocalClintColors
 
@@ -75,6 +96,7 @@ internal fun AddressBarRow(
     showHomeButton: Boolean = false,
     onHomeClick: () -> Unit = {},
     openTabsSwipeDirection: Int = 0,
+    isBottomBar: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalClintColors.current
@@ -86,10 +108,13 @@ internal fun AddressBarRow(
     val addressBarHint = stringResource(
         R.string.search_bar_hint,
         engineDisplayName(
-            activity.prefs.getString("search_engine", "duckduckgo") ?: "duckduckgo",
-            customSearchEngineName(activity.prefs)
+            searchEngineFor(activity.prefs, activity.uiState.isIncognito),
+            customSearchEngineName(activity.prefs, activity.uiState.isIncognito)
         )
     )
+    val haptic = LocalHapticFeedback.current
+    var showEditMenu by remember { mutableStateOf(false) }
+    var canPaste by remember { mutableStateOf(false) }
     val activeWebView = remember(activeTabId, activity.uiState.tabsRevision) {
         activity.tabManager.tabs.firstOrNull { it.id == activeTabId }?.webView
     }
@@ -146,7 +171,16 @@ internal fun AddressBarRow(
             modifier = Modifier
                 .weight(1f)
                 .height(48.dp)
-                .clickable(onClick = onAddressBarClick)
+                .combinedClickable(
+                    onClick = onAddressBarClick,
+                    onLongClick = {
+                        canPaste = activity.clipboardHasText()
+                        if (addressBarText.isNotEmpty() || canPaste) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            showEditMenu = true
+                        }
+                    }
+                )
                 .draggable(
                     orientation = Orientation.Horizontal,
                     state = rememberDraggableState { delta ->
@@ -182,6 +216,26 @@ internal fun AddressBarRow(
                     }
                 )
         ) {
+            if (showEditMenu) {
+                AddressBarEditMenu(
+                    above = isBottomBar,
+                    showCopy = addressBarText.isNotEmpty(),
+                    showPaste = canPaste,
+                    onCopy = {
+                        showEditMenu = false
+                        activity.copyCurrentPageLink(addressBarText)
+                    },
+                    onPaste = {
+                        showEditMenu = false
+                        activity.pasteIntoSearch(isBottomBar)
+                    },
+                    onPasteAndGo = {
+                        showEditMenu = false
+                        activity.pasteAndGo(isBottomBar)
+                    },
+                    onDismiss = { showEditMenu = false }
+                )
+            }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -314,20 +368,130 @@ internal fun AddressBarRow(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .padding(start = 10.dp)
-                .size(width = 34.dp, height = 26.dp)
+                .defaultMinSize(minWidth = 34.dp, minHeight = 26.dp)
+                .clip(RoundedCornerShape(5.dp))
                 .border(2.dp, colors.primary, RoundedCornerShape(5.dp))
-                .clickable(onClick = onTabCountClick)
+                .combinedClickable(
+                    onClick = onTabCountClick,
+                    onLongClickLabel = stringResource(if (isIncognito) R.string.new_incognito_tab else R.string.new_tab),
+                    onLongClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        if (isIncognito) activity.onNewIncognitoTab() else activity.onNewTab()
+                    }
+                )
+                .padding(horizontal = 5.dp, vertical = 4.dp)
         ) {
             Text(
                 text = tabCountText,
                 color = colors.primary,
                 fontSize = 12.sp,
+                lineHeight = 12.sp,
+                letterSpacing = 0.sp,
                 fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                softWrap = false,
+                style = LocalTextStyle.current.copy(
+                    platformStyle = PlatformTextStyle(includeFontPadding = false),
+                    lineHeightStyle = LineHeightStyle(
+                        alignment = LineHeightStyle.Alignment.Center,
+                        trim = LineHeightStyle.Trim.Both
+                    )
+                )
             )
         }
         Box(modifier = Modifier.padding(start = 4.dp).size(40.dp), contentAlignment = Alignment.Center) {
             com.jhaiian.clint.browser.menu.MenuTriggerButton(activity)
         }
+    }
+}
+
+private class AddressBarEditMenuPositionProvider(
+    private val above: Boolean,
+    private val gapPx: Int,
+    private val insetPx: Int
+) : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize
+    ): IntOffset {
+        val x = if (layoutDirection == LayoutDirection.Ltr) {
+            anchorBounds.left + insetPx
+        } else {
+            anchorBounds.right - insetPx - popupContentSize.width
+        }
+        val y = if (above) anchorBounds.top - gapPx - popupContentSize.height else anchorBounds.bottom + gapPx
+        return IntOffset(
+            x.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0)),
+            y.coerceIn(0, (windowSize.height - popupContentSize.height).coerceAtLeast(0))
+        )
+    }
+}
+
+@Composable
+private fun AddressBarEditMenu(
+    above: Boolean,
+    showCopy: Boolean,
+    showPaste: Boolean,
+    onCopy: () -> Unit,
+    onPaste: () -> Unit,
+    onPasteAndGo: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = LocalClintColors.current
+    val density = LocalDensity.current
+    val positionProvider = remember(above, density) {
+        with(density) {
+            AddressBarEditMenuPositionProvider(above, 6.dp.roundToPx(), 16.dp.roundToPx())
+        }
+    }
+    Popup(
+        popupPositionProvider = positionProvider,
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true)
+    ) {
+        Surface(
+            color = colors.popupBackground,
+            contentColor = colors.popupText,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, colors.popupStroke),
+            shadowElevation = 6.dp
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+            ) {
+                if (showCopy) AddressBarEditMenuAction(stringResource(R.string.action_copy), onCopy)
+                if (showPaste) {
+                    AddressBarEditMenuAction(stringResource(R.string.address_bar_paste), onPaste)
+                    AddressBarEditMenuAction(stringResource(R.string.address_bar_paste_and_go), onPasteAndGo)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddressBarEditMenuAction(text: String, onClick: () -> Unit) {
+    val colors = LocalClintColors.current
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .defaultMinSize(minHeight = 48.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Text(
+            text = text,
+            color = colors.popupText,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1
+        )
     }
 }

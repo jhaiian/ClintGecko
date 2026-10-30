@@ -115,8 +115,6 @@ jobs:
                 ARCH="armeabi-v7a"
               elif [[ "$fname" == *"x86_64"* ]]; then
                 ARCH="x86_64"
-              elif [[ "$fname" == *"x86"* ]]; then
-                ARCH="x86"
               elif [[ "$fname" == *"universal"* ]]; then
                 ARCH="universal"
               else
@@ -173,7 +171,8 @@ jobs:
           data["versionCode"] = version_code
           data["changelog"] = changelog_text
 
-          archs = ["arm64-v8a", "armeabi-v7a", "x86", "x86_64", "universal"]
+          archs = ["arm64-v8a", "armeabi-v7a", "x86_64", "universal"]
+          data["downloads"].pop("x86", None)
           for arch in archs:
               apk_name = f"ClintGecko-{version}-{arch}.apk"
               data["downloads"][arch] = f"{base_url}/{apk_name}"

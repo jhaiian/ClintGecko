@@ -2,6 +2,8 @@ package com.jhaiian.clint.tabs
 
 import android.content.ContentValues
 import android.content.Context
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 data class SavedTab(
     val position: Int,
@@ -17,12 +19,32 @@ data class SavedTab(
 
 object TabSessionManager {
 
+    private const val PENDING_WRITE_TIMEOUT_MS = 2000L
+
     @Volatile private var db: TabDatabase? = null
+
+    private val writer = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "tab-session-io")
+    }
 
     private fun db(context: Context): TabDatabase {
         return db ?: synchronized(this) {
             db ?: TabDatabase(context.applicationContext).also { db = it }
         }
+    }
+
+    fun saveAsync(context: Context, tabs: List<SavedTab>, groups: List<TabGroup> = emptyList()) {
+        val appContext = context.applicationContext
+        writer.execute { runCatching { save(appContext, tabs, groups) } }
+    }
+
+    fun clearAsync(context: Context) {
+        val appContext = context.applicationContext
+        writer.execute { runCatching { clear(appContext) } }
+    }
+
+    fun awaitPendingWrites() {
+        runCatching { writer.submit(Runnable {}).get(PENDING_WRITE_TIMEOUT_MS, TimeUnit.MILLISECONDS) }
     }
 
     fun save(context: Context, tabs: List<SavedTab>, groups: List<TabGroup> = emptyList()) {

@@ -87,6 +87,7 @@ internal fun DownloadsLibraryContent(
     onRemove: (DownloadItem) -> Unit
 ) {
     val colors = LocalClintColors.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     val kindCounts = remember(items) { items.groupingBy { downloadFileKind(it.filename) }.eachCount() }
     val kind = state.libraryKind
     val visible = remember(items, kind) { if (kind == null) items else items.filter { downloadFileKind(it.filename) == kind } }
@@ -109,7 +110,12 @@ internal fun DownloadsLibraryContent(
                 selected = kind,
                 grid = state.libraryGrid,
                 onSelect = { state.libraryKind = it },
-                onToggleGrid = { state.libraryGrid = !state.libraryGrid }
+                onToggleGrid = {
+                    val grid = !state.libraryGrid
+                    state.libraryGrid = grid
+                    androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).edit()
+                        .putBoolean(com.jhaiian.clint.settings.downloads.DownloadSettingsKeys.PREF_LIBRARY_GRID, grid).apply()
+                }
             )
         }
         if (visible.isEmpty()) {

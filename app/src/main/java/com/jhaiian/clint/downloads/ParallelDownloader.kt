@@ -1,6 +1,9 @@
 package com.jhaiian.clint.downloads
 
 import android.content.Context
+import com.jhaiian.clint.R
+import com.jhaiian.clint.downloads.mega.MegaCtrDecryptor
+import com.jhaiian.clint.downloads.mega.MegaRanges
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -228,6 +231,11 @@ internal object ParallelDownloader {
             call.execute().use { response ->
                 when {
                     response.code == 429 -> return RangeResult.RateLimited(parseRetryAfterSeconds(response.header("Retry-After")))
+                    item.mega != null && response.code == DownloadWorker.MEGA_QUOTA_HTTP_CODE ->
+                        return RangeResult.Fatal(context.getString(R.string.mega_error_quota))
+                    item.mega != null && response.code == 200 && range.position > 0L &&
+                        response.header("Content-Length")?.toLongOrNull() == totalBytes -> return RangeResult.NoRangeSupport
+                    item.mega != null && response.code == 200 -> Unit
                     response.code == 200 && validator != null -> return RangeResult.Restart("server sent the whole file for If-Range, so it changed on the server")
                     response.code == 200 -> return RangeResult.NoRangeSupport
                     response.code == 401 || response.code == 403 || response.code == 404 || response.code == 410 ->
@@ -245,6 +253,7 @@ internal object ParallelDownloader {
                     }
                 }
                 target.openChannel(context).use { channel ->
+                    val decryptor = item.mega?.let { MegaCtrDecryptor(it) }
                     val reader = BatchedReader(response.body.byteStream(), ByteArray(BUFFER_BYTES))
                     while (true) {
                         if (stopRequested() || Thread.currentThread().isInterrupted) return RangeResult.Stopped
@@ -261,6 +270,7 @@ internal object ParallelDownloader {
                             val allowed = range.end - range.position + 1
                             if (allowed <= 0L) 0 else {
                                 val count = minOf(read.toLong(), allowed).toInt()
+                                decryptor?.process(range.position, reader.buffer, 0, count)
                                 val chunk = ByteBuffer.wrap(reader.buffer, 0, count)
                                 var position = range.position
                                 while (chunk.hasRemaining()) position += channel.write(chunk, position)
@@ -284,18 +294,19 @@ internal object ParallelDownloader {
             val startPosition = range.position
             val endPosition = range.end
             if (startPosition > endPosition) return RangeResult.Done
+            val megaRange = item.mega != null
             val request = Request.Builder()
-                .url(item.url)
+                .url(if (megaRange) MegaRanges.url(item.url, startPosition, endPosition) else item.url)
                 .tag(ClintDownloadManager.CallTag::class.java, ClintDownloadManager.CallTag(id))
                 .header("User-Agent", item.userAgent)
                 .header("Accept", "*/*")
                 .header("Accept-Language", "en-US,en;q=0.9")
                 .header("Accept-Encoding", "identity")
-                .header("Range", "bytes=$startPosition-$endPosition")
                 .apply {
+                    if (!megaRange) header("Range", "bytes=$startPosition-$endPosition")
                     if (item.referer.isNotEmpty()) header("Referer", item.referer)
                     if (item.cookies.isNotEmpty()) header("Cookie", item.cookies)
-                    if (validator != null) header("If-Range", validator)
+                    if (validator != null && !megaRange) header("If-Range", validator)
                 }
                 .build()
             DownloadLog.d(id, "RANGE") { "GET bytes=$startPosition-$endPosition (attempt ${range.failures + 1})" }

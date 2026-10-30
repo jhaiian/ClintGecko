@@ -104,6 +104,18 @@
     <string name="pref_category_incognito">Samaran</string>
     <string name="incognito_search_history_title">Tampilkan histori penelusuran di Mode Samaran</string>
     <string name="incognito_search_history_summary">Sertakan histori penelusuran yang tersimpan sebagai saran saat menjelajah dalam mode Samaran</string>
+    <string name="remember_browsing_mode_title">Ingat mode penjelajahan</string>
+    <string name="remember_browsing_mode_summary">Buka kembali Clint dalam mode Samaran atau biasa, sesuai yang terakhir Anda gunakan</string>
+    <string name="incognito_notification_channel_name">Tab Samaran</string>
+    <string name="incognito_notification_channel_desc">Muncul saat ada tab Samaran yang terbuka agar Anda bisa menutup semuanya dengan sekali ketuk</string>
+    <string name="incognito_notification_title">Ada tab Samaran yang terbuka</string>
+    <string name="incognito_notification_text">Ketuk untuk menutup semua tab Samaran</string>
+    <string name="incognito_search_engine_title">Mesin telusur Samaran</string>
+    <string name="incognito_search_suggestions_api_title">Saran penelusuran Samaran</string>
+    <string name="search_same_as_normal">Sama seperti mode biasa</string>
+    <string name="search_same_as_normal_summary">Sama seperti mode biasa (%1$s)</string>
+    <string name="search_engine_same_as_normal_desc">Gunakan mesin telusur yang Anda pilih untuk penjelajahan biasa</string>
+    <string name="suggestions_api_same_as_normal_desc">Gunakan penyedia saran yang Anda pilih untuk penjelajahan biasa</string>
     <string name="privacy_settings_summary">Perlindungan pelacakan, cookie, DNS aman, kunci aplikasi, dan isi otomatis</string>
     <string name="javascript_enabled">Aktifkan JavaScript</string>
     <string name="javascript_enabled_summary">Izinkan situs menjalankan JavaScript</string>
@@ -340,6 +352,11 @@
     <string name="download_section_notifications">NOTIFIKASI</string>
     <string name="download_push_notifications_title">Notifikasi push</string>
     <string name="download_push_notifications_summary">Dapatkan pemberitahuan saat download selesai, gagal, atau mulai dicoba ulang</string>
+    <string name="download_section_history">HISTORI</string>
+    <string name="download_history_normal_title">Simpan histori download</string>
+    <string name="download_history_normal_summary">Simpan download yang sudah selesai di daftar Download. File tetap tersimpan</string>
+    <string name="download_history_incognito_title">Simpan histori download Samaran</string>
+    <string name="download_history_incognito_summary">Simpan download dari tab Samaran yang sudah selesai di daftar Download. File tetap tersimpan</string>
     <string name="download_section_general">UMUM</string>
     <string name="download_section_dialog_ui">DIALOG DOWNLOAD</string>
     <string name="download_dialog_ui_title">UI</string>
@@ -347,6 +364,13 @@
     <string name="download_dialog_ui_standard_desc">Tata letak lega dengan judul bagian dan deskripsi</string>
     <string name="download_dialog_ui_compact">Ringkas</string>
     <string name="download_dialog_ui_compact_desc">Tata letak lebih rapat dengan kontrol lebih kecil dan lebih sedikit scroll</string>
+    <string name="download_duplicate_handling_title">Penanganan file duplikat</string>
+    <string name="download_duplicate_handling_ask">Selalu tanya</string>
+    <string name="download_duplicate_handling_ask_desc">Pilih tindakan setiap kali sudah ada file dengan nama yang sama</string>
+    <string name="download_duplicate_handling_add">Tambahkan duplikat</string>
+    <string name="download_duplicate_handling_add_desc">Jika download sebelumnya sudah selesai, simpan kedua file dan beri nomor di nama file baru</string>
+    <string name="download_duplicate_handling_overwrite">Timpa file yang ada</string>
+    <string name="download_duplicate_handling_overwrite_desc">Jika download sebelumnya sudah selesai, ganti file lama dengan hasil download baru</string>
     <string name="download_quick_download_title">Download cepat</string>
     <string name="download_quick_download_summary">Lewati dialog download dan langsung mulai download dengan setelan download global Anda</string>
     <string name="download_quick_download_images_title">Download gambar dengan cepat</string>
@@ -534,6 +558,7 @@
     <string name="download_update_link_dialog_size_unverifiable">Ukuran file tidak dapat diverifikasi</string>
     <string name="download_update_link_dialog_size_mismatch">Ukuran file tidak cocok (%1$s vs %2$s byte)</string>
     <string name="download_update_link_dialog_not_a_manifest">Link ini tidak mengarah ke playlist streaming yang valid</string>
+    <string name="download_update_link_dialog_not_a_file">Link ini membuka halaman web, bukan file-nya</string>
     <string name="download_update_link_dialog_positive">Perbarui</string>
     <string name="download_menu_redownload">Download ulang</string>
     <string name="download_menu_redownload_options">Download ulang dengan opsi tambahan</string>
@@ -579,6 +604,7 @@
     <string name="download_props_label_video_url">Link download video</string>
     <string name="download_props_label_audio_url">Link download audio</string>
     <string name="download_props_label_page">Halaman download</string>
+    <string name="download_props_label_referer">Header Referer</string>
     <string name="download_props_label_avg_speed">Kecepatan rata-rata</string>
     <string name="download_props_label_active_time">Waktu aktif</string>
     <string name="download_props_label_segments">Segmen terdownload</string>
@@ -652,6 +678,7 @@
     <string name="voice_search_not_available">Penelusuran suara tidak tersedia di perangkat ini</string>
 
     <string name="toast_downloading">Mendownload %1$s</string>
+    <string name="download_added_paused">%1$s ditambahkan ke Download dalam keadaan dijeda</string>
     <string name="download_started_view_action">Lihat</string>
 
     <string name="install_apk_dialog_title">Instal APK</string>
@@ -1149,6 +1176,17 @@
     <string name="data_saver_metered_only_title">Hanya di Jaringan Berkuota</string>
     <string name="data_saver_metered_only_summary">Penghemat Data hanya aktif saat memakai data seluler dan Wi-Fi yang diatur sebagai berkuota</string>
     <string name="data_saver_settings_summary">Hemat kuota dengan membatasi gambar, video, font, dan skrip</string>
+    <string name="accessibility_title">Aksesibilitas</string>
+    <string name="accessibility_summary">Ukuran teks dan zoom di situs web</string>
+    <string name="accessibility_section_text">Teks</string>
+    <string name="accessibility_auto_font_size_title">Ukuran font otomatis</string>
+    <string name="accessibility_auto_font_size_summary">Ukuran font akan mengikuti setelan Android. Nonaktifkan untuk mengaturnya di sini.</string>
+    <string name="accessibility_font_size_title">Ukuran font</string>
+    <string name="accessibility_font_size_summary">Perbesar atau perkecil teks di situs web</string>
+    <string name="accessibility_font_size_sample">Ini contoh teks. Contoh ini menunjukkan tampilan teks saat Anda memperbesar atau memperkecilnya dengan setelan ini.</string>
+    <string name="accessibility_section_zoom">Zoom</string>
+    <string name="accessibility_force_zoom_title">Zoom di semua situs web</string>
+    <string name="accessibility_force_zoom_summary">Aktifkan agar Anda bisa mencubit untuk zoom, bahkan di situs web yang memblokir gestur ini.</string>
     <string name="data_saver_disable_images_title">Nonaktifkan Gambar</string>
     <string name="data_saver_disable_images_summary">Semua gambar tidak akan dimuat</string>
     <string name="data_saver_disable_autoplay_title">Nonaktifkan Putar Otomatis</string>
@@ -1208,7 +1246,8 @@
     <string name="delete_data_history_from_site">Dari %1$s</string>
     <string name="delete_data_cookies_summary">Anda akan logout dari sebagian besar situs.</string>
     <string name="delete_data_cache_summary">Hingga %1$s. Sebagian situs mungkin dimuat lebih lambat saat Anda membukanya lagi.</string>
-    <string name="delete_data_all_time_note">Cookie, file dalam cache, dan setelan situs hanya bisa dihapus untuk sepanjang waktu, jadi semuanya akan dihapus apa pun rentang waktu yang dipilih.</string>
+    <string name="delete_data_cookies_summary_range">Anda akan logout dari situs yang Anda kunjungi dalam rentang waktu ini.</string>
+    <string name="delete_data_range_site_note">File dalam cache dan data tersimpan dari situs yang Anda kunjungi dalam rentang waktu ini akan dihapus seluruhnya.</string>
     <string name="delete_data_footer">Bookmark, download, dan profil tersimpan tidak terpengaruh.</string>
     <string name="delete_data_action">Hapus data</string>
     <string name="delete_data_deleting">Menghapus…</string>
@@ -1392,6 +1431,7 @@
     <string name="tab_menu_search_no_results">Tidak ada tab yang cocok dengan penelusuran Anda</string>
     <string name="tab_menu_list_view">Tampilkan sebagai daftar</string>
     <string name="tab_menu_buttons_at_bottom">Tombol di bawah</string>
+    <string name="tab_menu_tabs_at_bottom">Tab mulai dari bawah</string>
     <string name="tab_menu_close_duplicates">Tutup tab duplikat</string>
     <plurals name="tab_menu_closed_duplicates">
         <item quantity="other">%1$d tab duplikat ditutup</item>
@@ -1667,6 +1707,9 @@
     <string name="media_capture_scanning">Memindai media di halaman ini…</string>
     <string name="media_capture_close">Tutup</string>
     <string name="media_capture_empty_state">Belum ada media yang terdeteksi di halaman ini. Putar video atau audio agar terdeteksi di sini.</string>
+    <string name="media_capture_youtube_title">Video YouTube tidak bisa ditangkap</string>
+    <string name="media_capture_youtube_message">YouTube memecah videonya menjadi potongan-potongan terlindungi yang tidak bisa disimpan oleh Media Capture. Instal YTDLnis untuk mengunduhnya, dan Media Capture akan langsung mengirim video YouTube ke sana.</string>
+    <string name="media_capture_youtube_get_ytdlnis">Dapatkan YTDLnis</string>
     <string name="media_capture_section_video">VIDEO</string>
     <string name="media_capture_section_audio">AUDIO</string>
     <string name="media_capture_section_subtitles">SUBTITEL</string>
@@ -1728,6 +1771,8 @@
     <string name="homepage_design_image_desc">Gunakan foto Anda sendiri, dibuat lebih lembut agar semuanya tetap mudah dibaca</string>
     <string name="homepage_image_title">Gambar Beranda</string>
     <string name="homepage_image_summary">Ketuk untuk memilih foto lain</string>
+    <string name="homepage_image_full_brightness_title">Gambar Tanpa Peredupan</string>
+    <string name="homepage_image_full_brightness_summary">Tampilkan foto Anda apa adanya, tanpa lapisan peredup</string>
     <string name="homepage_show_favorites_title">Tampilkan Favorit</string>
     <string name="homepage_show_favorites_summary">Tampilkan situs dan folder yang Anda sematkan di beranda Clint</string>
     <string name="homepage_show_quick_actions_title">Tampilkan Tindakan Cepat</string>
@@ -1931,6 +1976,11 @@
     <string name="ext_err_incompatible">Ekstensi ini tidak kompatibel dengan versi Clint ini.</string>
     <string name="ext_err_insecure">Ekstensi hanya bisa diinstal dari link yang aman (https).</string>
     <string name="ext_err_generic">Tidak dapat menginstal ekstensi.</string>
+    <string name="ext_unsigned_title">Instal ekstensi yang belum diverifikasi?</string>
+    <string name="ext_unsigned_message">Ekstensi ini belum ditinjau atau ditandatangani oleh Mozilla. Ekstensi ini bisa melihat atau mengubah aktivitas Anda di situs web, jadi instal hanya jika Anda memercayai sumbernya.</string>
+    <string name="ext_unsigned_note">Ekstensi yang belum diverifikasi tidak diperbarui otomatis. Clint akan memuatnya ulang setiap kali dibuka.</string>
+    <string name="ext_unsigned_install_anyway">Tetap instal</string>
+    <string name="ext_unsigned_failed">Tidak dapat menginstal ekstensi yang belum diverifikasi ini.</string>
     <string name="ext_perm_unknown">Menggunakan fitur “%1$s”</string>
     <string name="ext_perm_activeTab">Menggunakan halaman yang sedang dibuka saat Anda mengetuk tombolnya</string>
     <string name="ext_perm_alarms">Menjadwalkan tugas di latar belakang</string>
@@ -2314,4 +2364,40 @@
     <plurals name="translation_never_sites_count">
         <item quantity="other">%d situs</item>
     </plurals>
+    <string name="download_detect_mega_title">Deteksi link MEGA</string>
+    <string name="download_detect_mega_summary">Tawarkan download saat Anda membuka link file atau folder MEGA</string>
+    <string name="mega_dialog_title_file">File MEGA</string>
+    <string name="mega_dialog_title_folder">Folder MEGA</string>
+    <string name="mega_dialog_loading">Membaca link MEGA…</string>
+    <string name="mega_folder_selected_count">Dipilih: %1$d dari %2$d file</string>
+    <string name="mega_folder_selected_size">Ukuran: %1$s dari %2$s</string>
+    <string name="mega_select_all">Pilih semua</string>
+    <string name="mega_keep_structure_title">Pertahankan struktur folder</string>
+    <string name="mega_keep_structure_summary">Simpan file di folder yang sama seperti di MEGA</string>
+    <string name="mega_skip_existing_title">Lewati file yang sudah ditambahkan</string>
+    <string name="mega_skip_existing_summary">Jangan sertakan file yang sudah ada di daftar download</string>
+    <string name="mega_folder_empty">Folder ini tidak berisi file</string>
+    <string name="mega_all_skipped">Semua file yang dipilih sudah ada di daftar download</string>
+    <string name="mega_action_try_again">Coba lagi</string>
+    <string name="mega_error_not_found">File atau folder MEGA ini sudah tidak ada</string>
+    <string name="mega_error_blocked">MEGA memblokir akses ke link ini</string>
+    <string name="mega_error_quota">Batas transfer MEGA Anda sudah habis untuk saat ini. Coba lagi nanti.</string>
+    <string name="mega_error_invalid_key">Kunci dekripsi di link ini salah atau tidak lengkap</string>
+    <string name="mega_error_unsupported">Clint belum bisa mendownload file MEGA ini</string>
+    <string name="mega_error_busy">MEGA sedang sibuk. Coba lagi sebentar lagi.</string>
+    <string name="mega_error_generic">MEGA tidak dapat membuka link ini (error %d)</string>
+    <string name="mega_error_network">Tidak dapat terhubung ke MEGA. Periksa koneksi Anda, lalu coba lagi.</string>
+    <plurals name="mega_folder_file_count">
+        <item quantity="other">%1$d file · %2$s</item>
+    </plurals>
+    <plurals name="mega_folder_started">
+        <item quantity="other">Mendownload %d file</item>
+    </plurals>
+    <plurals name="mega_folder_added_paused">
+        <item quantity="other">%d file ditambahkan ke Download dalam keadaan dijeda</item>
+    </plurals>
+    <string name="address_bar_copy_link">Salin link halaman</string>
+    <string name="address_bar_link_copied">Link halaman disalin</string>
+    <string name="address_bar_paste">Tempel</string>
+    <string name="address_bar_paste_and_go">Tempel dan buka</string>
 </resources>

@@ -113,6 +113,18 @@
     <string name="pref_category_incognito">Инкогнито</string>
     <string name="incognito_search_history_title">Показывать историю поиска в режиме инкогнито</string>
     <string name="incognito_search_history_summary">Включать сохранённую историю поиска в подсказки при просмотре в режиме инкогнито</string>
+    <string name="remember_browsing_mode_title">Запоминать режим просмотра</string>
+    <string name="remember_browsing_mode_summary">Открывать Clint в режиме, который вы использовали последним, — инкогнито или обычном</string>
+    <string name="incognito_notification_channel_name">Вкладки инкогнито</string>
+    <string name="incognito_notification_channel_desc">Показывается, пока открыты вкладки инкогнито, чтобы закрыть их все одним нажатием</string>
+    <string name="incognito_notification_title">Открыты вкладки инкогнито</string>
+    <string name="incognito_notification_text">Нажмите, чтобы закрыть все вкладки инкогнито</string>
+    <string name="incognito_search_engine_title">Поисковик в режиме инкогнито</string>
+    <string name="incognito_search_suggestions_api_title">Поисковые подсказки в режиме инкогнито</string>
+    <string name="search_same_as_normal">Как в обычном режиме</string>
+    <string name="search_same_as_normal_summary">Как в обычном режиме (%1$s)</string>
+    <string name="search_engine_same_as_normal_desc">Использовать поисковик, выбранный для обычного режима</string>
+    <string name="suggestions_api_same_as_normal_desc">Использовать сервис подсказок, выбранный для обычного режима</string>
     <string name="privacy_settings_summary">Защита от отслеживания, cookie, защищённый DNS, блокировка приложения и автозаполнение</string>
     <string name="javascript_enabled">Включить JavaScript</string>
     <string name="javascript_enabled_summary">Разрешить сайтам выполнять JavaScript</string>
@@ -352,6 +364,11 @@
     <string name="download_section_notifications">УВЕДОМЛЕНИЯ</string>
     <string name="download_push_notifications_title">Push-уведомления</string>
     <string name="download_push_notifications_summary">Получать уведомление о завершении, ошибке или повторной попытке загрузки</string>
+    <string name="download_section_history">ИСТОРИЯ</string>
+    <string name="download_history_normal_title">Сохранять историю загрузок</string>
+    <string name="download_history_normal_summary">Оставлять завершённые загрузки в списке. Сами файлы никуда не денутся</string>
+    <string name="download_history_incognito_title">Сохранять историю загрузок в режиме инкогнито</string>
+    <string name="download_history_incognito_summary">Оставлять в списке загрузки из вкладок инкогнито. Сами файлы никуда не денутся</string>
     <string name="download_section_general">ОБЩИЕ</string>
     <string name="download_section_dialog_ui">ОКНО ЗАГРУЗКИ</string>
     <string name="download_dialog_ui_title">Интерфейс</string>
@@ -359,6 +376,13 @@
     <string name="download_dialog_ui_standard_desc">Просторная компоновка с заголовками разделов и описаниями</string>
     <string name="download_dialog_ui_compact">Компактный</string>
     <string name="download_dialog_ui_compact_desc">Более плотная компоновка с мелкими элементами и меньшей прокруткой</string>
+    <string name="download_duplicate_handling_title">Повторяющиеся файлы</string>
+    <string name="download_duplicate_handling_ask">Всегда спрашивать</string>
+    <string name="download_duplicate_handling_ask_desc">Выбирать действие каждый раз, когда файл с таким именем уже есть</string>
+    <string name="download_duplicate_handling_add">Добавить дубликат</string>
+    <string name="download_duplicate_handling_add_desc">Если предыдущая загрузка уже завершена, сохранить оба файла, к имени нового добавится номер</string>
+    <string name="download_duplicate_handling_overwrite">Заменить существующий файл</string>
+    <string name="download_duplicate_handling_overwrite_desc">Если предыдущая загрузка уже завершена, старый файл будет заменён новой загрузкой</string>
     <string name="download_quick_download_title">Быстрая загрузка</string>
     <string name="download_quick_download_summary">Начинать загрузку сразу, без диалога, с использованием общих настроек загрузок</string>
     <string name="download_quick_download_images_title">Быстрая загрузка изображений</string>
@@ -546,6 +570,7 @@
     <string name="download_update_link_dialog_size_unverifiable">Не удалось проверить размер файла</string>
     <string name="download_update_link_dialog_size_mismatch">Размер файла не совпадает (%1$s против %2$s байт)</string>
     <string name="download_update_link_dialog_not_a_manifest">Эта ссылка не ведёт на корректный плейлист потока</string>
+    <string name="download_update_link_dialog_not_a_file">Эта ссылка открывает веб-страницу, а не файл</string>
     <string name="download_update_link_dialog_positive">Обновить</string>
     <string name="download_menu_redownload">Загрузить заново</string>
     <string name="download_menu_redownload_options">Загрузить заново с дополнительными параметрами</string>
@@ -591,6 +616,7 @@
     <string name="download_props_label_video_url">Ссылка загрузки видео</string>
     <string name="download_props_label_audio_url">Ссылка загрузки аудио</string>
     <string name="download_props_label_page">Страница загрузки</string>
+    <string name="download_props_label_referer">Заголовок Referer</string>
     <string name="download_props_label_avg_speed">Средняя скорость</string>
     <string name="download_props_label_active_time">Время активности</string>
     <string name="download_props_label_segments">Загружено сегментов</string>
@@ -664,6 +690,7 @@
     <string name="voice_search_not_available">Голосовой поиск недоступен на этом устройстве</string>
 
     <string name="toast_downloading">Загрузка %1$s</string>
+    <string name="download_added_paused">%1$s добавлен в загрузки на паузе</string>
     <string name="download_started_view_action">Просмотр</string>
 
     <string name="install_apk_dialog_title">Установка APK</string>
@@ -1176,6 +1203,17 @@
     <string name="data_saver_metered_only_title">Только в сетях с лимитом</string>
     <string name="data_saver_metered_only_summary">Экономия трафика включается только в мобильной сети и в сетях Wi‑Fi, отмеченных как лимитные</string>
     <string name="data_saver_settings_summary">Меньше трафика за счёт ограничения изображений, видео, шрифтов и скриптов</string>
+    <string name="accessibility_title">Специальные возможности</string>
+    <string name="accessibility_summary">Размер текста и масштаб на сайтах</string>
+    <string name="accessibility_section_text">Текст</string>
+    <string name="accessibility_auto_font_size_title">Автоматический размер шрифта</string>
+    <string name="accessibility_auto_font_size_summary">Размер шрифта будет как в настройках Android. Отключите, чтобы настроить его здесь.</string>
+    <string name="accessibility_font_size_title">Размер шрифта</string>
+    <string name="accessibility_font_size_summary">Сделайте текст на сайтах крупнее или мельче</string>
+    <string name="accessibility_font_size_sample">Это пример текста. По нему видно, как будет выглядеть текст, если увеличить или уменьшить его с помощью этой настройки.</string>
+    <string name="accessibility_section_zoom">Масштаб</string>
+    <string name="accessibility_force_zoom_title">Масштабирование на всех сайтах</string>
+    <string name="accessibility_force_zoom_summary">Включите, чтобы масштабировать страницу жестом щипка, даже если сайт его запрещает.</string>
     <string name="data_saver_disable_images_title">Отключить изображения</string>
     <string name="data_saver_disable_images_summary">Изображения не будут загружаться</string>
     <string name="data_saver_disable_autoplay_title">Отключить автовоспроизведение</string>
@@ -1235,7 +1273,8 @@
     <string name="delete_data_history_from_site">С сайта %1$s</string>
     <string name="delete_data_cookies_summary">Вы выйдете из аккаунтов на большинстве сайтов.</string>
     <string name="delete_data_cache_summary">До %1$s. Некоторые сайты при следующем посещении могут загружаться медленнее.</string>
-    <string name="delete_data_all_time_note">Файлы cookie, кеш и настройки сайтов удаляются только целиком, поэтому они будут очищены независимо от выбранного диапазона.</string>
+    <string name="delete_data_cookies_summary_range">Вы выйдете из аккаунтов на сайтах, которые посещали за этот период.</string>
+    <string name="delete_data_range_site_note">Кеш и сохранённые данные сайтов, которые вы посещали за этот период, будут удалены полностью.</string>
     <string name="delete_data_footer">Закладки, загрузки и сохранённые профили не затрагиваются.</string>
     <string name="delete_data_action">Удалить данные</string>
     <string name="delete_data_deleting">Удаление…</string>
@@ -1455,6 +1494,7 @@
     <string name="tab_menu_search_no_results">Ничего не найдено среди вкладок</string>
     <string name="tab_menu_list_view">Показывать списком</string>
     <string name="tab_menu_buttons_at_bottom">Кнопки внизу</string>
+    <string name="tab_menu_tabs_at_bottom">Вкладки снизу</string>
     <string name="tab_menu_close_duplicates">Закрыть повторяющиеся вкладки</string>
     <plurals name="tab_menu_closed_duplicates">
         <item quantity="one">Закрыта %1$d повторяющаяся вкладка</item>
@@ -1751,6 +1791,9 @@
     <string name="media_capture_scanning">Сканирование страницы на наличие медиа\u2026</string>
     <string name="media_capture_close">Закрыть</string>
     <string name="media_capture_empty_state">На этой странице медиа пока не обнаружено. Воспроизведите видео- или аудиодорожку, чтобы обнаружить её здесь.</string>
+    <string name="media_capture_youtube_title">Видео с YouTube нельзя захватить</string>
+    <string name="media_capture_youtube_message">YouTube разбивает видео на защищённые фрагменты, которые Media Capture не может сохранить. Установите YTDLnis, чтобы скачивать их, и Media Capture будет сразу передавать видео с YouTube в это приложение.</string>
+    <string name="media_capture_youtube_get_ytdlnis">Установить YTDLnis</string>
     <string name="media_capture_section_video">ВИДЕО</string>
     <string name="media_capture_section_audio">АУДИО</string>
     <string name="media_capture_section_subtitles">СУБТИТРЫ</string>
@@ -1812,6 +1855,8 @@
     <string name="homepage_design_image_desc">Ваше собственное фото, слегка приглушённое, чтобы всё хорошо читалось</string>
     <string name="homepage_image_title">Изображение домашней страницы</string>
     <string name="homepage_image_summary">Нажмите, чтобы выбрать другое фото</string>
+    <string name="homepage_image_full_brightness_title">Изображение без затемнения</string>
+    <string name="homepage_image_full_brightness_summary">Показывать фото как есть, без затемняющего слоя</string>
     <string name="homepage_show_favorites_title">Показывать избранное</string>
     <string name="homepage_show_favorites_summary">Закреплённые сайты и папки на домашней странице Clint</string>
     <string name="homepage_show_quick_actions_title">Показывать быстрые действия</string>
@@ -2015,6 +2060,11 @@
     <string name="ext_err_incompatible">Это расширение несовместимо с данной версией Clint.</string>
     <string name="ext_err_insecure">Расширения можно устанавливать только по защищённым ссылкам (https).</string>
     <string name="ext_err_generic">Не удалось установить расширение.</string>
+    <string name="ext_unsigned_title">Установить непроверенное расширение?</string>
+    <string name="ext_unsigned_message">Mozilla не проверяла и не подписывала это расширение. Оно может видеть и изменять ваши действия на сайтах, поэтому устанавливайте его, только если доверяете источнику.</string>
+    <string name="ext_unsigned_note">Непроверенные расширения не обновляются автоматически. Clint загружает их заново при каждом запуске.</string>
+    <string name="ext_unsigned_install_anyway">Всё равно установить</string>
+    <string name="ext_unsigned_failed">Не удалось установить это непроверенное расширение.</string>
     <string name="ext_perm_unknown">Использовать функцию «%1$s»</string>
     <string name="ext_perm_activeTab">Использовать текущую страницу, когда вы нажимаете его кнопку</string>
     <string name="ext_perm_alarms">Планировать задачи в фоне</string>
@@ -2404,4 +2454,49 @@
         <item quantity="many">%d сайтов</item>
         <item quantity="other">%d сайта</item>
     </plurals>
+    <string name="download_detect_mega_title">Распознавать ссылки MEGA</string>
+    <string name="download_detect_mega_summary">Предлагать загрузку при открытии ссылки на файл или папку MEGA</string>
+    <string name="mega_dialog_title_file">Файл MEGA</string>
+    <string name="mega_dialog_title_folder">Папка MEGA</string>
+    <string name="mega_dialog_loading">Открываем ссылку MEGA…</string>
+    <string name="mega_folder_selected_count">Выбрано файлов: %1$d из %2$d</string>
+    <string name="mega_folder_selected_size">Размер: %1$s из %2$s</string>
+    <string name="mega_select_all">Выбрать все</string>
+    <string name="mega_keep_structure_title">Сохранять структуру папок</string>
+    <string name="mega_keep_structure_summary">Сохранять файлы в тех же папках, что и в MEGA</string>
+    <string name="mega_skip_existing_title">Пропускать уже добавленные</string>
+    <string name="mega_skip_existing_summary">Не добавлять файлы, которые уже есть в списке загрузок</string>
+    <string name="mega_folder_empty">В этой папке нет файлов</string>
+    <string name="mega_all_skipped">Все выбранные файлы уже есть в списке загрузок</string>
+    <string name="mega_action_try_again">Повторить</string>
+    <string name="mega_error_not_found">Этот файл или папка MEGA больше не существует</string>
+    <string name="mega_error_blocked">MEGA заблокировала доступ к этой ссылке</string>
+    <string name="mega_error_quota">Лимит трафика MEGA пока исчерпан. Попробуйте позже.</string>
+    <string name="mega_error_invalid_key">Ключ расшифровки в этой ссылке неверный или неполный</string>
+    <string name="mega_error_unsupported">Clint пока не может загрузить этот файл MEGA</string>
+    <string name="mega_error_busy">Серверы MEGA сейчас перегружены. Попробуйте чуть позже.</string>
+    <string name="mega_error_generic">MEGA не удалось открыть эту ссылку (ошибка %d)</string>
+    <string name="mega_error_network">Не удалось подключиться к MEGA. Проверьте соединение и попробуйте снова.</string>
+    <plurals name="mega_folder_file_count">
+        <item quantity="one">%1$d файл · %2$s</item>
+        <item quantity="few">%1$d файла · %2$s</item>
+        <item quantity="many">%1$d файлов · %2$s</item>
+        <item quantity="other">%1$d файла · %2$s</item>
+    </plurals>
+    <plurals name="mega_folder_started">
+        <item quantity="one">Загружается %d файл</item>
+        <item quantity="few">Загружаются %d файла</item>
+        <item quantity="many">Загружаются %d файлов</item>
+        <item quantity="other">Загружаются %d файла</item>
+    </plurals>
+    <plurals name="mega_folder_added_paused">
+        <item quantity="one">%d файл добавлен в загрузки на паузе</item>
+        <item quantity="few">%d файла добавлены в загрузки на паузе</item>
+        <item quantity="many">%d файлов добавлены в загрузки на паузе</item>
+        <item quantity="other">%d файла добавлены в загрузки на паузе</item>
+    </plurals>
+    <string name="address_bar_copy_link">Копировать ссылку на страницу</string>
+    <string name="address_bar_link_copied">Ссылка на страницу скопирована</string>
+    <string name="address_bar_paste">Вставить</string>
+    <string name="address_bar_paste_and_go">Вставить и перейти</string>
 </resources>

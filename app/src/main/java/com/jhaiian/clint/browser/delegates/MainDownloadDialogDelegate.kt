@@ -27,13 +27,18 @@ internal fun MainActivity.showDownloadDialog(
     userAgent: String,
     referer: String,
     cookies: String,
-    forceQuick: Boolean = false
+    forceQuick: Boolean = false,
+    pageUrl: String = referer
 ) {
     val prefs = PreferenceManager.getDefaultSharedPreferences(this)
     val downloadManagerApp = prefs.getString(DownloadSettingsKeys.PREF_DOWNLOAD_MANAGER, DownloadSettingsKeys.DEFAULT_DOWNLOAD_MANAGER) ?: DownloadSettingsKeys.DEFAULT_DOWNLOAD_MANAGER
     if (downloadManagerApp != DownloadSettingsKeys.DEFAULT_DOWNLOAD_MANAGER &&
         com.jhaiian.clint.downloads.sendToExternalDownloadManager(this, downloadManagerApp, url, filename, userAgent, referer, cookies)
     ) {
+        return
+    }
+    com.jhaiian.clint.downloads.mega.MegaLink.parse(url)?.let { link ->
+        showMegaDownload(link, userAgent)
         return
     }
     mountDownloadRequestDialog(
@@ -61,7 +66,12 @@ internal fun MainActivity.showDownloadDialog(
                 submission.locationMode, submission.customLocationUri, submission.categorizeEnabled, submission.scheduledStartAtMillis,
                 onDismiss = dismiss,
                 onRename = onRename,
-                onStarted = { showDownloadStartedSnackbar(submission.filename, submission.locationMode, submission.customLocationUri) }
+                onStarted = {
+                    if (submission.startPaused) showDownloadAddedSnackbar(submission.filename)
+                    else showDownloadStartedSnackbar(submission.filename, submission.locationMode, submission.customLocationUri)
+                },
+                pageUrl = pageUrl,
+                startPaused = submission.startPaused
             )
         }
     )
@@ -92,15 +102,27 @@ internal fun MainActivity.showDownloadDialogForBlob(
             val locationMode = prefs.getString(DownloadSettingsKeys.PREF_DOWNLOAD_LOCATION_MODE, DownloadSettingsKeys.MODE_DEFAULT) ?: DownloadSettingsKeys.MODE_DEFAULT
             val customLocationUri = prefs.getString(DownloadSettingsKeys.PREF_DOWNLOAD_CUSTOM_URI, null)
             if (com.jhaiian.clint.downloads.DownloadFileHelper.isCustomLocationAccessible(this, locationMode, customLocationUri)) {
-                showClintSnackbar(
-                    message = getString(R.string.toast_downloading, submission.filename),
-                    actionLabel = getString(R.string.download_started_view_action),
-                    onAction = { DownloadsActivity.open(this) }
-                )
+                if (submission.startPaused) {
+                    showDownloadAddedSnackbar(submission.filename)
+                } else {
+                    showClintSnackbar(
+                        message = getString(R.string.toast_downloading, submission.filename),
+                        actionLabel = getString(R.string.download_started_view_action),
+                        onAction = { DownloadsActivity.open(this) }
+                    )
+                }
             }
             dismiss()
-            ClintDownloadManager.enqueueBlob(this, blob, submission.filename, mimeType)
+            ClintDownloadManager.enqueueBlob(this, blob, submission.filename, mimeType, submission.startPaused)
         }
+    )
+}
+
+internal fun MainActivity.showDownloadAddedSnackbar(filename: String) {
+    showClintSnackbar(
+        message = getString(R.string.download_added_paused, filename),
+        actionLabel = getString(R.string.download_started_view_action),
+        onAction = { DownloadsActivity.open(this) }
     )
 }
 
@@ -114,7 +136,7 @@ internal fun MainActivity.showDownloadStartedSnackbar(filename: String, location
     }
 }
 
-private fun MainActivity.copyDownloadRequestLink(text: String) {
+internal fun MainActivity.copyDownloadRequestLink(text: String) {
     val clipboard = getSystemService(ClipboardManager::class.java)
     clipboard.setPrimaryClip(ClipData.newPlainText(getString(R.string.download_dialog_link_clip_label), text))
     if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -124,6 +146,7 @@ private fun MainActivity.copyDownloadRequestLink(text: String) {
 
 internal fun MainActivity.mountDownloadRequestDialog(
     forceQuick: Boolean = false,
+    allowQuick: Boolean = true,
     url: String,
     onCopyLink: () -> Unit,
     initialFilename: String,
@@ -145,6 +168,7 @@ internal fun MainActivity.mountDownloadRequestDialog(
     initialMultithreadingParts: Int = 1,
     initialSpeedLimitAmount: Int = 0,
     initialSpeedLimitUnit: String = DEFAULT_SPEED_LIMIT_UNIT,
+    showAddButton: Boolean = true,
     onSubmit: (DownloadRequestSubmission, dismiss: () -> Unit, onRename: () -> Unit) -> Unit
 ) {
     val prefs = PreferenceManager.getDefaultSharedPreferences(this)
@@ -179,6 +203,7 @@ internal fun MainActivity.mountDownloadRequestDialog(
                 initialMultithreadingParts = initialMultithreadingParts,
                 initialSpeedLimitAmount = initialSpeedLimitAmount,
                 initialSpeedLimitUnit = initialSpeedLimitUnit,
+                showAddButton = showAddButton,
                 fragmentManager = supportFragmentManager,
                 onLaunchFolderPicker = { onPicked ->
                     downloadDialogFolderPickerCallback = { uri ->
@@ -196,7 +221,7 @@ internal fun MainActivity.mountDownloadRequestDialog(
         }
     } }
 
-    if (forceQuick || prefs.getBoolean(DownloadSettingsKeys.PREF_QUICK_DOWNLOAD, DownloadSettingsKeys.DEFAULT_QUICK_DOWNLOAD)) {
+    if (forceQuick || (allowQuick && prefs.getBoolean(DownloadSettingsKeys.PREF_QUICK_DOWNLOAD, DownloadSettingsKeys.DEFAULT_QUICK_DOWNLOAD))) {
         val storageError = checkStorageAvailable(this, contentLengthBytes, initialLocationMode, initialCustomUri)
         val fat32Error = checkFat32FileSizeLimit(this, contentLengthBytes, initialLocationMode, initialCustomUri)
         if (storageError == null && fat32Error == null) {

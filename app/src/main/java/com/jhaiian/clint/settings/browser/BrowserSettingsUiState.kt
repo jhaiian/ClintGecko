@@ -12,6 +12,7 @@ class BrowserSettingsUiState(
     initialHomepageShowQuickActions: Boolean,
     initialHomepageShowRecent: Boolean,
     initialHomepageCenterContent: Boolean,
+    initialHomepageImageFullBrightness: Boolean,
     initialDeleteInactiveTabs: String,
     initialSearchEngine: String,
     initialCustomSearchEngineName: String,
@@ -19,12 +20,19 @@ class BrowserSettingsUiState(
     initialSearchSuggestionsApi: String,
     initialCustomSearchSuggestionsApiName: String,
     initialCustomSearchSuggestionsApiUrl: String,
+    initialIncognitoSearchEngine: String,
+    initialIncognitoCustomSearchEngineName: String,
+    initialIncognitoCustomSearchEngineUrl: String,
+    initialIncognitoSearchSuggestionsApi: String,
+    initialIncognitoCustomSearchSuggestionsApiName: String,
+    initialIncognitoCustomSearchSuggestionsApiUrl: String,
     initialSuggestionsShowHistory: Boolean,
     initialSuggestionsShowBookmarks: Boolean,
     initialJavascriptEnabled: Boolean,
     initialHideStatusBar: Boolean,
     initialHideSystemNavigation: Boolean,
     initialIncognitoSearchHistory: Boolean,
+    initialRememberBrowsingMode: Boolean,
     initialBackgroundPlayback: Boolean,
     initialAboutConfigEnabled: Boolean
 ) {
@@ -35,6 +43,7 @@ class BrowserSettingsUiState(
     var homepageShowQuickActions by mutableStateOf(initialHomepageShowQuickActions)
     var homepageShowRecent by mutableStateOf(initialHomepageShowRecent)
     var homepageCenterContent by mutableStateOf(initialHomepageCenterContent)
+    var homepageImageFullBrightness by mutableStateOf(initialHomepageImageFullBrightness)
     var deleteInactiveTabs by mutableStateOf(initialDeleteInactiveTabs)
     var searchEngine by mutableStateOf(initialSearchEngine)
     var customSearchEngineName by mutableStateOf(initialCustomSearchEngineName)
@@ -42,12 +51,19 @@ class BrowserSettingsUiState(
     var searchSuggestionsApi by mutableStateOf(initialSearchSuggestionsApi)
     var customSearchSuggestionsApiName by mutableStateOf(initialCustomSearchSuggestionsApiName)
     var customSearchSuggestionsApiUrl by mutableStateOf(initialCustomSearchSuggestionsApiUrl)
+    var incognitoSearchEngine by mutableStateOf(initialIncognitoSearchEngine)
+    var incognitoCustomSearchEngineName by mutableStateOf(initialIncognitoCustomSearchEngineName)
+    var incognitoCustomSearchEngineUrl by mutableStateOf(initialIncognitoCustomSearchEngineUrl)
+    var incognitoSearchSuggestionsApi by mutableStateOf(initialIncognitoSearchSuggestionsApi)
+    var incognitoCustomSearchSuggestionsApiName by mutableStateOf(initialIncognitoCustomSearchSuggestionsApiName)
+    var incognitoCustomSearchSuggestionsApiUrl by mutableStateOf(initialIncognitoCustomSearchSuggestionsApiUrl)
     var suggestionsShowHistory by mutableStateOf(initialSuggestionsShowHistory)
     var suggestionsShowBookmarks by mutableStateOf(initialSuggestionsShowBookmarks)
     var javascriptEnabled by mutableStateOf(initialJavascriptEnabled)
     var hideStatusBar by mutableStateOf(initialHideStatusBar)
     var hideSystemNavigation by mutableStateOf(initialHideSystemNavigation)
     var incognitoSearchHistory by mutableStateOf(initialIncognitoSearchHistory)
+    var rememberBrowsingMode by mutableStateOf(initialRememberBrowsingMode)
     var backgroundPlayback by mutableStateOf(initialBackgroundPlayback)
     var aboutConfigEnabled by mutableStateOf(initialAboutConfigEnabled)
     var homepageDialogOpen by mutableStateOf(false)
@@ -55,4 +71,6 @@ class BrowserSettingsUiState(
     var deleteInactiveTabsDialogOpen by mutableStateOf(false)
     var searchEngineDialogOpen by mutableStateOf(false)
     var searchSuggestionsApiDialogOpen by mutableStateOf(false)
+    var incognitoSearchEngineDialogOpen by mutableStateOf(false)
+    var incognitoSearchSuggestionsApiDialogOpen by mutableStateOf(false)
 }

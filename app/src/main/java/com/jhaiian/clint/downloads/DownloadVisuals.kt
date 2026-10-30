@@ -388,7 +388,7 @@ internal fun formatEta(context: android.content.Context, seconds: Long): String 
 }
 
 internal fun sourceHost(item: DownloadItem): String? {
-    val raw = item.streamPageUrl.ifBlank { item.url }
+    val raw = item.streamPageUrl.ifBlank { item.mega?.link?.takeIf { it.isNotBlank() } ?: item.url }
     return runCatching { android.net.Uri.parse(raw).host }.getOrNull()?.removePrefix("www.")?.takeIf { it.isNotBlank() }
 }
 

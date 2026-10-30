@@ -47,6 +47,7 @@ internal class MainUiState {
     var homepageShowQuickActions by mutableStateOf(true)
     var homepageShowRecent by mutableStateOf(true)
     var homepageCenterContent by mutableStateOf(true)
+    var homepageImageFullBrightness by mutableStateOf(false)
 
     var bookmarkFolderDialogOpen by mutableStateOf(false)
     var bookmarkFolderTree by mutableStateOf<List<com.jhaiian.clint.bookmarks.FolderTreeEntry>>(emptyList())

@@ -111,7 +111,10 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
             userAgent = ua,
             onDismiss = {
                 showClintSnackbar(
-                    message = getString(R.string.toast_downloading, submission.filename),
+                    message = getString(
+                        if (submission.startPaused) R.string.download_added_paused else R.string.toast_downloading,
+                        submission.filename
+                    ),
                     actionLabel = getString(R.string.download_started_view_action),
                     onAction = { DownloadsActivity.open(this) }
                 )
@@ -126,10 +129,11 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         uiState = DownloadsUiState()
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        uiState.libraryGrid = prefs.getBoolean(DownloadSettingsKeys.PREF_LIBRARY_GRID, DownloadSettingsKeys.DEFAULT_LIBRARY_GRID)
         handleOpenIntent(intent)
         handleDownloaderIntent(intent)
 
-        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
         val theme = prefs.getString("app_theme", "system") ?: "system"
         val hideStatusBar = prefs.getBoolean("hide_status_bar", false)
         val hideSystemNavigation = prefs.getBoolean("hide_system_navigation", false)
@@ -264,7 +268,7 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
     private fun handleOpenIntent(intent: Intent?) {
         val id = intent?.getIntExtra(EXTRA_OPEN_ID, -1) ?: return
         if (id == -1) return
-        val item = ClintDownloadManager.downloadsFlow.value.find { it.id == id } ?: return
+        val item = ClintDownloadManager.findItem(id) ?: return
         handleOpenItem(item)
     }
 
@@ -458,7 +462,7 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
 
     private fun copyDownloadLink(item: DownloadItem) {
         val clipboard = getSystemService(android.content.ClipboardManager::class.java)
-        clipboard.setPrimaryClip(android.content.ClipData.newPlainText(getString(R.string.download_dialog_link_clip_label), item.url))
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText(getString(R.string.download_dialog_link_clip_label), item.mega?.link?.takeIf { it.isNotBlank() } ?: item.url))
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
             Toast.makeText(this, getString(R.string.download_menu_link_copied), Toast.LENGTH_SHORT).show()
         }
@@ -519,6 +523,7 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
             putExtra(com.jhaiian.clint.browser.MainActivity.EXTRA_REFRESH_LINK_FILENAME, item.filename)
             putExtra(com.jhaiian.clint.browser.MainActivity.EXTRA_REFRESH_LINK_ORIGINAL_URL, item.url)
             putExtra(com.jhaiian.clint.browser.MainActivity.EXTRA_REFRESH_LINK_ORIGINAL_REFERER, item.referer)
+            putExtra(com.jhaiian.clint.browser.MainActivity.EXTRA_REFRESH_LINK_PAGE_URL, item.pageUrl.ifBlank { item.streamPageUrl })
         }
         startActivity(intent)
     }

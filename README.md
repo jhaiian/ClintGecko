@@ -10,12 +10,12 @@ Android Firefox-based browser with ADM, media capture, and extensions.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blueviolet.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-blueviolet.svg)](https://developer.android.com)
-[![Stable](https://img.shields.io/badge/Stable-1.0.4-blueviolet.svg)](https://github.com/jhaiian/ClintGecko/releases/tag/v1.0.4)
-[![Beta](https://img.shields.io/badge/Beta-1.0.4-blueviolet.svg)](https://github.com/jhaiian/ClintGecko/releases/tag/v1.0.4)
+[![Stable](https://img.shields.io/badge/Stable-1.0.5-blueviolet.svg)](https://github.com/jhaiian/ClintGecko/releases/tag/v1.0.5)
+[![Beta](https://img.shields.io/badge/Beta-1.0.5-blueviolet.svg)](https://github.com/jhaiian/ClintGecko/releases/tag/v1.0.5)
 [![Downloads](https://img.shields.io/github/downloads/jhaiian/ClintGecko/total?color=blueviolet)](https://github.com/jhaiian/ClintGecko/releases)
 [![Open Source](https://img.shields.io/badge/Open%20Source-Yes-blueviolet.svg)](https://github.com/jhaiian/ClintGecko)
 
-<img src="docs/banner.png" width="900" alt="Clint Gecko, a Firefox-based browser that has it all" />
+<img src="docs/banner.png" width="900" alt="Clint Gecko, built for people who want more" />
 
 </div>
 
@@ -44,7 +44,7 @@ Built and maintained by **[@jhaiian](https://github.com/jhaiian)** — a solo de
       <td align="center"><img src="docs/screenshots/01_extension_support.png" width="180" alt="Extension Support" /></td>
       <td align="center"><img src="docs/screenshots/02_extension_popup.png" width="180" alt="Extension Pop up" /></td>
       <td align="center"><img src="docs/screenshots/03_media_capture.png" width="180" alt="Media Capture" /></td>
-      <td align="center"><img src="docs/screenshots/04_advance_download_manager.png" width="180" alt="Advance Download Manager" /></td>
+      <td align="center"><img src="docs/screenshots/04_advance_download_manager.png" width="180" alt="Advanced Download Manager" /></td>
       <td align="center"><img src="docs/screenshots/05_extension_in_the_menu.png" width="180" alt="Extension In the menu" /></td>
     </tr>
   </table>

@@ -1,0 +1,11 @@
+• Download file dan folder dari MEGA
+• Tambah download dijeda dan atur file duplikat
+• GeckoView lebih cepat dan ringan
+• Perekam Media menemukan lebih banyak video
+• Mesin telusur dan saran sendiri untuk Samaran
+• Notifikasi untuk menutup semua tab Samaran
+• Aksesibilitas untuk ukuran font dan zoom
+• Ekstensi yang tidak ditandatangani Mozilla
+• Hapus data mengikuti rentang waktu
+• Salin, Tempel, dan Tempel dan buka di kolom alamat
+• GeckoView 159 dan perbaikan pintasan

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -74,7 +75,8 @@ data class DownloadRequestSubmission(
     val customLocationUri: String?,
     val categorizeEnabled: Boolean,
     val scheduledStartAtMillis: Long,
-    val concurrentSegments: Int
+    val concurrentSegments: Int,
+    val startPaused: Boolean = false
 )
 
 @Composable
@@ -103,6 +105,7 @@ fun DownloadRequestDialog(
     initialMultithreadingParts: Int = 1,
     initialSpeedLimitAmount: Int = 0,
     initialSpeedLimitUnit: String = DEFAULT_SPEED_LIMIT_UNIT,
+    showAddButton: Boolean = true,
     fragmentManager: FragmentManager,
     onLaunchFolderPicker: (onPicked: (Uri) -> Unit) -> Unit,
     onDismiss: () -> Unit,
@@ -188,7 +191,7 @@ fun DownloadRequestDialog(
         }
     }
 
-    fun submitRequest() {
+    fun submitRequest(startPaused: Boolean = false) {
         val resolvedFilename = if (extension.isNotBlank()) "$filename.$extension" else filename
         if (checkStorage) {
             val storageError = checkStorageAvailable(context, effectiveContentLength, locationMode, customUri)
@@ -211,7 +214,7 @@ fun DownloadRequestDialog(
             return
         }
         val effectiveScheduledMillis = if (showSchedule && scheduleEnabled) scheduledMillis else 0L
-        if (effectiveScheduledMillis > 0L && effectiveScheduledMillis <= System.currentTimeMillis()) {
+        if (!startPaused && effectiveScheduledMillis > 0L && effectiveScheduledMillis <= System.currentTimeMillis()) {
             blockingError = ConfirmDialogConfig(
                 title = context.getString(R.string.download_schedule_invalid_title),
                 message = context.getString(R.string.download_schedule_past_time_error),
@@ -232,8 +235,9 @@ fun DownloadRequestDialog(
             locationMode = locationMode,
             customLocationUri = customUri?.toString(),
             categorizeEnabled = categorizeEnabled,
-            scheduledStartAtMillis = effectiveScheduledMillis,
-            concurrentSegments = concurrentSegments
+            scheduledStartAtMillis = if (startPaused) 0L else effectiveScheduledMillis,
+            concurrentSegments = concurrentSegments,
+            startPaused = startPaused
         )
         onSubmit(submission, onDismiss) {
             filenameFocusRequester.requestFocus()
@@ -261,9 +265,25 @@ fun DownloadRequestDialog(
         compact = compact,
         footer = {
             Row(
-                Modifier.fillMaxWidth().padding(end = if (compact) 8.dp else 12.dp, bottom = if (compact) 0.dp else 4.dp),
+                Modifier.fillMaxWidth().padding(
+                    start = if (showAddButton) (if (compact) 8.dp else 12.dp) else 0.dp,
+                    end = if (compact) 8.dp else 12.dp,
+                    bottom = if (compact) 0.dp else 4.dp
+                ),
                 horizontalArrangement = Arrangement.End
             ) {
+                if (showAddButton) {
+                    val addEnabled = !(showSchedule && scheduleEnabled)
+                    TextButton(onClick = { submitRequest(startPaused = true) }, enabled = addEnabled, modifier = footerButtonModifier, contentPadding = footerButtonPadding) {
+                        Text(
+                            stringResource(R.string.action_add),
+                            color = if (addEnabled) colors.primary else colors.secondaryText,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = footerTextSize
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
+                }
                 TextButton(onClick = onDismiss, modifier = footerButtonModifier, contentPadding = footerButtonPadding) {
                     Text(stringResource(R.string.action_cancel), color = colors.primary, fontWeight = FontWeight.Medium, fontSize = footerTextSize)
                 }

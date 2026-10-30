@@ -40,6 +40,23 @@ import com.jhaiian.clint.setup.SelectableCard
 import com.jhaiian.clint.ui.theme.LocalClintColors
 
 @Composable
+private fun SameAsNormalOption(selected: Boolean, descRes: Int, onClick: () -> Unit) {
+    val colors = LocalClintColors.current
+    SelectableCard(
+        selected = selected, onClick = onClick,
+        cardBackground = colors.surfaceVariant, primary = colors.primary,
+        contentPadding = SettingsPickerOptionContentPadding, bottomSpacing = SettingsPickerOptionBottomSpacing
+    ) {
+        ClintRadioButton(selected = selected)
+        Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
+            Text(stringResource(R.string.search_same_as_normal), color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(stringResource(descRes), color = colors.secondaryText, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+        }
+        DefaultChip(stringResource(R.string.default_label), colors.primary)
+    }
+}
+
+@Composable
 fun SearchEngineDialog(
     current: String,
     customName: String,
@@ -47,7 +64,9 @@ fun SearchEngineDialog(
     hideStatusBar: Boolean, hideSystemNavigation: Boolean,
     onConfirm: (String) -> Unit,
     onCustomSearchEngineSaved: (name: String, url: String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    titleRes: Int = R.string.choose_search_engine,
+    showSameAsNormal: Boolean = false
 ) {
     val colors = LocalClintColors.current
     var selected by remember(current) { mutableStateOf(current) }
@@ -69,7 +88,7 @@ fun SearchEngineDialog(
     }
 
     ClintDialog(
-        title = stringResource(R.string.choose_search_engine),
+        title = stringResource(titleRes),
         hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
         onDismiss = onDismiss,
         footer = {
@@ -83,6 +102,13 @@ fun SearchEngineDialog(
             }
         }
     ) {
+        if (showSameAsNormal) {
+            SameAsNormalOption(
+                selected = selected == com.jhaiian.clint.browser.SameAsNormalMode,
+                descRes = R.string.search_engine_same_as_normal_desc,
+                onClick = { selected = com.jhaiian.clint.browser.SameAsNormalMode }
+            )
+        }
         data class EngineOption(val key: String, val titleRes: Int, val descRes: Int, val showDefault: Boolean)
         listOf(
             EngineOption("duckduckgo", R.string.engine_duckduckgo, R.string.engine_duckduckgo_desc, true),
@@ -101,7 +127,7 @@ fun SearchEngineDialog(
                     Text(stringResource(option.titleRes), color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                     Text(stringResource(option.descRes), color = colors.secondaryText, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
                 }
-                if (option.showDefault) DefaultChip(stringResource(R.string.default_label), colors.primary)
+                if (option.showDefault && !showSameAsNormal) DefaultChip(stringResource(R.string.default_label), colors.primary)
             }
         }
         val customSel = selected == "custom"
@@ -143,7 +169,9 @@ fun SearchSuggestionsApiDialog(
     hideStatusBar: Boolean, hideSystemNavigation: Boolean,
     onConfirm: (String) -> Unit,
     onCustomSearchSuggestionsApiSaved: (name: String, url: String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    titleRes: Int = R.string.choose_search_suggestions_api,
+    showSameAsNormal: Boolean = false
 ) {
     val colors = LocalClintColors.current
     var selected by remember(current) { mutableStateOf(current) }
@@ -165,7 +193,7 @@ fun SearchSuggestionsApiDialog(
     }
 
     ClintDialog(
-        title = stringResource(R.string.choose_search_suggestions_api),
+        title = stringResource(titleRes),
         hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
         onDismiss = onDismiss,
         footer = {
@@ -179,6 +207,13 @@ fun SearchSuggestionsApiDialog(
             }
         }
     ) {
+        if (showSameAsNormal) {
+            SameAsNormalOption(
+                selected = selected == com.jhaiian.clint.browser.SameAsNormalMode,
+                descRes = R.string.suggestions_api_same_as_normal_desc,
+                onClick = { selected = com.jhaiian.clint.browser.SameAsNormalMode }
+            )
+        }
         data class SuggestionsApiOption(val key: String, val titleRes: Int, val descRes: Int, val showDefault: Boolean)
         listOf(
             SuggestionsApiOption("duckduckgo", R.string.engine_duckduckgo, R.string.suggestions_api_duckduckgo_desc, true),
@@ -196,7 +231,7 @@ fun SearchSuggestionsApiDialog(
                     Text(stringResource(option.titleRes), color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                     Text(stringResource(option.descRes), color = colors.secondaryText, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
                 }
-                if (option.showDefault) DefaultChip(stringResource(R.string.default_label), colors.primary)
+                if (option.showDefault && !showSameAsNormal) DefaultChip(stringResource(R.string.default_label), colors.primary)
             }
         }
         val customSel = selected == "custom"

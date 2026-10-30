@@ -153,10 +153,15 @@ fun DownloadPropertiesDialog(
                         PropRow(stringResource(R.string.download_props_label_video_url), item.streamVideoUrl) { copy(item.streamVideoUrl) }
                         PropRow(stringResource(R.string.download_props_label_audio_url), audioLink) { copy(audioLink) }
                     } else {
-                        PropRow(stringResource(R.string.download_props_label_url), item.url) { copy(item.url) }
+                        val link = item.mega?.link?.takeIf { it.isNotBlank() } ?: item.url
+                        PropRow(stringResource(R.string.download_props_label_url), link) { copy(link) }
                     }
-                    if (item.referer.isNotEmpty()) {
-                        PropRow(stringResource(R.string.download_props_label_page), item.referer) { copy(item.referer) }
+                    val page = item.pageUrl.ifBlank { item.streamPageUrl }
+                    if (page.isNotEmpty()) {
+                        PropRow(stringResource(R.string.download_props_label_page), page) { copy(page) }
+                    }
+                    if (item.referer.isNotEmpty() && item.referer != page) {
+                        PropRow(stringResource(R.string.download_props_label_referer), item.referer) { copy(item.referer) }
                     }
                 }
             }

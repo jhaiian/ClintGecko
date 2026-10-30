@@ -35,6 +35,7 @@ object SitePermissionManager {
             put(SitePermissionDatabase.COL_ORIGIN, key)
             put(SitePermissionDatabase.COL_TYPE, type)
             put(SitePermissionDatabase.COL_STATE, state)
+            put(SitePermissionDatabase.COL_UPDATED, System.currentTimeMillis())
         }
         db(context).writableDatabase.insertWithOnConflict(
             SitePermissionDatabase.TABLE,
@@ -68,6 +69,32 @@ object SitePermissionManager {
             null
         )
         return cursor.use { if (it.moveToFirst()) it.getInt(0) else 0 }
+    }
+
+    fun countOriginsSince(context: Context, since: Long): Int {
+        val cursor = db(context).readableDatabase.rawQuery(
+            "SELECT COUNT(DISTINCT ${SitePermissionDatabase.COL_ORIGIN}) FROM ${SitePermissionDatabase.TABLE} WHERE ${SitePermissionDatabase.COL_UPDATED} >= ?",
+            arrayOf(since.toString())
+        )
+        return cursor.use { if (it.moveToFirst()) it.getInt(0) else 0 }
+    }
+
+    fun deleteSince(context: Context, since: Long): Set<String> {
+        val writable = db(context).writableDatabase
+        val origins = writable.rawQuery(
+            "SELECT DISTINCT ${SitePermissionDatabase.COL_ORIGIN} FROM ${SitePermissionDatabase.TABLE} WHERE ${SitePermissionDatabase.COL_UPDATED} >= ?",
+            arrayOf(since.toString())
+        ).use { c ->
+            val result = mutableSetOf<String>()
+            while (c.moveToNext()) result.add(c.getString(0))
+            result
+        }
+        writable.delete(
+            SitePermissionDatabase.TABLE,
+            "${SitePermissionDatabase.COL_UPDATED} >= ?",
+            arrayOf(since.toString())
+        )
+        return origins
     }
 
     fun clearAll(context: Context) {

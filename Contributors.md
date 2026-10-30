@@ -4,6 +4,7 @@
 
 - [@jhaiian](https://github.com/jhaiian)
 - [@vonjooo](https://github.com/vonjooo)
+- [@Ahmedal2022](https://github.com/Ahmedal2022)
 
 ## Testers
 
@@ -36,6 +37,15 @@
 - [@jamestong420](https://github.com/jamestong420)
 - [@akshaymaurya26](https://github.com/akshaymaurya26)
 - [@34NANAKO34](https://github.com/34NANAKO34)
+- [@DarkHorse313](https://github.com/DarkHorse313)
+- [@fajarrasyid](https://github.com/fajarrasyid)
+- [@sankhababu21](https://github.com/sankhababu21)
+- [@RENBOWS](https://github.com/RENBOWS)
+- [@Subbarao6338](https://github.com/Subbarao6338)
+- [@TivyxLab](https://github.com/TivyxLab)
+- [@Zarif321](https://github.com/Zarif321)
+- [@frauplatin](https://github.com/frauplatin)
+- [@CaptechOmar](https://github.com/CaptechOmar)
 - [u/Interesting-Stick641](https://www.reddit.com/user/Interesting-Stick641)
 - [u/ManFromUrth](https://www.reddit.com/user/ManFromUrth)
 - Daniel Rioja

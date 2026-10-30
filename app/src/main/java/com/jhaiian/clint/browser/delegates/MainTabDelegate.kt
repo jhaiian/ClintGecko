@@ -13,6 +13,41 @@ import com.jhaiian.clint.browser.webview.ClintAutofill
 import com.jhaiian.clint.browser.webview.ClintWebChromeClient
 import com.jhaiian.clint.browser.webview.ClintWebViewClient
 
+internal const val PREF_REMEMBER_BROWSING_MODE = "remember_browsing_mode"
+internal const val PREF_LAST_BROWSING_MODE_INCOGNITO = "last_browsing_mode_incognito"
+
+internal fun MainActivity.recordBrowsingMode() {
+    val tab = tabManager.activeTab ?: return
+    if (tab.isRefreshLinkTab || tab.shortcutId != null || tabManager.isGhostTab(tab)) return
+    prefs.edit().putBoolean(PREF_LAST_BROWSING_MODE_INCOGNITO, tab.isIncognito).apply()
+}
+
+internal fun MainActivity.shouldReopenInIncognito(): Boolean =
+    prefs.getBoolean(PREF_REMEMBER_BROWSING_MODE, false) &&
+        prefs.getBoolean(PREF_LAST_BROWSING_MODE_INCOGNITO, false)
+
+internal fun MainActivity.closeAllIncognitoTabs() {
+    if (tabManager.activeTab?.isIncognito == true) {
+        val target = tabManager.tabs
+            .filter { !it.isIncognito && !it.isRefreshLinkTab && !tabManager.isGhostTab(it) }
+            .maxByOrNull { it.lastActiveAt }
+        if (target != null) {
+            tabManager.switchTo(tabManager.tabs.indexOf(target))
+            attachActiveWebView()
+        }
+    }
+    tabManager.tabs.filter { it.isIncognito }.map { it.id }.forEach { id ->
+        val index = tabManager.tabs.indexOfFirst { it.id == id }
+        if (index >= 0) onTabClosed(index)
+    }
+    if (tabManager.activeTab?.isIncognito != false) switchToTabMode(false)
+    onTabGroupsChanged()
+    recordBrowsingMode()
+    if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+        tabManager.activeTab?.webView?.onPause()
+    }
+}
+
 internal fun MainActivity.saveTabs() {
     tabManager.touchActive()
     val activeTab = tabManager.activeTab
@@ -42,16 +77,23 @@ internal fun MainActivity.saveTabs() {
         }
     val savedGroupIds = savedTabs.mapNotNull { it.groupId }.toSet()
     val savedGroups = tabManager.groups.filter { !it.isIncognito && it.id in savedGroupIds }
-    Thread { TabSessionManager.save(this, savedTabs, savedGroups) }.start()
+    TabSessionManager.saveAsync(this, savedTabs, savedGroups)
     persistAllShortcutTabGroups()
 }
 
 internal fun MainActivity.discardSavedTabs() {
+    TabSessionManager.awaitPendingWrites()
     TabSessionManager.clear(this)
     TabThumbnailCache.pruneDisk(this, emptySet())
 }
 
+internal fun MainActivity.discardSavedTabsAsync() {
+    TabSessionManager.clearAsync(this)
+    TabThumbnailCache.pruneDisk(this, emptySet())
+}
+
 internal fun MainActivity.restoreTabs(): Boolean {
+    TabSessionManager.awaitPendingWrites()
     migrateTabsFromPrefsIfNeeded()
     val savedTabs = TabSessionManager.load(this).filter { it.shortcutId == null }
     if (savedTabs.isEmpty()) return false
@@ -243,7 +285,7 @@ internal fun MainActivity.openNewTabInBackground(url: String, openerTabId: Strin
 internal fun MainActivity.activeProfileId(): String =
     tabManager.activeTab?.takeIf { !it.isIncognito }?.profileId ?: WebProfiles.DEFAULT_ID
 
-internal fun MainActivity.openNewTab(isIncognito: Boolean, url: String = getHomepageUrl(), openerTabId: String? = null, shortcutId: String? = null, previousTabId: String? = null, profileId: String? = null, groupId: String? = null) {
+internal fun MainActivity.openNewTab(isIncognito: Boolean, url: String = getHomepageUrl(isIncognito), openerTabId: String? = null, shortcutId: String? = null, previousTabId: String? = null, profileId: String? = null, groupId: String? = null) {
     captureActiveTabThumbnail()
     val resolvedGroupId = groupId ?: openerTabId
         ?.let { id -> tabManager.tabs.firstOrNull { it.id == id } }
@@ -430,7 +472,7 @@ internal fun MainActivity.cleanupRefreshLinkTabs() {
     }
     resetProgressBar()
     if (tabManager.tabs.isEmpty()) {
-        openNewTab(isIncognito = false, url = getHomepageUrl())
+        openNewTab(isIncognito = false, url = getHomepageUrl(false))
         return
     }
     val targetIndex = when {

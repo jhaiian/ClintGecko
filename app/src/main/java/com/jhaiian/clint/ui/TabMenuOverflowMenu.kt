@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FilterNone
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.SwapHoriz
@@ -45,7 +46,9 @@ fun TabMenuOverflowMenu(
     listView: Boolean = false,
     onToggleListView: (() -> Unit)? = null,
     buttonsAtBottom: Boolean = false,
-    onToggleButtonsAtBottom: (() -> Unit)? = null
+    onToggleButtonsAtBottom: (() -> Unit)? = null,
+    tabsAtBottom: Boolean = false,
+    onToggleTabsAtBottom: (() -> Unit)? = null
 ) {
     val colors = LocalClintColors.current
     DropdownMenu(
@@ -82,7 +85,7 @@ fun TabMenuOverflowMenu(
         ListMenuItem(Icons.Filled.SelectAll, stringResource(R.string.tab_menu_select_mode_desc), checked = false) {
             onDismiss(); onSelectTabs()
         }
-        if (onCollapseAllGroups != null || onExpandAllGroups != null || onToggleGroupBar != null || onToggleListView != null || onToggleButtonsAtBottom != null) {
+        if (onCollapseAllGroups != null || onExpandAllGroups != null || onToggleGroupBar != null || onToggleListView != null || onToggleButtonsAtBottom != null || onToggleTabsAtBottom != null) {
             HorizontalDivider(color = colors.divider)
         }
         onCollapseAllGroups?.let { action ->
@@ -107,6 +110,11 @@ fun TabMenuOverflowMenu(
         }
         onToggleButtonsAtBottom?.let { action ->
             ListMenuItem(Icons.Filled.VerticalAlignBottom, stringResource(R.string.tab_menu_buttons_at_bottom), checked = buttonsAtBottom) {
+                onDismiss(); action()
+            }
+        }
+        onToggleTabsAtBottom?.let { action ->
+            ListMenuItem(Icons.Filled.KeyboardDoubleArrowDown, stringResource(R.string.tab_menu_tabs_at_bottom), checked = tabsAtBottom) {
                 onDismiss(); action()
             }
         }

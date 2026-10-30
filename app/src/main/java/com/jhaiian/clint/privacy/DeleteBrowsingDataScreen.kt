@@ -135,10 +135,10 @@ fun DeleteBrowsingDataScreen(
                     }
                     Spacer(Modifier.height(20.dp))
                     val rangeLimited = range != BrowsingDataRange.ALL_TIME && effectiveSelection.any {
-                        it == BrowsingDataType.COOKIES || it == BrowsingDataType.CACHE || it == BrowsingDataType.SITE_SETTINGS
+                        it == BrowsingDataType.COOKIES || it == BrowsingDataType.CACHE
                     }
                     if (rangeLimited) {
-                        InfoNote(stringResource(R.string.delete_data_all_time_note))
+                        InfoNote(stringResource(R.string.delete_data_range_site_note))
                         Spacer(Modifier.height(10.dp))
                     }
                     InfoNote(stringResource(R.string.delete_data_footer))
@@ -312,7 +312,9 @@ private fun typeSummary(type: BrowsingDataType, summary: BrowsingDataSummary?): 
                 summary.historyOtherSites
             )
         }
-        BrowsingDataType.COOKIES -> stringResource(R.string.delete_data_cookies_summary)
+        BrowsingDataType.COOKIES -> stringResource(
+            if (summary.allTime) R.string.delete_data_cookies_summary else R.string.delete_data_cookies_summary_range
+        )
         BrowsingDataType.CACHE -> if (summary.cacheBytes <= 0L) {
             stringResource(R.string.delete_data_none)
         } else {

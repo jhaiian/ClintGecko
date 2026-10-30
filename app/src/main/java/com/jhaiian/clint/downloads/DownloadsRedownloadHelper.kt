@@ -17,13 +17,14 @@ internal fun DownloadsActivity.showRedownloadDialog(item: DownloadItem) {
     val hideSystemNavigation = prefs.getBoolean("hide_system_navigation", false)
 
     val dismiss: () -> Unit = { overlayContent = null }
+    val displayUrl = item.mega?.link?.takeIf { it.isNotBlank() } ?: item.url
 
     overlayContent = {
         ClintComposeTheme(theme = theme) {
             DownloadRequestDialog(
                 hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
-                url = item.url,
-                onCopyLink = { copyRedownloadLink(item.url) },
+                url = displayUrl,
+                onCopyLink = { copyRedownloadLink(displayUrl) },
                 initialFilename = item.filename,
                 contentLengthBytes = item.totalBytes,
                 checkStorage = false,
@@ -56,9 +57,13 @@ internal fun DownloadsActivity.showRedownloadDialog(item: DownloadItem) {
                         locationMode = submission.locationMode,
                         customLocationUri = submission.customLocationUri,
                         categorizeEnabled = submission.categorizeEnabled,
+                        startPaused = submission.startPaused,
                         onDismiss = {
                             this@showRedownloadDialog.showClintSnackbar(
-                                message = getString(R.string.toast_downloading, submission.filename),
+                                message = getString(
+                                    if (submission.startPaused) R.string.download_added_paused else R.string.toast_downloading,
+                                    submission.filename
+                                ),
                                 actionLabel = getString(R.string.download_started_view_action),
                                 onAction = { DownloadsActivity.open(this@showRedownloadDialog) }
                             )
@@ -92,15 +97,29 @@ private fun DownloadsActivity.performRedownload(
     locationMode: String,
     customLocationUri: String?,
     categorizeEnabled: Boolean,
+    startPaused: Boolean,
     onDismiss: () -> Unit
 ) {
     fun startRedownload(effectiveUnmeteredOnly: Boolean) {
         if (DownloadFileHelper.isCustomLocationAccessible(this, locationMode, customLocationUri)) onDismiss()
         if (item.isStream) {
-            ClintDownloadManager.enqueueStreamFromItem(this, item, filename, speedLimitBytesPerSec, locationMode, customLocationUri, categorizeEnabled)
+            ClintDownloadManager.enqueueStreamFromItem(this, item, filename, speedLimitBytesPerSec, locationMode, customLocationUri, categorizeEnabled, startPaused)
             return
         }
-        ClintDownloadManager.enqueue(this, item.url, filename, item.userAgent, item.referer, item.cookies, retryEnabled, effectiveUnmeteredOnly, splitParts, multithreadingParts, speedLimitBytesPerSec, locationMode, customLocationUri, categorizeEnabled = categorizeEnabled)
+        val mega = item.mega
+        if (mega != null) {
+            ClintDownloadManager.enqueueMega(
+                this, listOf(MegaDownloadEntry(mega, filename, item.totalBytes, item.url)), item.userAgent,
+                retryEnabled, effectiveUnmeteredOnly, splitParts, multithreadingParts, speedLimitBytesPerSec,
+                locationMode, customLocationUri, categorizeEnabled = categorizeEnabled, startPaused = startPaused
+            )
+            return
+        }
+        ClintDownloadManager.enqueue(this, item.url, filename, item.userAgent, item.referer, item.cookies, retryEnabled, effectiveUnmeteredOnly, splitParts, multithreadingParts, speedLimitBytesPerSec, locationMode, customLocationUri, categorizeEnabled = categorizeEnabled, pageUrl = item.pageUrl, startPaused = startPaused)
+    }
+    if (startPaused) {
+        startRedownload(unmeteredOnly)
+        return
     }
     confirmMeteredWarningThenProceed(unmeteredOnly) { effectiveUnmeteredOnly ->
         startRedownload(effectiveUnmeteredOnly)

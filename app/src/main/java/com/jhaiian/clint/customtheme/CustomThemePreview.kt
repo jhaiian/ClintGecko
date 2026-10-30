@@ -55,6 +55,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -78,6 +79,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -482,7 +485,23 @@ private fun MockAddressBarRow() {
                 .border(2.dp, colors.primary, RoundedCornerShape(5.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Text("1", color = colors.primary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Text(
+                "1",
+                color = colors.primary,
+                fontSize = 12.sp,
+                lineHeight = 12.sp,
+                letterSpacing = 0.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                style = LocalTextStyle.current.copy(
+                    platformStyle = PlatformTextStyle(includeFontPadding = false),
+                    lineHeightStyle = LineHeightStyle(
+                        alignment = LineHeightStyle.Alignment.Center,
+                        trim = LineHeightStyle.Trim.Both
+                    )
+                )
+            )
         }
         Box(Modifier.padding(start = 4.dp).size(40.dp), contentAlignment = Alignment.Center) {
             Icon(Icons.Filled.MoreVert, null, tint = colors.iconTint)

@@ -107,6 +107,18 @@
     <string name="pref_category_incognito">Incognito</string>
     <string name="incognito_search_history_title">Show search history in Incognito Mode</string>
     <string name="incognito_search_history_summary">Include your saved search history as suggestions while browsing in Incognito</string>
+    <string name="remember_browsing_mode_title">Remember browsing mode</string>
+    <string name="remember_browsing_mode_summary">Reopen Clint in Incognito or normal mode, whichever you were using last</string>
+    <string name="incognito_notification_channel_name">Incognito tabs</string>
+    <string name="incognito_notification_channel_desc">Shows while Incognito tabs are open so you can close them all with one tap</string>
+    <string name="incognito_notification_title">Incognito tabs are open</string>
+    <string name="incognito_notification_text">Tap to close all Incognito tabs</string>
+    <string name="incognito_search_engine_title">Incognito search engine</string>
+    <string name="incognito_search_suggestions_api_title">Incognito search suggestions</string>
+    <string name="search_same_as_normal">Same as normal</string>
+    <string name="search_same_as_normal_summary">Same as normal (%1$s)</string>
+    <string name="search_engine_same_as_normal_desc">Use the search engine you picked for normal browsing</string>
+    <string name="suggestions_api_same_as_normal_desc">Use the suggestions provider you picked for normal browsing</string>
     <string name="privacy_settings_summary">Tracking protection, cookies, secure DNS, app lock, and autofill</string>
     <string name="javascript_enabled">Enable JavaScript</string>
     <string name="javascript_enabled_summary">Allow websites to execute JavaScript</string>
@@ -344,6 +356,11 @@
     <string name="download_section_notifications">NOTIFICATIONS</string>
     <string name="download_push_notifications_title">Push notifications</string>
     <string name="download_push_notifications_summary">Get alerted when a download completes, fails, or starts retrying</string>
+    <string name="download_section_history">HISTORY</string>
+    <string name="download_history_normal_title">Save download history</string>
+    <string name="download_history_normal_summary">Keep finished downloads in your Downloads list. The files stay either way</string>
+    <string name="download_history_incognito_title">Save Incognito download history</string>
+    <string name="download_history_incognito_summary">Keep finished downloads from Incognito tabs in your Downloads list. The files stay either way</string>
     <string name="download_section_general">GENERAL</string>
     <string name="download_section_dialog_ui">DOWNLOAD DIALOG</string>
     <string name="download_dialog_ui_title">UI</string>
@@ -351,6 +368,13 @@
     <string name="download_dialog_ui_standard_desc">Roomy layout with section headings and descriptions</string>
     <string name="download_dialog_ui_compact">Compact</string>
     <string name="download_dialog_ui_compact_desc">Tighter layout with smaller controls and less scrolling</string>
+    <string name="download_duplicate_handling_title">Duplicate file handling</string>
+    <string name="download_duplicate_handling_ask">Always ask</string>
+    <string name="download_duplicate_handling_ask_desc">Choose what to do each time a file with the same name already exists</string>
+    <string name="download_duplicate_handling_add">Add a duplicate</string>
+    <string name="download_duplicate_handling_add_desc">If the earlier download has finished, keep both files and save the new one with a number added to its name</string>
+    <string name="download_duplicate_handling_overwrite">Overwrite existing file</string>
+    <string name="download_duplicate_handling_overwrite_desc">If the earlier download has finished, replace the old file with the new download</string>
     <string name="download_quick_download_title">Quick download</string>
     <string name="download_quick_download_summary">Skip the download dialog and start downloading right away using your global download settings</string>
     <string name="download_quick_download_images_title">Quick download images</string>
@@ -538,6 +562,7 @@
     <string name="download_update_link_dialog_size_unverifiable">File size could not be verified</string>
     <string name="download_update_link_dialog_size_mismatch">File size does not match (%1$s vs %2$s bytes)</string>
     <string name="download_update_link_dialog_not_a_manifest">This link doesn\'t point to a valid stream playlist</string>
+    <string name="download_update_link_dialog_not_a_file">This link opens a web page, not the file</string>
     <string name="download_update_link_dialog_positive">Update</string>
     <string name="download_menu_redownload">Redownload</string>
     <string name="download_menu_redownload_options">Redownload with additional options</string>
@@ -583,6 +608,7 @@
     <string name="download_props_label_video_url">Video download link</string>
     <string name="download_props_label_audio_url">Audio download link</string>
     <string name="download_props_label_page">Download page</string>
+    <string name="download_props_label_referer">Referer header</string>
     <string name="download_props_label_avg_speed">Average speed</string>
     <string name="download_props_label_active_time">Active time</string>
     <string name="download_props_label_segments">Downloaded segments</string>
@@ -656,6 +682,7 @@
     <string name="voice_search_not_available">Voice search is not available on this device</string>
 
     <string name="toast_downloading">Downloading %1$s</string>
+    <string name="download_added_paused">Added %1$s to Downloads, paused</string>
     <string name="download_started_view_action">View</string>
 
     <string name="install_apk_dialog_title">Install APK</string>
@@ -1158,6 +1185,17 @@
     <string name="data_saver_metered_only_title">Only on Metered Networks</string>
     <string name="data_saver_metered_only_summary">Data Saver only turns on for mobile data and for Wi‑Fi networks set as metered</string>
     <string name="data_saver_settings_summary">Use less data by limiting images, video, fonts, and scripts</string>
+    <string name="accessibility_title">Accessibility</string>
+    <string name="accessibility_summary">Text size and zoom on websites</string>
+    <string name="accessibility_section_text">Text</string>
+    <string name="accessibility_auto_font_size_title">Automatic font sizing</string>
+    <string name="accessibility_auto_font_size_summary">Font size will match your Android settings. Turn this off to manage font size here.</string>
+    <string name="accessibility_font_size_title">Font size</string>
+    <string name="accessibility_font_size_summary">Make text on websites larger or smaller</string>
+    <string name="accessibility_font_size_sample">This is sample text. It shows how text will look when you make it larger or smaller with this setting.</string>
+    <string name="accessibility_section_zoom">Zoom</string>
+    <string name="accessibility_force_zoom_title">Zoom on all websites</string>
+    <string name="accessibility_force_zoom_summary">Turn on to allow pinch to zoom, even on websites that block this gesture.</string>
     <string name="data_saver_disable_images_title">Disable Images</string>
     <string name="data_saver_disable_images_summary">All images will not load</string>
     <string name="data_saver_disable_autoplay_title">Disable Autoplay</string>
@@ -1217,7 +1255,8 @@
     <string name="delete_data_history_from_site">From %1$s</string>
     <string name="delete_data_cookies_summary">Signs you out of most sites.</string>
     <string name="delete_data_cache_summary">Up to %1$s. Some sites may load more slowly on your next visit.</string>
-    <string name="delete_data_all_time_note">Cookies, cached files and site settings can only be deleted for all time, so they\'ll be cleared regardless of the time range.</string>
+    <string name="delete_data_cookies_summary_range">Signs you out of sites you visited in this time range.</string>
+    <string name="delete_data_range_site_note">Cached files and stored data are fully removed for any site you visited in this time range.</string>
     <string name="delete_data_footer">Bookmarks, downloads and saved profiles aren\'t affected.</string>
     <string name="delete_data_action">Delete data</string>
     <string name="delete_data_deleting">Deleting…</string>
@@ -1413,6 +1452,7 @@
     <string name="tab_menu_search_no_results">No tabs match your search</string>
     <string name="tab_menu_list_view">Show as list</string>
     <string name="tab_menu_buttons_at_bottom">Buttons at bottom</string>
+    <string name="tab_menu_tabs_at_bottom">Tabs start at bottom</string>
     <string name="tab_menu_close_duplicates">Close duplicate tabs</string>
     <plurals name="tab_menu_closed_duplicates">
         <item quantity="one">Closed %1$d duplicate tab</item>
@@ -1707,6 +1747,9 @@
     <string name="media_capture_scanning">Scanning this page for media\u2026</string>
     <string name="media_capture_close">Close</string>
     <string name="media_capture_empty_state">No media detected on this page yet. Play a video or audio track to detect it here.</string>
+    <string name="media_capture_youtube_title">YouTube videos can\'t be captured</string>
+    <string name="media_capture_youtube_message">YouTube splits its videos into protected pieces that Media Capture can\'t save. Install YTDLnis to download them, and Media Capture will send YouTube videos straight to it.</string>
+    <string name="media_capture_youtube_get_ytdlnis">Get YTDLnis</string>
     <string name="media_capture_section_video">VIDEO</string>
     <string name="media_capture_section_audio">AUDIO</string>
     <string name="media_capture_section_subtitles">SUBTITLES</string>
@@ -1768,6 +1811,8 @@
     <string name="homepage_design_image_desc">Use your own photo, softened so everything stays easy to read</string>
     <string name="homepage_image_title">Homepage Image</string>
     <string name="homepage_image_summary">Tap to choose a different photo</string>
+    <string name="homepage_image_full_brightness_title">Full Brightness Image</string>
+    <string name="homepage_image_full_brightness_summary">Show your photo as it is, without the dimming overlay</string>
     <string name="homepage_show_favorites_title">Show Favorites</string>
     <string name="homepage_show_favorites_summary">Display your pinned sites and folders on the Clint homepage</string>
     <string name="homepage_show_quick_actions_title">Show Quick Actions</string>
@@ -1971,6 +2016,11 @@
     <string name="ext_err_incompatible">This extension isn\'t compatible with this version of Clint.</string>
     <string name="ext_err_insecure">Extensions can only be installed from secure (https) links.</string>
     <string name="ext_err_generic">Couldn\'t install the extension.</string>
+    <string name="ext_unsigned_title">Install unverified extension?</string>
+    <string name="ext_unsigned_message">Mozilla hasn\'t reviewed or signed this extension. It could see or change what you do on websites, so only install it if you trust where it came from.</string>
+    <string name="ext_unsigned_note">Unverified extensions don\'t update automatically. Clint loads them again every time it starts.</string>
+    <string name="ext_unsigned_install_anyway">Install anyway</string>
+    <string name="ext_unsigned_failed">Couldn\'t install this unverified extension.</string>
     <string name="ext_perm_unknown">Use the “%1$s” feature</string>
     <string name="ext_perm_activeTab">Use the page you\'re on when you tap its button</string>
     <string name="ext_perm_alarms">Schedule tasks in the background</string>
@@ -2362,4 +2412,43 @@
         <item quantity="one">%d site</item>
         <item quantity="other">%d sites</item>
     </plurals>
+    <string name="download_detect_mega_title">Detect MEGA links</string>
+    <string name="download_detect_mega_summary">Offer to download files when you open a MEGA file or folder link</string>
+    <string name="mega_dialog_title_file">MEGA file</string>
+    <string name="mega_dialog_title_folder">MEGA folder</string>
+    <string name="mega_dialog_loading">Reading the MEGA link…</string>
+    <string name="mega_folder_selected_count">Selected: %1$d of %2$d files</string>
+    <string name="mega_folder_selected_size">Size: %1$s of %2$s</string>
+    <string name="mega_select_all">Select all</string>
+    <string name="mega_keep_structure_title">Keep folder structure</string>
+    <string name="mega_keep_structure_summary">Save files in the same folders they have on MEGA</string>
+    <string name="mega_skip_existing_title">Skip files already added</string>
+    <string name="mega_skip_existing_summary">Leave out files that are already in your downloads list</string>
+    <string name="mega_folder_empty">This folder doesn\'t have any files</string>
+    <string name="mega_all_skipped">All the selected files are already in your downloads</string>
+    <string name="mega_action_try_again">Try again</string>
+    <string name="mega_error_not_found">This MEGA file or folder no longer exists</string>
+    <string name="mega_error_blocked">MEGA has blocked access to this link</string>
+    <string name="mega_error_quota">You\'ve hit MEGA\'s transfer limit for now. Try again later.</string>
+    <string name="mega_error_invalid_key">The decryption key in this link is wrong or incomplete</string>
+    <string name="mega_error_unsupported">Clint can\'t download this MEGA file yet</string>
+    <string name="mega_error_busy">MEGA is busy right now. Try again in a moment.</string>
+    <string name="mega_error_generic">MEGA couldn\'t open this link (error %d)</string>
+    <string name="mega_error_network">Couldn\'t reach MEGA. Check your connection and try again.</string>
+    <plurals name="mega_folder_file_count">
+        <item quantity="one">%1$d file · %2$s</item>
+        <item quantity="other">%1$d files · %2$s</item>
+    </plurals>
+    <plurals name="mega_folder_started">
+        <item quantity="one">Downloading %d file</item>
+        <item quantity="other">Downloading %d files</item>
+    </plurals>
+    <plurals name="mega_folder_added_paused">
+        <item quantity="one">Added %d file to Downloads, paused</item>
+        <item quantity="other">Added %d files to Downloads, paused</item>
+    </plurals>
+    <string name="address_bar_copy_link">Copy page link</string>
+    <string name="address_bar_link_copied">Page link copied</string>
+    <string name="address_bar_paste">Paste</string>
+    <string name="address_bar_paste_and_go">Paste &amp; Go</string>
 </resources>

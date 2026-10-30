@@ -134,6 +134,10 @@ internal object DownloadPersistence {
                 val etag = if (etagIdx >= 0) it.getString(etagIdx) else null
                 val lastModifiedIdx = it.getColumnIndex(DownloadDatabase.COL_LAST_MODIFIED)
                 val lastModified = if (lastModifiedIdx >= 0) it.getString(lastModifiedIdx) else null
+                val pageUrlIdx = it.getColumnIndex(DownloadDatabase.COL_PAGE_URL)
+                val pageUrl = if (pageUrlIdx >= 0) it.getString(pageUrlIdx) ?: "" else ""
+                val isIncognitoIdx = it.getColumnIndex(DownloadDatabase.COL_IS_INCOGNITO)
+                val isIncognito = isIncognitoIdx >= 0 && it.getInt(isIncognitoIdx) != 0
                 val waitReasonIdx = it.getColumnIndex(DownloadDatabase.COL_WAIT_REASON)
                 val waitReason = if (waitReasonIdx >= 0 && status == DownloadStatus.PAUSED) it.getString(waitReasonIdx) else null
                 if (waitReason == DownloadDatabase.WAIT_SYSTEM) ClintDownloadManager.timeoutPausedIds.add(id)
@@ -143,6 +147,7 @@ internal object DownloadPersistence {
                     filename = it.getString(it.getColumnIndexOrThrow(DownloadDatabase.COL_FILENAME)),
                     userAgent = it.getString(it.getColumnIndexOrThrow(DownloadDatabase.COL_USER_AGENT)),
                     referer = it.getString(it.getColumnIndexOrThrow(DownloadDatabase.COL_REFERER)),
+                    pageUrl = pageUrl,
                     cookies = it.getString(it.getColumnIndexOrThrow(DownloadDatabase.COL_COOKIES)),
                     bytesDownloaded = it.getLong(it.getColumnIndexOrThrow(DownloadDatabase.COL_BYTES_DOWNLOADED)),
                     totalBytes = it.getLong(it.getColumnIndexOrThrow(DownloadDatabase.COL_TOTAL_BYTES)),
@@ -178,11 +183,15 @@ internal object DownloadPersistence {
                     lastModified = lastModified,
                     waitingForNetwork = waitReason == DownloadDatabase.WAIT_NETWORK,
                     waitingForUnmetered = waitReason == DownloadDatabase.WAIT_UNMETERED,
-                    waitingForSchedule = waitReason == DownloadDatabase.WAIT_SCHEDULE
+                    waitingForSchedule = waitReason == DownloadDatabase.WAIT_SCHEDULE,
+                    isIncognito = isIncognito
                 )
                 val streamJsonIdx = it.getColumnIndex(DownloadDatabase.COL_STREAM_JSON)
                 val streamJson = if (streamJsonIdx >= 0) it.getString(streamJsonIdx) else null
-                loaded.add(if (streamJson != null) applyStreamState(item, streamJson) else item)
+                val megaJsonIdx = it.getColumnIndex(DownloadDatabase.COL_MEGA_JSON)
+                val mega = if (megaJsonIdx >= 0) com.jhaiian.clint.downloads.mega.MegaSource.fromJson(it.getString(megaJsonIdx)) else null
+                val restored = if (streamJson != null) applyStreamState(item, streamJson) else item
+                loaded.add(if (mega != null) restored.copy(mega = mega) else restored)
             }
         }
         loaded
@@ -206,6 +215,8 @@ internal object DownloadPersistence {
                 put(DownloadDatabase.COL_FILENAME, item.filename)
                 put(DownloadDatabase.COL_USER_AGENT, item.userAgent)
                 put(DownloadDatabase.COL_REFERER, item.referer)
+                put(DownloadDatabase.COL_PAGE_URL, item.pageUrl)
+                put(DownloadDatabase.COL_IS_INCOGNITO, if (item.isIncognito) 1 else 0)
                 put(DownloadDatabase.COL_COOKIES, item.cookies)
                 put(DownloadDatabase.COL_BYTES_DOWNLOADED, item.bytesDownloaded)
                 put(DownloadDatabase.COL_TOTAL_BYTES, item.totalBytes)
@@ -241,6 +252,9 @@ internal object DownloadPersistence {
                 if (waitReason != null) put(DownloadDatabase.COL_WAIT_REASON, waitReason) else putNull(DownloadDatabase.COL_WAIT_REASON)
                 if (item.isStream) put(DownloadDatabase.COL_STREAM_JSON, encodeStreamState(item))
                 else putNull(DownloadDatabase.COL_STREAM_JSON)
+                val mega = item.mega
+                if (mega != null) put(DownloadDatabase.COL_MEGA_JSON, mega.toJson())
+                else putNull(DownloadDatabase.COL_MEGA_JSON)
             }
             db(context).writableDatabase.insertWithOnConflict(
                 DownloadDatabase.TABLE, null, values, SQLiteDatabase.CONFLICT_REPLACE

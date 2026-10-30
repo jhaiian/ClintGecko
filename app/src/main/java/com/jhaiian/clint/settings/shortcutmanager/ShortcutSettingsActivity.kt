@@ -1,6 +1,5 @@
 package com.jhaiian.clint.settings.shortcutmanager
 
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -17,8 +16,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
 import com.jhaiian.clint.base.ClintActivity
-import com.jhaiian.clint.browser.MainActivity
 import com.jhaiian.clint.shortcuts.ShortcutIconStore
+import com.jhaiian.clint.shortcuts.ShortcutPinner
 import com.jhaiian.clint.shortcuts.ShortcutStore
 import com.jhaiian.clint.shortcuts.ShortcutTabSessionManager
 import com.jhaiian.clint.shortcuts.WebAppShortcut
@@ -115,15 +114,10 @@ class ShortcutSettingsActivity : ClintActivity() {
 
     private fun updatePinnedShortcut(shortcut: WebAppShortcut, icon: Bitmap?) {
         runCatching {
-            val shortcutIntent = Intent(Intent.ACTION_VIEW, Uri.parse(shortcut.url)).apply {
-                setClass(this@ShortcutSettingsActivity, MainActivity::class.java)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                putExtra(MainActivity.EXTRA_SHORTCUT_ID, shortcut.id)
-            }
             val builder = ShortcutInfoCompat.Builder(this, shortcut.id)
                 .setShortLabel(shortcut.name)
                 .setLongLabel(shortcut.name)
-                .setIntent(shortcutIntent)
+                .setIntent(ShortcutPinner.launchIntent(this, shortcut))
             if (icon != null) builder.setIcon(IconCompat.createWithBitmap(icon))
             ShortcutManagerCompat.updateShortcuts(this, listOf(builder.build()))
         }

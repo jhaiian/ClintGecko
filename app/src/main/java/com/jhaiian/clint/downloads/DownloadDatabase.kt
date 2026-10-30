@@ -47,7 +47,10 @@ internal class DownloadDatabase(context: Context) :
                 $COL_PART_MAP          TEXT    NOT NULL DEFAULT '',
                 $COL_ETAG              TEXT,
                 $COL_LAST_MODIFIED     TEXT,
-                $COL_WAIT_REASON       TEXT
+                $COL_WAIT_REASON       TEXT,
+                $COL_MEGA_JSON         TEXT,
+                $COL_PAGE_URL          TEXT    NOT NULL DEFAULT '',
+                $COL_IS_INCOGNITO      INTEGER NOT NULL DEFAULT 0
             )"""
         )
     }
@@ -83,11 +86,20 @@ internal class DownloadDatabase(context: Context) :
         if (oldVersion < 10) {
             db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_WAIT_REASON TEXT")
         }
+        if (oldVersion < 11) {
+            db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_MEGA_JSON TEXT")
+        }
+        if (oldVersion < 12) {
+            db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_PAGE_URL TEXT NOT NULL DEFAULT ''")
+        }
+        if (oldVersion < 13) {
+            db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_IS_INCOGNITO INTEGER NOT NULL DEFAULT 0")
+        }
     }
 
     companion object {
         const val DB_NAME                = "clint_downloads.db"
-        const val DB_VERSION             = 10
+        const val DB_VERSION             = 13
         const val TABLE                  = "downloads"
         const val COL_ID                 = "id"
         const val COL_URL                = "url"
@@ -123,6 +135,9 @@ internal class DownloadDatabase(context: Context) :
         const val COL_ETAG               = "etag"
         const val COL_LAST_MODIFIED      = "last_modified"
         const val COL_WAIT_REASON        = "wait_reason"
+        const val COL_MEGA_JSON          = "mega_json"
+        const val COL_PAGE_URL           = "page_url"
+        const val COL_IS_INCOGNITO       = "is_incognito"
         const val WAIT_NETWORK           = "network"
         const val WAIT_UNMETERED         = "unmetered"
         const val WAIT_SCHEDULE          = "schedule"

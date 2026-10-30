@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Clint Engine Bridge",
-  "version": "1.0",
+  "version": "1.2",
   "description": "Connects Clint Gecko to the Gecko engine",
   "browser_specific_settings": {
     "gecko": {
@@ -15,11 +15,30 @@
     "webRequest",
     "webRequestBlocking",
     "cookies",
+    "browsingData",
     "tabs",
     "<all_urls>"
   ],
   "background": {
-    "scripts": ["background.js"],
+    "scripts": [
+      "background.js"
+    ],
     "persistent": true
+  },
+  "experiment_apis": {
+    "clintAddons": {
+      "schema": "experiments/addons/schema.json",
+      "parent": {
+        "scopes": [
+          "addon_parent"
+        ],
+        "script": "experiments/addons/parent.js",
+        "paths": [
+          [
+            "clintAddons"
+          ]
+        ]
+      }
+    }
   }
 }

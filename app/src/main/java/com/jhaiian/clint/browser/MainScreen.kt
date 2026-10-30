@@ -229,8 +229,8 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
                 hint = stringResource(
                     R.string.search_bar_hint,
                     engineDisplayName(
-                        activity.prefs.getString("search_engine", "duckduckgo") ?: "duckduckgo",
-                        customSearchEngineName(activity.prefs)
+                        searchEngineFor(activity.prefs, state.isIncognito),
+                        customSearchEngineName(activity.prefs, state.isIncognito)
                     )
                 ),
                 suggestions = state.suggestions,
@@ -644,7 +644,8 @@ private fun BottomToolbar(
             onHomeClick = { activity.navGoHome() },
             onSwipeTabChange = { direction -> activity.onSwipeTabChange(direction) },
             onSiteInfoClick = { if (!activity.openSiteInfo()) activity.openSearchOverlay(isBottom = true) },
-            openTabsSwipeDirection = -1
+            openTabsSwipeDirection = -1,
+            isBottomBar = true
         )
     }
 }

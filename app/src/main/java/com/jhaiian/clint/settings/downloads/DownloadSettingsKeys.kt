@@ -37,10 +37,18 @@ object DownloadSettingsKeys {
     const val PREF_SPEED_LIMIT_UNIT        = "download_speed_limit_unit"
     const val PREF_PUSH_NOTIFICATIONS      = "download_push_notifications"
     const val DEFAULT_PUSH_NOTIFICATIONS   = true
+    const val PREF_HISTORY_NORMAL          = "download_history_normal"
+    const val DEFAULT_HISTORY_NORMAL       = true
+    const val PREF_HISTORY_INCOGNITO       = "download_history_incognito"
+    const val DEFAULT_HISTORY_INCOGNITO    = true
     const val PREF_QUICK_DOWNLOAD          = "download_quick_download"
     const val DEFAULT_QUICK_DOWNLOAD       = false
     const val PREF_QUICK_DOWNLOAD_IMAGES   = "download_quick_download_images"
     const val DEFAULT_QUICK_DOWNLOAD_IMAGES = false
+    const val PREF_DETECT_MEGA_LINKS       = "download_detect_mega_links"
+    const val DEFAULT_DETECT_MEGA_LINKS    = true
+    const val PREF_LIBRARY_GRID            = "download_library_grid"
+    const val DEFAULT_LIBRARY_GRID         = true
     const val PREF_DOWNLOAD_LOG            = "download_log_enabled"
     const val DEFAULT_DOWNLOAD_LOG         = false
     const val PREF_KEEP_SCREEN_ON          = "download_keep_screen_on"
@@ -53,4 +61,9 @@ object DownloadSettingsKeys {
     const val DIALOG_UI_STANDARD           = "standard"
     const val DIALOG_UI_COMPACT            = "compact"
     const val DEFAULT_DOWNLOAD_DIALOG_UI   = DIALOG_UI_STANDARD
+    const val PREF_DUPLICATE_HANDLING      = "download_duplicate_handling"
+    const val DUPLICATE_ASK                = "ask"
+    const val DUPLICATE_ADD                = "duplicate"
+    const val DUPLICATE_OVERWRITE          = "overwrite"
+    const val DEFAULT_DUPLICATE_HANDLING   = DUPLICATE_ASK
 }

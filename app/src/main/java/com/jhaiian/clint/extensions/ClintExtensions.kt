@@ -38,6 +38,8 @@ object ClintExtensions {
 
     const val BUILT_IN_ID = "clint@jhaiian.com"
     const val STORE_URL = "https://addons.mozilla.org/android/"
+    private const val UNSIGNED_PREFS = "clint_unsigned_extensions"
+    private const val MAX_UNSIGNED_BYTES = 256L * 1024L * 1024L
 
     private lateinit var appContext: Context
     private var controller: WebExtensionController? = null
@@ -61,7 +63,12 @@ object ClintExtensions {
         private set
     var popupDialog by mutableStateOf<JsDialogRequest?>(null)
         private set
+    var unsignedRequest by mutableStateOf<UnsignedInstallRequest?>(null)
+        private set
     private var actionVersion by mutableIntStateOf(0)
+    private var installsInFlight = 0
+    private var unsignedPromptAt = 0L
+    private var unsignedRestored = false
 
     @Volatile var tabOpener: ((String, Boolean) -> GeckoSession?)? = null
     @Volatile var tabOpenerOwner: Any? = null
@@ -256,8 +263,10 @@ object ClintExtensions {
     fun install(uri: String, method: String? = WebExtensionController.INSTALLATION_METHOD_MANAGER) {
         val c = controller ?: return
         toastOnce("installing", R.string.ext_toast_installing)
+        installsInFlight++
         c.install(uri, method).accept(
             { ext ->
+                installsInFlight = (installsInFlight - 1).coerceAtLeast(0)
                 if (ext != null) {
                     register(ext)
                     toastOnce("installed:${ext.id}", R.string.ext_toast_installed, ext.metaData.name ?: ext.id)
@@ -265,10 +274,147 @@ object ClintExtensions {
                 refresh()
             },
             { error ->
+                installsInFlight = (installsInFlight - 1).coerceAtLeast(0)
                 refresh()
-                reportFailure(error, null)
+                if ((error as? WebExtension.InstallException)?.code == ErrorCodes.ERROR_SIGNEDSTATE_REQUIRED) {
+                    offerUnsigned(uri)
+                } else {
+                    reportFailure(error, null)
+                }
             }
         )
+    }
+
+    private fun offerUnsigned(uri: String) {
+        unsignedPromptAt = System.currentTimeMillis()
+        if (unsignedRequest == null) unsignedRequest = UnsignedInstallRequest(uri)
+    }
+
+    fun answerUnsigned(request: UnsignedInstallRequest, allow: Boolean) {
+        if (unsignedRequest === request) unsignedRequest = null
+        if (!allow) return
+        toastOnce("installing", R.string.ext_toast_installing)
+        val appCtx = appContext
+        Thread {
+            val staged = runCatching { stageUnsigned(appCtx, request.uri) }.getOrNull()
+            main.post {
+                if (staged == null) {
+                    toast(R.string.ext_unsigned_failed)
+                } else {
+                    ClintGecko.installUnsignedAsync(staged.absolutePath) { res -> onUnsignedInstalled(staged, res) }
+                }
+            }
+        }.start()
+    }
+
+    private fun unsignedDir(context: Context): java.io.File =
+        java.io.File(context.filesDir, "unsigned-extensions").apply { mkdirs() }
+
+    private fun unsignedPrefs(context: Context) =
+        context.getSharedPreferences(UNSIGNED_PREFS, Context.MODE_PRIVATE)
+
+    private fun stageUnsigned(context: Context, uri: String): java.io.File? {
+        val target = java.io.File(unsignedDir(context), "${java.util.UUID.randomUUID()}.xpi")
+        val parsed = Uri.parse(uri)
+        val copied = runCatching {
+            when (parsed.scheme?.lowercase()) {
+                "file" -> java.io.File(parsed.path ?: return null).inputStream().use { input ->
+                    target.outputStream().use { out -> input.copyTo(out) }
+                }
+                "content" -> context.contentResolver.openInputStream(parsed)!!.use { input ->
+                    target.outputStream().use { out -> input.copyTo(out) }
+                }
+                "http", "https" -> {
+                    val request = okhttp3.Request.Builder().url(uri).build()
+                    com.jhaiian.clint.downloads.ClintDownloadManager.httpClient.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful) return@runCatching false
+                        val body = response.body
+                        val length = body.contentLength()
+                        if (length > MAX_UNSIGNED_BYTES) return@runCatching false
+                        body.byteStream().use { input ->
+                            target.outputStream().use { out ->
+                                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                                var total = 0L
+                                while (true) {
+                                    val read = input.read(buffer)
+                                    if (read < 0) break
+                                    total += read
+                                    if (total > MAX_UNSIGNED_BYTES) return@runCatching false
+                                    out.write(buffer, 0, read)
+                                }
+                            }
+                        }
+                    }
+                }
+                else -> return@runCatching false
+            }
+            true
+        }.getOrDefault(false)
+        val valid = copied && runCatching {
+            java.util.zip.ZipFile(target).use { it.getEntry("manifest.json") != null }
+        }.getOrDefault(false)
+        if (!valid) {
+            target.delete()
+            return null
+        }
+        return target
+    }
+
+    private fun installedId(res: org.json.JSONObject?): String? =
+        res?.takeIf { !it.has("error") }?.optString("id")?.takeIf { it.isNotBlank() }
+
+    private fun rememberUnsigned(id: String, file: java.io.File) {
+        val prefs = unsignedPrefs(appContext)
+        val editor = prefs.edit()
+        prefs.all.forEach { (key, value) ->
+            if (key == id || value == file.name) {
+                if (value != file.name) java.io.File(unsignedDir(appContext), value.toString()).delete()
+                editor.remove(key)
+            }
+        }
+        editor.putString(id, file.name).apply()
+    }
+
+    private fun onUnsignedInstalled(staged: java.io.File, res: org.json.JSONObject?) {
+        val id = installedId(res)
+        if (id == null) {
+            staged.delete()
+            toast(R.string.ext_unsigned_failed)
+            refresh()
+            return
+        }
+        rememberUnsigned(id, staged)
+        toastOnce("installed:$id", R.string.ext_toast_installed, res?.optString("name")?.ifBlank { id } ?: id)
+        refresh()
+    }
+
+    fun onBridgeReady() {
+        if (unsignedRestored || !::appContext.isInitialized) return
+        unsignedRestored = true
+        val dir = unsignedDir(appContext)
+        val entries = unsignedPrefs(appContext).all.mapNotNull { (id, value) -> (value as? String)?.let { id to it } }
+        val known = entries.map { it.second }.toSet()
+        dir.listFiles().orEmpty().filter { it.isFile && it.name !in known }.forEach { it.delete() }
+        entries.forEach { (id, name) ->
+            val file = java.io.File(dir, name)
+            if (!file.isFile) {
+                unsignedPrefs(appContext).edit().remove(id).apply()
+                return@forEach
+            }
+            ClintGecko.installUnsignedAsync(file.absolutePath) { res ->
+                val newId = installedId(res)
+                if (newId != null && newId != id) rememberUnsigned(newId, file)
+                refresh()
+            }
+        }
+    }
+
+    private fun forgetUnsigned(id: String) {
+        if (!::appContext.isInitialized) return
+        val prefs = unsignedPrefs(appContext)
+        val name = prefs.getString(id, null) ?: return
+        runCatching { java.io.File(unsignedDir(appContext), name).delete() }
+        prefs.edit().remove(id).apply()
     }
 
     fun installFromFile(context: Context, source: Uri) {
@@ -300,6 +446,7 @@ object ClintExtensions {
             {
                 setBusy(info.id, false)
                 defaultActions.remove(info.id)
+                forgetUnsigned(info.id)
                 toastOnce("removed:${info.id}", R.string.ext_toast_removed, info.name)
                 refresh()
             },
@@ -451,6 +598,9 @@ object ClintExtensions {
         val ex = error as? WebExtension.InstallException
         val code = ex?.code
         if (code == ErrorCodes.ERROR_USER_CANCELED || code == ErrorCodes.ERROR_POSTPONED) return
+        if (code == ErrorCodes.ERROR_SIGNEDSTATE_REQUIRED &&
+            (installsInFlight > 0 || unsignedRequest != null || System.currentTimeMillis() - unsignedPromptAt < 5000)
+        ) return
         val res = when (code) {
             ErrorCodes.ERROR_NETWORK_FAILURE -> R.string.ext_err_network
             ErrorCodes.ERROR_CORRUPT_FILE, ErrorCodes.ERROR_INCORRECT_HASH -> R.string.ext_err_corrupt

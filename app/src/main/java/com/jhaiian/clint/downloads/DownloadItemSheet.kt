@@ -90,8 +90,10 @@ internal fun DownloadItemSheet(
                 add(SheetAction(stringResource(R.string.downloads_sheet_download_next), Icons.Filled.VerticalAlignTop, dismissThen { ClintDownloadManager.moveToFrontOfQueue(item.id) }))
             }
             add(SheetAction(stringResource(R.string.downloads_sheet_settings), Icons.Filled.Tune, dismissThen { itemActions.onChangeSettings(item) }))
-            add(SheetAction(stringResource(R.string.downloads_sheet_update_link), Icons.Filled.Link, dismissThen { itemActions.onUpdateLink(item) }))
-            add(SheetAction(stringResource(R.string.downloads_sheet_update_link_browser), Icons.Filled.Language, dismissThen { itemActions.onUpdateLinkInBrowser(item) }))
+            if (item.mega == null) {
+                add(SheetAction(stringResource(R.string.downloads_sheet_update_link), Icons.Filled.Link, dismissThen { itemActions.onUpdateLink(item) }))
+                add(SheetAction(stringResource(R.string.downloads_sheet_update_link_browser), Icons.Filled.Language, dismissThen { itemActions.onUpdateLinkInBrowser(item) }))
+            }
         }
         add(SheetAction(stringResource(R.string.downloads_sheet_redownload), Icons.Filled.Refresh, dismissThen { itemActions.onRedownload(item) }))
         add(SheetAction(stringResource(R.string.downloads_sheet_redownload_custom), Icons.Filled.Download, dismissThen { itemActions.onRedownloadOptions(item) }))

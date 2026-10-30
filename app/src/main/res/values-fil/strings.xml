@@ -107,6 +107,18 @@
     <string name="pref_category_incognito">Incognito</string>
     <string name="incognito_search_history_title">Ipakita ang history ng paghahanap sa Incognito Mode</string>
     <string name="incognito_search_history_summary">Isama ang naka-save mong history ng paghahanap bilang mga suggestion habang nagba-browse sa Incognito</string>
+    <string name="remember_browsing_mode_title">Tandaan ang browsing mode</string>
+    <string name="remember_browsing_mode_summary">Buksan ulit ang Clint sa Incognito o normal na mode, kung alin ang huli mong ginamit</string>
+    <string name="incognito_notification_channel_name">Mga Incognito tab</string>
+    <string name="incognito_notification_channel_desc">Lumalabas habang may bukas na Incognito tab para maisara mo lahat sa isang tap</string>
+    <string name="incognito_notification_title">May bukas na Incognito tab</string>
+    <string name="incognito_notification_text">I-tap para isara ang lahat ng Incognito tab</string>
+    <string name="incognito_search_engine_title">Search engine sa Incognito</string>
+    <string name="incognito_search_suggestions_api_title">Mga search suggestion sa Incognito</string>
+    <string name="search_same_as_normal">Kapareho ng normal</string>
+    <string name="search_same_as_normal_summary">Kapareho ng normal (%1$s)</string>
+    <string name="search_engine_same_as_normal_desc">Gamitin ang search engine na pinili mo para sa normal na pag-browse</string>
+    <string name="suggestions_api_same_as_normal_desc">Gamitin ang suggestion provider na pinili mo para sa normal na pag-browse</string>
     <string name="privacy_settings_summary">Tracking protection, cookie, secure DNS, app lock, at autofill</string>
     <string name="javascript_enabled">I-enable ang JavaScript</string>
     <string name="javascript_enabled_summary">Payagan ang mga website na mag-run ng JavaScript</string>
@@ -343,6 +355,11 @@
     <string name="download_section_notifications">NOTIFICATIONS</string>
     <string name="download_push_notifications_title">Push notifications</string>
     <string name="download_push_notifications_summary">Makatanggap ng alerto kapag natapos, nabigo, o nag-retry ang isang download</string>
+    <string name="download_section_history">HISTORY</string>
+    <string name="download_history_normal_title">I-save ang history ng download</string>
+    <string name="download_history_normal_summary">Itago sa listahan ng Downloads ang mga natapos na download. Hindi mabubura ang mga file</string>
+    <string name="download_history_incognito_title">I-save ang history ng download sa Incognito</string>
+    <string name="download_history_incognito_summary">Itago sa listahan ng Downloads ang mga natapos na download mula sa Incognito tab. Hindi mabubura ang mga file</string>
     <string name="download_section_general">PANGKALAHATAN</string>
     <string name="download_section_dialog_ui">DOWNLOAD DIALOG</string>
     <string name="download_dialog_ui_title">UI</string>
@@ -350,6 +367,13 @@
     <string name="download_dialog_ui_standard_desc">Maluwag na layout na may mga heading ng seksyon at paglalarawan</string>
     <string name="download_dialog_ui_compact">Compact</string>
     <string name="download_dialog_ui_compact_desc">Mas siksik na layout na may mas maliliit na kontrol at mas kaunting pag-scroll</string>
+    <string name="download_duplicate_handling_title">Mga duplicate na file</string>
+    <string name="download_duplicate_handling_ask">Laging magtanong</string>
+    <string name="download_duplicate_handling_ask_desc">Pumili kung ano ang gagawin tuwing may file na may parehong pangalan</string>
+    <string name="download_duplicate_handling_add">Magdagdag ng duplicate</string>
+    <string name="download_duplicate_handling_add_desc">Kapag tapos na ang naunang download, itago ang parehong file at lagyan ng numero ang pangalan ng bago</string>
+    <string name="download_duplicate_handling_overwrite">I-overwrite ang kasalukuyang file</string>
+    <string name="download_duplicate_handling_overwrite_desc">Kapag tapos na ang naunang download, papalitan ng bagong download ang lumang file</string>
     <string name="download_quick_download_title">Mabilisang pag-download</string>
     <string name="download_quick_download_summary">Laktawan ang download dialog at agad na magsimulang mag-download gamit ang iyong global na download settings</string>
     <string name="download_quick_download_images_title">Mabilisang pag-download ng mga larawan</string>
@@ -537,6 +561,7 @@
     <string name="download_update_link_dialog_size_unverifiable">Hindi ma-verify ang laki ng file</string>
     <string name="download_update_link_dialog_size_mismatch">Hindi tugma ang laki ng file (%1$s vs %2$s bytes)</string>
     <string name="download_update_link_dialog_not_a_manifest">Hindi valid na stream playlist ang link na ito</string>
+    <string name="download_update_link_dialog_not_a_file">Web page ang binubuksan ng link na ito, hindi ang file</string>
     <string name="download_update_link_dialog_positive">I-update</string>
     <string name="download_menu_redownload">I-download ulit</string>
     <string name="download_menu_redownload_options">I-download ulit gamit ang karagdagang opsyon</string>
@@ -582,6 +607,7 @@
     <string name="download_props_label_video_url">Download link ng video</string>
     <string name="download_props_label_audio_url">Download link ng audio</string>
     <string name="download_props_label_page">Pahina ng download</string>
+    <string name="download_props_label_referer">Referer header</string>
     <string name="download_props_label_avg_speed">Average na bilis</string>
     <string name="download_props_label_active_time">Tagal ng pag-download</string>
     <string name="download_props_label_segments">Mga na-download na segment</string>
@@ -655,6 +681,7 @@
     <string name="voice_search_not_available">Hindi available ang voice search sa device na ito</string>
 
     <string name="toast_downloading">Dina-download ang %1$s</string>
+    <string name="download_added_paused">Naidagdag ang %1$s sa Downloads nang naka-pause</string>
     <string name="download_started_view_action">Tingnan</string>
 
     <string name="install_apk_dialog_title">I-install ang APK</string>
@@ -1157,6 +1184,17 @@
     <string name="data_saver_metered_only_title">Sa Metered na Network Lang</string>
     <string name="data_saver_metered_only_summary">Naka-on lang ang Data Saver sa mobile data at sa mga Wi‑Fi network na naka-set bilang metered</string>
     <string name="data_saver_settings_summary">Makatipid sa data sa paglimita ng mga larawan, video, font, at script</string>
+    <string name="accessibility_title">Accessibility</string>
+    <string name="accessibility_summary">Laki ng text at zoom sa mga website</string>
+    <string name="accessibility_section_text">Text</string>
+    <string name="accessibility_auto_font_size_title">Awtomatikong laki ng font</string>
+    <string name="accessibility_auto_font_size_summary">Susundin ng laki ng font ang settings ng Android mo. I-off ito para ikaw ang mag-adjust dito.</string>
+    <string name="accessibility_font_size_title">Laki ng font</string>
+    <string name="accessibility_font_size_summary">Palakihin o paliitin ang text sa mga website</string>
+    <string name="accessibility_font_size_sample">Halimbawang text ito. Makikita mo rito kung ano ang itsura ng text kapag pinalaki o pinaliit mo ito gamit ang setting na ito.</string>
+    <string name="accessibility_section_zoom">Zoom</string>
+    <string name="accessibility_force_zoom_title">Mag-zoom sa lahat ng website</string>
+    <string name="accessibility_force_zoom_summary">I-on para makapag-pinch to zoom, kahit sa mga website na humaharang sa gesture na ito.</string>
     <string name="data_saver_disable_images_title">I-disable ang mga Larawan</string>
     <string name="data_saver_disable_images_summary">Hindi ilo-load ang lahat ng larawan</string>
     <string name="data_saver_disable_autoplay_title">I-disable ang Autoplay</string>
@@ -1216,7 +1254,8 @@
     <string name="delete_data_history_from_site">Mula sa %1$s</string>
     <string name="delete_data_cookies_summary">Masa-sign out ka sa karamihan ng site.</string>
     <string name="delete_data_cache_summary">Hanggang %1$s. Maaaring bumagal ang pag-load ng ilang site sa susunod mong pagbisita.</string>
-    <string name="delete_data_all_time_note">Buong buburahin ang cookies, naka-cache na file, at mga setting ng site, kahit anong saklaw ng oras ang piliin mo.</string>
+    <string name="delete_data_cookies_summary_range">Masa-sign out ka sa mga site na binisita mo sa saklaw ng oras na ito.</string>
+    <string name="delete_data_range_site_note">Buong buburahin ang mga naka-cache na file at naka-save na data ng mga site na binisita mo sa saklaw ng oras na ito.</string>
     <string name="delete_data_footer">Hindi maaapektuhan ang iyong mga bookmark, download, at naka-save na profile.</string>
     <string name="delete_data_action">Burahin ang data</string>
     <string name="delete_data_deleting">Binubura…</string>
@@ -1404,6 +1443,7 @@
     <string name="tab_menu_search_no_results">Walang tab na tumugma sa hinanap mo</string>
     <string name="tab_menu_list_view">Ipakita bilang listahan</string>
     <string name="tab_menu_buttons_at_bottom">Ilagay ang mga button sa ibaba</string>
+    <string name="tab_menu_tabs_at_bottom">Simulan ang mga tab sa ibaba</string>
     <string name="tab_menu_close_duplicates">Isara ang mga dobleng tab</string>
     <plurals name="tab_menu_closed_duplicates">
         <item quantity="other">Isinara ang %1$d na dobleng tab</item>
@@ -1697,6 +1737,9 @@
     <string name="media_capture_scanning">Hinahanap ang media sa page na ito\u2026</string>
     <string name="media_capture_close">Isara</string>
     <string name="media_capture_empty_state">Wala pang na-detect na media sa page na ito. I-play ang isang video o audio track para ma-detect ito rito.</string>
+    <string name="media_capture_youtube_title">Hindi makukuha ang mga video sa YouTube</string>
+    <string name="media_capture_youtube_message">Hinahati ng YouTube ang mga video nito sa mga protektadong piraso na hindi kayang i-save ng Media Capture. I-install ang YTDLnis para ma-download ang mga ito, at diretso nang ipapasa ng Media Capture doon ang mga video sa YouTube.</string>
+    <string name="media_capture_youtube_get_ytdlnis">Kunin ang YTDLnis</string>
     <string name="media_capture_section_video">VIDEO</string>
     <string name="media_capture_section_audio">AUDIO</string>
     <string name="media_capture_section_subtitles">SUBTITLES</string>
@@ -1758,6 +1801,8 @@
     <string name="homepage_design_image_desc">Gamitin ang sarili mong larawan, pinalambot para madaling mabasa ang lahat</string>
     <string name="homepage_image_title">Larawan ng Homepage</string>
     <string name="homepage_image_summary">I-tap para pumili ng ibang larawan</string>
+    <string name="homepage_image_full_brightness_title">Larawan sa Buong Liwanag</string>
+    <string name="homepage_image_full_brightness_summary">Ipakita ang larawan mo kung ano talaga ito, nang walang pampadilim na overlay</string>
     <string name="homepage_show_favorites_title">Ipakita ang mga paborito</string>
     <string name="homepage_show_favorites_summary">Ipakita ang mga naka-pin mong site at folder sa homepage ng Clint</string>
     <string name="homepage_show_quick_actions_title">Ipakita ang mga mabilisang shortcut</string>
@@ -1961,6 +2006,11 @@
     <string name="ext_err_incompatible">Hindi compatible ang extension na ito sa bersyong ito ng Clint.</string>
     <string name="ext_err_insecure">Sa mga secure na link (https) lang puwedeng mag-install ng extension.</string>
     <string name="ext_err_generic">Hindi ma-install ang extension.</string>
+    <string name="ext_unsigned_title">I-install ang hindi beripikadong extension?</string>
+    <string name="ext_unsigned_message">Hindi pa ito nire-review o pinipirmahan ng Mozilla. Puwede nitong makita o baguhin ang ginagawa mo sa mga website, kaya i-install lang kung tiwala ka sa pinanggalingan nito.</string>
+    <string name="ext_unsigned_note">Hindi kusang nag-a-update ang mga hindi beripikadong extension. Nilo-load ulit ito ng Clint tuwing magbubukas ito.</string>
+    <string name="ext_unsigned_install_anyway">I-install pa rin</string>
+    <string name="ext_unsigned_failed">Hindi ma-install ang hindi beripikadong extension na ito.</string>
     <string name="ext_perm_unknown">Gamitin ang feature na “%1$s”</string>
     <string name="ext_perm_activeTab">Gamitin ang kasalukuyang page kapag pinindot mo ang button nito</string>
     <string name="ext_perm_alarms">Mag-iskedyul ng mga gawain sa background</string>
@@ -2346,4 +2396,43 @@
         <item quantity="one">%d site</item>
         <item quantity="other">%d na site</item>
     </plurals>
+    <string name="download_detect_mega_title">I-detect ang mga MEGA link</string>
+    <string name="download_detect_mega_summary">Mag-alok na i-download ang mga file kapag nagbukas ka ng MEGA file o folder link</string>
+    <string name="mega_dialog_title_file">MEGA file</string>
+    <string name="mega_dialog_title_folder">MEGA folder</string>
+    <string name="mega_dialog_loading">Binabasa ang MEGA link…</string>
+    <string name="mega_folder_selected_count">Napili: %1$d sa %2$d na file</string>
+    <string name="mega_folder_selected_size">Laki: %1$s sa %2$s</string>
+    <string name="mega_select_all">Piliin lahat</string>
+    <string name="mega_keep_structure_title">Panatilihin ang ayos ng mga folder</string>
+    <string name="mega_keep_structure_summary">I-save ang mga file sa parehong mga folder kung nasaan sila sa MEGA</string>
+    <string name="mega_skip_existing_title">Laktawan ang mga naidagdag na</string>
+    <string name="mega_skip_existing_summary">Huwag isama ang mga file na nasa listahan na ng mga download mo</string>
+    <string name="mega_folder_empty">Walang file sa folder na ito</string>
+    <string name="mega_all_skipped">Nasa mga download mo na ang lahat ng napiling file</string>
+    <string name="mega_action_try_again">Subukan ulit</string>
+    <string name="mega_error_not_found">Wala na ang MEGA file o folder na ito</string>
+    <string name="mega_error_blocked">Hinarangan ng MEGA ang access sa link na ito</string>
+    <string name="mega_error_quota">Naabot mo na ang transfer limit ng MEGA sa ngayon. Subukan ulit mamaya.</string>
+    <string name="mega_error_invalid_key">Mali o kulang ang decryption key sa link na ito</string>
+    <string name="mega_error_unsupported">Hindi pa kayang i-download ng Clint ang MEGA file na ito</string>
+    <string name="mega_error_busy">Abala ang MEGA ngayon. Subukan ulit maya-maya.</string>
+    <string name="mega_error_generic">Hindi mabuksan ng MEGA ang link na ito (error %d)</string>
+    <string name="mega_error_network">Hindi maabot ang MEGA. Tingnan ang koneksyon mo at subukan ulit.</string>
+    <plurals name="mega_folder_file_count">
+        <item quantity="one">%1$d file · %2$s</item>
+        <item quantity="other">%1$d na file · %2$s</item>
+    </plurals>
+    <plurals name="mega_folder_started">
+        <item quantity="one">Dina-download ang %d file</item>
+        <item quantity="other">Dina-download ang %d na file</item>
+    </plurals>
+    <plurals name="mega_folder_added_paused">
+        <item quantity="one">Naidagdag ang %d file sa Downloads nang naka-pause</item>
+        <item quantity="other">Naidagdag ang %d na file sa Downloads nang naka-pause</item>
+    </plurals>
+    <string name="address_bar_copy_link">Kopyahin ang link ng page</string>
+    <string name="address_bar_link_copied">Nakopya ang link ng page</string>
+    <string name="address_bar_paste">I-paste</string>
+    <string name="address_bar_paste_and_go">I-paste at pumunta</string>
 </resources>

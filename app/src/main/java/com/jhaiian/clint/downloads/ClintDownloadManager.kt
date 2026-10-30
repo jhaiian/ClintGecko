@@ -6,6 +6,8 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
+import com.jhaiian.clint.downloads.mega.MegaPaths
+import com.jhaiian.clint.downloads.mega.MegaSource
 import com.jhaiian.clint.settings.downloads.DownloadSettingsKeys
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -78,6 +80,7 @@ object ClintDownloadManager {
         else incoming.copy(
             url = current.url,
             referer = current.referer,
+            pageUrl = current.pageUrl,
             cookies = current.cookies,
             streamVideoUrl = current.streamVideoUrl,
             streamAudioUrl = current.streamAudioUrl,
@@ -199,6 +202,33 @@ object ClintDownloadManager {
     private val _downloads = MutableStateFlow<List<DownloadItem>>(emptyList())
     val downloadsFlow: StateFlow<List<DownloadItem>> = _downloads.asStateFlow()
 
+    @Volatile var incognitoSource: (() -> Boolean)? = null
+    private val unrecordedItems: MutableMap<Int, DownloadItem> = ConcurrentHashMap()
+
+    private fun startedInIncognito(): Boolean = incognitoSource?.invoke() == true
+
+    fun recordsHistory(context: Context, isIncognito: Boolean): Boolean {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+        return if (isIncognito) {
+            prefs.getBoolean(DownloadSettingsKeys.PREF_HISTORY_INCOGNITO, DownloadSettingsKeys.DEFAULT_HISTORY_INCOGNITO)
+        } else {
+            prefs.getBoolean(DownloadSettingsKeys.PREF_HISTORY_NORMAL, DownloadSettingsKeys.DEFAULT_HISTORY_NORMAL)
+        }
+    }
+
+    fun findItem(id: Int): DownloadItem? = downloadsFlow.value.find { it.id == id } ?: unrecordedItems[id]
+
+    internal fun onDownloadCompleted(context: Context, item: DownloadItem) {
+        DownloadNotificationHelper.showCompleteNotification(context, item)
+        if (recordsHistory(context, item.isIncognito)) return
+        DownloadLog.i(item.id, "HISTORY") { "Finished download not kept in the list" }
+        unrecordedItems[item.id] = item
+        removedIds.add(item.id)
+        _downloads.update { list -> list.filterNot { it.id == item.id } }
+        DownloadLog.deleteItemLog(item.id)
+        applicationScope.launch { deletePersistedDownload(item.id) }
+    }
+
     private fun addNew(item: DownloadItem) {
         DownloadLog.section(item.id, "Download added") { DownloadLog.describe(item) }
         _downloads.update { listOf(item) + it }
@@ -311,7 +341,14 @@ object ClintDownloadManager {
     }
 
     private suspend fun loadDownloads(context: Context) {
-        val loaded = DownloadPersistence.loadDownloads(context).map { item ->
+        val (unrecorded, kept) = DownloadPersistence.loadDownloads(context)
+            .partition { it.status == DownloadStatus.COMPLETE && !recordsHistory(context, it.isIncognito) }
+        unrecorded.forEach {
+            unrecordedItems[it.id] = it
+            deletePersistedDownload(it.id)
+        }
+        raiseIdFloor(unrecorded.maxOfOrNull { it.id } ?: 0)
+        val loaded = kept.map { item ->
             if (item.url == "blob:" && item.status == DownloadStatus.QUEUED) {
                 val expired = item.copy(
                     status = DownloadStatus.FAILED,
@@ -480,7 +517,8 @@ object ClintDownloadManager {
         speedLimitBytesPerSec: Long = item.speedLimitBytesPerSec,
         locationMode: String = item.locationMode,
         customLocationUri: String? = item.customLocationUri,
-        categorizeEnabled: Boolean = item.categorizeEnabled
+        categorizeEnabled: Boolean = item.categorizeEnabled,
+        startPaused: Boolean = false
     ) {
         val primaryUrl = item.streamVideoUrl.ifBlank { item.url }
         val request = com.jhaiian.clint.mediacapture.download.StreamDownloadRequest(
@@ -519,7 +557,8 @@ object ClintDownloadManager {
             videoRepresentationId = item.streamVideoRepresentationId,
             audioRepresentationId = item.streamAudioRepresentationId,
             audioLanguage = item.streamAudioLanguage,
-            audioLabel = item.streamAudioLabel
+            audioLabel = item.streamAudioLabel,
+            startPaused = startPaused
         )
     }
 
@@ -527,6 +566,21 @@ object ClintDownloadManager {
         DownloadLog.i(item.id, "USER") { "Redownload requested for ${item.filename}" }
         if (item.isStream) {
             enqueueStreamFromItem(context, item)
+            return
+        }
+        val mega = item.mega
+        if (mega != null) {
+            enqueueMega(
+                context, listOf(MegaDownloadEntry(mega, item.filename, item.totalBytes, item.url)), item.userAgent,
+                retryEnabled = item.retryEnabled,
+                unmeteredOnly = item.unmeteredOnly,
+                splitParts = item.splitParts,
+                multithreadingParts = item.multithreadingParts,
+                speedLimitBytesPerSec = item.speedLimitBytesPerSec,
+                locationMode = item.locationMode,
+                customLocationUri = item.customLocationUri,
+                categorizeEnabled = item.categorizeEnabled
+            )
             return
         }
         enqueue(
@@ -538,7 +592,8 @@ object ClintDownloadManager {
             multithreadingParts = item.multithreadingParts,
             speedLimitBytesPerSec = item.speedLimitBytesPerSec,
             locationMode = item.locationMode,
-            customLocationUri = item.customLocationUri
+            customLocationUri = item.customLocationUri,
+            pageUrl = item.pageUrl
         )
     }
 
@@ -556,7 +611,8 @@ object ClintDownloadManager {
         videoRepresentationId: String? = null,
         audioRepresentationId: String? = null,
         audioLanguage: String? = null,
-        audioLabel: String? = null
+        audioLabel: String? = null,
+        startPaused: Boolean = false
     ) {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         val effectiveLocationMode = locationMode
@@ -567,12 +623,12 @@ object ClintDownloadManager {
         val effectiveCategorizeEnabled = categorizeEnabled ?: DownloadCategories.isEnabled(context)
         if (!DownloadFileHelper.isCustomLocationAccessible(context, effectiveLocationMode, effectiveCustomLocationUri)) {
             promptInvalidLocation(context) {
-                enqueueStream(context, request, videoWidth, videoHeight, videoBandwidth, audioBandwidth, primaryIsAudio, locationMode, customLocationUri, categorizeEnabled, videoRepresentationId, audioRepresentationId, audioLanguage, audioLabel)
+                enqueueStream(context, request, videoWidth, videoHeight, videoBandwidth, audioBandwidth, primaryIsAudio, locationMode, customLocationUri, categorizeEnabled, videoRepresentationId, audioRepresentationId, audioLanguage, audioLabel, startPaused)
             }
             return
         }
         if (requestStoragePermissionIfNeeded(context, effectiveLocationMode) {
-                enqueueStream(context, request, videoWidth, videoHeight, videoBandwidth, audioBandwidth, primaryIsAudio, locationMode, customLocationUri, categorizeEnabled, videoRepresentationId, audioRepresentationId, audioLanguage, audioLabel)
+                enqueueStream(context, request, videoWidth, videoHeight, videoBandwidth, audioBandwidth, primaryIsAudio, locationMode, customLocationUri, categorizeEnabled, videoRepresentationId, audioRepresentationId, audioLanguage, audioLabel, startPaused)
             }
         ) return
 
@@ -581,6 +637,7 @@ object ClintDownloadManager {
         val queued = activeCount() >= concurrentLimit(context)
         val baseItem = DownloadItem(
             id = id,
+            isIncognito = startedInIncognito(),
             url = request.videoUrl ?: request.audioUrl ?: "",
             filename = request.filename,
             userAgent = request.userAgent,
@@ -601,6 +658,7 @@ object ClintDownloadManager {
                 else -> "HLS"
             },
             streamPageUrl = request.pageUrl,
+            pageUrl = request.pageUrl,
             referer = request.referer,
             streamVideoWidth = videoWidth,
             streamVideoHeight = videoHeight,
@@ -637,6 +695,13 @@ object ClintDownloadManager {
         destDir.mkdirs()
         val previewName = DownloadFileHelper.previewUniqueName(destDir, guessedFilename)
         val item = baseItem.copy(filename = previewName)
+        if (startPaused) {
+            val paused = item.copy(status = DownloadStatus.PAUSED)
+            DownloadLog.i(id, "USER") { "Added to the list paused" }
+            addNew(paused)
+            persistLater(paused)
+            return
+        }
         addNew(item)
 
         if (queued) {
@@ -655,6 +720,7 @@ object ClintDownloadManager {
         return item.copy(
             url = current.url,
             referer = current.referer,
+            pageUrl = current.pageUrl,
             cookies = current.cookies,
             streamVideoUrl = current.streamVideoUrl,
             streamAudioUrl = current.streamAudioUrl,
@@ -742,22 +808,64 @@ object ClintDownloadManager {
         if (context is com.jhaiian.clint.ui.ConfirmDialogHostActivity) context.confirmDialogConfig = config
     }
 
-    fun enqueueBlob(context: Context, blob: File, filename: String, mimeType: String) {
+    fun enqueueBlob(context: Context, blob: File, filename: String, mimeType: String, startPaused: Boolean = false) {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         val locationMode = prefs.getString(DownloadSettingsKeys.PREF_DOWNLOAD_LOCATION_MODE, DownloadSettingsKeys.MODE_DEFAULT)
             ?: DownloadSettingsKeys.MODE_DEFAULT
         val customLocationUri = prefs.getString(DownloadSettingsKeys.PREF_DOWNLOAD_CUSTOM_URI, null)
         if (!DownloadFileHelper.isCustomLocationAccessible(context, locationMode, customLocationUri)) {
-            promptInvalidLocation(context) { enqueueBlob(context, blob, filename, mimeType) }
+            promptInvalidLocation(context) { enqueueBlob(context, blob, filename, mimeType, startPaused) }
             return
         }
-        if (requestStoragePermissionIfNeeded(context, locationMode) { enqueueBlob(context, blob, filename, mimeType) }) return
+        if (requestStoragePermissionIfNeeded(context, locationMode) { enqueueBlob(context, blob, filename, mimeType, startPaused) }) return
         val id = nextId(context)
         val item = DownloadItem(
             id = id, url = "blob:", filename = filename, userAgent = "",
-            startedAt = System.currentTimeMillis()
+            startedAt = System.currentTimeMillis(), isIncognito = startedInIncognito()
         )
+        if (startPaused) {
+            addPausedBlob(context, item.copy(status = DownloadStatus.PAUSED, totalBytes = blob.length()), blob, mimeType)
+            return
+        }
         addNew(item)
+        startBlobMove(context, item, blob, mimeType)
+    }
+
+    private fun addPausedBlob(context: Context, item: DownloadItem, blob: File, mimeType: String) {
+        DownloadLog.i(item.id, "USER") { "Added to the list paused" }
+        addNew(item)
+        applicationScope.launch {
+            val kept = withContext(Dispatchers.IO) { DownloadBlobStore.keepPaused(context, blob, item.id) }
+            if (kept == null) {
+                DownloadWorker.fail(context, item, context.getString(R.string.download_error_unknown), scheduleRetry = false)
+                return@launch
+            }
+            if (isRemoved(item.id)) {
+                kept.delete()
+                return@launch
+            }
+            val head = withContext(Dispatchers.IO) { runCatching { kept.inputStream().use { DownloadFilenameResolver.readHead(it) } }.getOrNull() }
+            val refined = DownloadFilenameResolver.refine(item.filename, mimeType, head)
+            updateItem(item.id) { it.copy(file = kept, filename = refined) }
+            persistCurrent(item.id)
+        }
+    }
+
+    private fun resumePausedBlob(context: Context, item: DownloadItem) {
+        val blob = item.file?.takeIf { DownloadBlobStore.isPausedBlob(context, it) && it.exists() }
+        if (blob == null) {
+            applicationScope.launch {
+                DownloadWorker.fail(context, item, context.getString(R.string.download_error_blob_expired), scheduleRetry = false)
+            }
+            return
+        }
+        val started = item.copy(status = DownloadStatus.DOWNLOADING, file = null)
+        publish(started)
+        startBlobMove(context, started, blob, "")
+    }
+
+    private fun startBlobMove(context: Context, item: DownloadItem, blob: File, mimeType: String) {
+        val id = item.id
         DownloadNotificationHelper.showProgressNotification(context, item)
         DownloadForegroundService.start(context)
         val directCustomDir = DownloadFileHelper.resolveDirectCustomDir(context)
@@ -788,7 +896,7 @@ object ClintDownloadManager {
                     current = current.copy(status = DownloadStatus.COMPLETE, completedAt = System.currentTimeMillis())
                     persistDownload(current)
                     publish(current)
-                    DownloadNotificationHelper.showCompleteNotification(context, current)
+                    onDownloadCompleted(context, current)
                     tryDequeueNext(context)
                 }
             } catch (e: Throwable) {
@@ -887,14 +995,16 @@ object ClintDownloadManager {
         locationMode: String = "default",
         customLocationUri: String? = null,
         scheduledStartAtMillis: Long = 0L,
-        categorizeEnabled: Boolean = DownloadSettingsKeys.DEFAULT_CATEGORIZE_DOWNLOADS
+        categorizeEnabled: Boolean = DownloadSettingsKeys.DEFAULT_CATEGORIZE_DOWNLOADS,
+        pageUrl: String = "",
+        startPaused: Boolean = false
     ) {
         if (!DownloadFileHelper.isCustomLocationAccessible(context, locationMode, customLocationUri)) {
             promptInvalidLocation(context) {
                 enqueue(
                     context, url, filename, userAgent, referer, cookies, retryEnabled, unmeteredOnly,
                     splitParts, multithreadingParts, speedLimitBytesPerSec,
-                    DownloadSettingsKeys.MODE_DEFAULT, null, scheduledStartAtMillis, categorizeEnabled
+                    DownloadSettingsKeys.MODE_DEFAULT, null, scheduledStartAtMillis, categorizeEnabled, pageUrl, startPaused
                 )
             }
             return
@@ -903,13 +1013,13 @@ object ClintDownloadManager {
                 enqueue(
                     context, url, filename, userAgent, referer, cookies, retryEnabled, unmeteredOnly,
                     splitParts, multithreadingParts, speedLimitBytesPerSec,
-                    locationMode, customLocationUri, scheduledStartAtMillis, categorizeEnabled
+                    locationMode, customLocationUri, scheduledStartAtMillis, categorizeEnabled, pageUrl, startPaused
                 )
             }
         ) return
         val id = nextId(context)
         val baseItem = DownloadItem(
-            id = id, url = url, filename = filename, userAgent = userAgent, referer = referer,
+            id = id, isIncognito = startedInIncognito(), url = url, filename = filename, userAgent = userAgent, referer = referer, pageUrl = pageUrl,
             cookies = cookies, retryEnabled = retryEnabled, unmeteredOnly = unmeteredOnly,
             splitParts = splitParts, multithreadingParts = multithreadingParts,
             speedLimitBytesPerSec = speedLimitBytesPerSec,
@@ -922,7 +1032,74 @@ object ClintDownloadManager {
         val destDir = if (safMode) rawDestDir else DownloadCategories.resolveDir(categorizeEnabled, rawDestDir, filename)
         destDir.mkdirs()
         val previewName = DownloadFileHelper.previewUniqueName(destDir, filename)
+        if (startPaused) {
+            val paused = baseItem.copy(filename = previewName, status = DownloadStatus.PAUSED, scheduledStartAtMillis = 0L)
+            DownloadLog.i(id, "USER") { "Added to the list paused" }
+            addNew(paused)
+            persistLater(paused)
+            return
+        }
         dispatchOrQueue(context, baseItem.copy(filename = previewName), ::addNew)
+    }
+
+    fun enqueueMega(
+        context: Context,
+        entries: List<MegaDownloadEntry>,
+        userAgent: String,
+        retryEnabled: Boolean = true,
+        unmeteredOnly: Boolean = false,
+        splitParts: Int = DownloadAutoTuner.AUTO,
+        multithreadingParts: Int = DownloadAutoTuner.AUTO,
+        speedLimitBytesPerSec: Long = 0L,
+        locationMode: String = "default",
+        customLocationUri: String? = null,
+        scheduledStartAtMillis: Long = 0L,
+        categorizeEnabled: Boolean = DownloadSettingsKeys.DEFAULT_CATEGORIZE_DOWNLOADS,
+        startPaused: Boolean = false
+    ) {
+        if (entries.isEmpty()) return
+        fun enqueueAt(mode: String, uri: String?) = enqueueMega(
+            context, entries, userAgent, retryEnabled, unmeteredOnly, splitParts, multithreadingParts,
+            speedLimitBytesPerSec, mode, uri, scheduledStartAtMillis, categorizeEnabled, startPaused
+        )
+        if (!DownloadFileHelper.isCustomLocationAccessible(context, locationMode, customLocationUri)) {
+            promptInvalidLocation(context) { enqueueAt(DownloadSettingsKeys.MODE_DEFAULT, null) }
+            return
+        }
+        if (requestStoragePermissionIfNeeded(context, locationMode) { enqueueAt(locationMode, customLocationUri) }) return
+        for (entry in entries) {
+            val source = entry.source.copy(path = MegaPaths.clean(entry.source.path))
+            val filename = DownloadFileHelper.sanitizeFileName(entry.filename)
+            val baseItem = DownloadItem(
+                id = nextId(context), isIncognito = startedInIncognito(), url = entry.url.ifBlank { source.link }, filename = filename, userAgent = userAgent,
+                totalBytes = entry.size, resumable = entry.size > 0L, retryEnabled = retryEnabled, unmeteredOnly = unmeteredOnly,
+                splitParts = splitParts, multithreadingParts = multithreadingParts,
+                speedLimitBytesPerSec = speedLimitBytesPerSec,
+                locationMode = locationMode, customLocationUri = customLocationUri,
+                categorizeEnabled = categorizeEnabled && source.path.isEmpty(),
+                startedAt = System.currentTimeMillis(), scheduledStartAtMillis = scheduledStartAtMillis,
+                mega = source
+            )
+            val directCustomDir = DownloadFileHelper.resolveDirectCustomDir(context, baseItem)
+            val safMode = directCustomDir == null && DownloadFileHelper.isSafCustomMode(context, baseItem)
+            val rawDestDir = directCustomDir ?: if (safMode) DownloadFileHelper.tempDownloadDir(context) else DownloadFileHelper.resolveDownloadDir()
+            val destDir = if (safMode) rawDestDir else MegaPaths.localDir(DownloadCategories.resolveDir(baseItem.categorizeEnabled, rawDestDir, filename), baseItem)
+            destDir.mkdirs()
+            val previewName = DownloadFileHelper.previewUniqueName(destDir, filename)
+            if (startPaused) {
+                val paused = baseItem.copy(filename = previewName, status = DownloadStatus.PAUSED, scheduledStartAtMillis = 0L)
+                DownloadLog.i(paused.id, "USER") { "Added to the list paused" }
+                addNew(paused)
+                persistLater(paused)
+            } else {
+                dispatchOrQueue(context, baseItem.copy(filename = previewName), ::addNew)
+            }
+        }
+    }
+
+    internal fun updateResolvedUrl(id: Int, url: String) {
+        updateItem(id) { it.copy(url = url) }
+        persistCurrent(id)
     }
 
     fun queuedInOrder(items: List<DownloadItem> = downloadsFlow.value): List<DownloadItem> =
@@ -1037,6 +1214,10 @@ object ClintDownloadManager {
         DownloadNetworkMonitor.networkWaitingIds.remove(id)
         DownloadScheduleMonitor.scheduleWaitingIds.remove(id)
         DownloadCustomScheduleMonitor.cancel(context, id)
+        if (item.url == "blob:") {
+            resumePausedBlob(context, item)
+            return
+        }
         dispatchOrQueue(context, item, ::publish)
     }
 
@@ -1085,7 +1266,7 @@ object ClintDownloadManager {
             }
             val leftover = item?.file
             if (leftover != null && appCtx != null &&
-                (DownloadFileHelper.isInTempDir(appCtx, leftover) || DownloadFileHelper.isPartFile(leftover))
+                (DownloadFileHelper.isInTempDir(appCtx, leftover) || DownloadFileHelper.isPartFile(leftover) || DownloadBlobStore.isPausedBlob(appCtx, leftover))
             ) {
                 runCatching { leftover.delete() }
             }
@@ -1166,12 +1347,13 @@ object ClintDownloadManager {
         RenameResult.SUCCESS
     }
 
-    fun updateDownloadUrl(id: Int, newUrl: String, referer: String? = null, cookies: String? = null) {
+    fun updateDownloadUrl(id: Int, newUrl: String, referer: String? = null, cookies: String? = null, pageUrl: String? = null) {
         updateItem(id) { current ->
             val withUrl = if (current.isStream) current.copy(url = newUrl, streamVideoUrl = newUrl) else current.copy(url = newUrl)
             withUrl.copy(
                 referer = referer?.takeIf { it.isNotBlank() } ?: withUrl.referer,
-                cookies = cookies?.takeIf { it.isNotBlank() } ?: withUrl.cookies
+                cookies = cookies?.takeIf { it.isNotBlank() } ?: withUrl.cookies,
+                pageUrl = pageUrl?.takeIf { it.isNotBlank() } ?: withUrl.pageUrl
             )
         }
         DownloadLog.i(id, "USER") { "Download link updated" }
@@ -1194,3 +1376,5 @@ object ClintDownloadManager {
         DownloadNetworkMonitor.onUnmeteredOnlyChanged(context, enabled)
     }
 }
+
+class MegaDownloadEntry(val source: MegaSource, val filename: String, val size: Long, val url: String = "")

@@ -4,6 +4,206 @@ All notable changes to Clint Gecko are documented here.
 
 ---
 
+# v1.0.5
+
+## What's New
+
+### MEGA Downloads
+
+You can now download straight from MEGA links!
+
+- Open a MEGA file or folder link and Clint offers to download it for you.
+- Folder links open a picker where you can select all, keep the folder structure, skip files you already added, and download on Wi-Fi only.
+- MEGA downloads can be paused, resumed, and split into multiple parts like any other download.
+- Files are decrypted on your device while they download. The key in the link never leaves your phone.
+- Clint gets a fresh download link from MEGA every time a download starts or retries, so old links don't break your downloads.
+- Quota limits and broken links now show a clear message instead of a vague error.
+- Don't want it? Turn off **Detect MEGA links** in Settings › Downloads.
+
+---
+
+### Download Manager
+
+#### Add Without Starting
+
+New **Add** button in the bottom left of every download dialog. It puts the download in your list paused so you can start it later.
+
+- It works for links, streams and Media Capture, blobs, MEGA files and folders, redownloads, and manual downloads.
+- It skips the mobile data and battery prompts, since nothing is downloading yet.
+- It's turned off while you have a scheduled start set.
+- Paused blob downloads are kept safe in app storage, so they survive a restart.
+
+(Thanks to @anonymous-shanks for suggesting this [#32](https://github.com/jhaiian/ClintGecko/issues/32))
+
+#### Refreshing Links
+
+- Each download now remembers the page it came from, separately from the Referer header. Refreshing a link takes you back to the right page instead of just the site's home page or the video player's site. The Properties dialog shows both.
+- While you're refreshing a link, picking a video in Media Capture offers to update the paused download right away.
+- Updating a link now sends the same User-Agent, Referer, and cookies as the download, skips the check when the link didn't change, ignores error pages, and tells you when a link opens a web page instead of a file.
+
+(Thanks to @DarkHorse313 for reporting this [#16](https://github.com/jhaiian/ClintGecko/issues/16))
+
+#### Download History
+
+New **Save download history** and **Save Incognito download history** switches in Settings › Downloads. Turn one off and finished downloads from that mode won't stay in your Downloads list. The file and the completion notification stay either way. Unfinished, paused, and failed downloads are always kept so you can resume or retry them.
+
+(Thanks to @anonymous-shanks for suggesting this [#32](https://github.com/jhaiian/ClintGecko/issues/32))
+
+#### Duplicate File Handling
+
+New **Duplicate file handling** setting in Settings › Downloads.
+
+- **Always ask** lets you choose what to do each time.
+- **Add a duplicate** keeps both files and adds a number to the new one.
+- **Overwrite existing file** replaces the old file.
+
+The automatic options only kick in when the existing download is already finished.
+
+#### Other Download Changes
+
+- The Downloads library remembers whether you used grid or list view.
+
+(Thanks to @anonymous-shanks for suggesting this [#32](https://github.com/jhaiian/ClintGecko/issues/32))
+
+---
+
+### Faster and Smoother GeckoView
+
+This update makes GeckoView a lot lighter on your phone, so the whole browser should feel faster.
+
+#### Tab Switching
+
+- Switching tabs is faster. Before, every switch made GeckoView re-save and clean up every tab running in the background. Now each background tab is only put to sleep once.
+- The tab you're looking at now gets top priority, so Android is less likely to kill it when your phone is low on memory.
+- Clint keeps fewer tabs active in the background on phones with less RAM. It keeps 1 on low-RAM phones, 2 under 3 GB, 4 under 5 GB, and 6 on everything else.
+- Rotating the screen, folding or unfolding your phone, resizing the window, and plugging in a keyboard no longer reload all your tabs.
+
+#### Startup and Page Loads
+
+- Clint now loads its built-in scripts once and keeps them in memory. Before, it read them from the app file every time you opened a tab, loaded a page, or came back to the app.
+- Some of the work GeckoView needs is now done in the background while it starts up, so the first page loads sooner.
+- Clint makes fewer system checks on every page you open.
+
+#### Memory and Battery
+
+- On Android 14 and newer, GeckoView's image cache is cleared when you leave the app. Android stopped sending the low memory signal Clint used for this.
+- Tab thumbnails are now resized in the background instead of slowing down the screen.
+- Fixed a memory leak where a closed browser window could stay in memory.
+
+---
+
+### Media Capture
+
+#### Better Detection
+
+Media Capture now finds streams on a lot more sites.
+
+- It catches playlists served without a file extension or with an unusual file type.
+- It recognizes DASH manifests by their content.
+- It no longer misses media that loads before a tab is fully set up, or media loaded by a service worker.
+- It skips links it already listed.
+- It keeps your results when a page only changes the part after `#` in its address.
+
+(Thanks to @Ahmedal2022 for the patch that started this [#36](https://github.com/jhaiian/ClintGecko/issues/36))
+
+#### YouTube
+
+YouTube protects its videos in a way Media Capture can't save.
+
+- If YTDLnis is installed, opening Media Capture on YouTube sends the page straight to YTDLnis.
+- If it isn't, Media Capture explains why YouTube can't be captured and shows a **Get YTDLnis** button that opens its latest release.
+
+---
+
+### Incognito
+
+- New **Incognito search engine** and **Incognito search suggestions** settings. Incognito can now use a different search engine and suggestions provider than normal browsing, and each one can have its own custom entry. Both start as **Same as normal**, so nothing changes until you pick something. Searches, suggestions, the search hint, and the search engine homepage all follow the mode of the tab you're in.
+- A silent notification now shows while Incognito tabs are open. Tap it to close all of them at once. It works right from the notification, so you stay in whatever app you're using.
+- New **Remember browsing mode** option. If you were last using Incognito, Clint opens in a fresh Incognito tab on the homepage. Your Incognito tabs are still never saved. It's off by default.
+
+(Thanks to @anonymous-shanks for suggesting the notification and Remember browsing mode [#32](https://github.com/jhaiian/ClintGecko/issues/32))
+
+---
+
+### Accessibility
+
+New **Accessibility** page in Settings.
+
+- **Automatic font sizing** keeps website text in sync with your Android font size.
+- Turn it off to pick your own **Font size** for websites, anywhere from 50% to 200%, with a live preview.
+- **Zoom on all websites** lets you pinch to zoom even on sites that try to block it.
+
+(Thanks to @fajarrasyid and @xmiseggs for suggesting this [#24](https://github.com/jhaiian/ClintGecko/issues/24) [#35](https://github.com/jhaiian/ClintGecko/issues/35))
+
+---
+
+### Unverified Extensions
+
+You can now install extensions that Mozilla hasn't signed. Before, these just failed with an error. Now Clint warns you first and installs only if you tap **Install anyway**.
+
+- These extensions don't update on their own.
+- Clint loads them again every time it starts.
+- Removing one also deletes the file Clint kept for it.
+
+Only install ones you trust.
+
+---
+
+## Improvements
+
+- **Delete browsing data** now actually follows the time range you pick. Before, cookies, site data, cache, site settings, and tabs were always deleted for all time. Now only cookies from that range, data from sites you visited in that range, site settings you changed in that range, and tabs you used in that range are removed.
+- **Tabs start at bottom** now really reverses the tab order, with your first tab at the bottom and newer tabs above it. Groups and drag and drop follow the new order too. An incomplete row now sits at the top of the grid instead of the bottom.
+- Long press the address bar to **Copy** the link, **Paste**, or **Paste & Go**.
+- The toolbars now hide and show when you scroll, even while a page is still loading.
+- New **Full Brightness Image** option in Homepage settings when you use a custom image. It shows your photo as it is, without the dark overlay.
+(Thanks to @sankhababu21 for suggesting this [#19](https://github.com/jhaiian/ClintGecko/issues/19))
+- Long press the tab counter to open a new tab.
+(Thanks to @akshaymaurya26 for suggesting this [#27](https://github.com/jhaiian/ClintGecko/issues/27))
+
+---
+
+## Other Changes
+
+- Updated Privacy Policy and Terms of Service.
+
+I added MEGA downloads, the YTDLnis handoff, unverified extensions, the new Incognito settings, address bar paste, and the download history switches to the Privacy Policy. I also fixed the Delete browsing data part, since it now follows your time range. The Terms of Service now has a MEGA section and covers unverified extensions and YTDLnis. As always, nothing leaves your device except what each feature needs to work.
+
+- Dropped the 32-bit x86 build. GeckoView stopped making x86 builds after version 144, so that APK couldn't run anyway. ARM phones aren't affected.
+- The store listings now have screenshots with translated captions for every language, plus a new banner.
+
+---
+
+## Dependency Updates
+
+- Bumped GeckoView from `158.0.20261021001945` to `159.0.20261022150525`.
+- Bumped Android Gradle Plugin from `9.4.1` to `9.5.0`.
+- Bumped OkHttp from `5.5.0` to `5.5.1`.
+
+---
+
+## Bug Fixes
+
+- Fixed home screen shortcuts restarting the whole browser every time you tapped them, which could crash the app. Shortcuts you already added are updated automatically.
+- Fixed the app freezing for several seconds and then showing a black screen when switching between the browser and a frameless shortcut.
+- Fixed your open tabs sometimes being restored from an older save after a restart.
+- Fixed pages going blank after switching your phone between light and dark mode.
+- Fixed the number in the tab counter sitting low and off-center, especially with a larger system font size. With big fonts the counter box now grows to fit the number instead of cutting it off, and the custom theme preview matches.
+- Fixed old tab thumbnails sometimes sticking around after a tab was closed.
+
+---
+
+## Donation
+
+Thank you to an anonymous supporter for donating $20.44 through PayPal!
+
+Thank you to **Sharashka USA** for donating $5 through Ko-fi!
+
+Thank you to **Gianluca Acuña** for becoming a $1 member on Patreon!
+
+Every bit of support helps me keep working on Clint. Thank you all so much!
+
+---
+
 # v1.0.4
 
 ## What's New

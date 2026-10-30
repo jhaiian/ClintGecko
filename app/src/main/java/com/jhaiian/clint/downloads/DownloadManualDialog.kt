@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -96,7 +97,8 @@ data class ManualDownloadSubmission(
     val streamPrimaryIsAudio: Boolean = false,
     val estimatedTotalBytes: Long = 0L,
     val concurrentSegments: Int = DownloadAutoTuner.AUTO,
-    val convertTsToMp4: Boolean = false
+    val convertTsToMp4: Boolean = false,
+    val startPaused: Boolean = false
 )
 
 private data class ManualStreamPlan(
@@ -389,6 +391,68 @@ fun DownloadManualDialog(
     val footerButtonPadding = if (compact) PaddingValues(horizontal = 12.dp, vertical = 0.dp) else ButtonDefaults.TextButtonContentPadding
     val footerTextSize = if (compact) 13.sp else androidx.compose.ui.unit.TextUnit.Unspecified
 
+    fun submitManual(startPaused: Boolean) {
+        val resolvedFilename = if (extension.isNotBlank()) "$filename.$extension" else filename
+        val storageError = checkStorageAvailable(context, fetchedContentLength, locationMode, customUri)
+        if (storageError != null) {
+            blockingError = ConfirmDialogConfig(
+                title = context.getString(R.string.download_error_storage_title),
+                message = storageError,
+                positiveLabel = context.getString(R.string.action_ok)
+            )
+            return
+        }
+        val fat32Error = checkFat32FileSizeLimit(context, fetchedContentLength, locationMode, customUri)
+        if (fat32Error != null) {
+            blockingError = ConfirmDialogConfig(
+                title = context.getString(R.string.download_error_fat32_title),
+                message = fat32Error,
+                positiveLabel = context.getString(R.string.action_ok)
+            )
+            return
+        }
+        val effectiveScheduledMillis = if (scheduleEnabled) scheduledMillis else 0L
+        if (!startPaused && effectiveScheduledMillis > 0L && effectiveScheduledMillis <= System.currentTimeMillis()) {
+            blockingError = ConfirmDialogConfig(
+                title = context.getString(R.string.download_schedule_invalid_title),
+                message = context.getString(R.string.download_schedule_past_time_error),
+                positiveLabel = context.getString(R.string.action_ok)
+            )
+            return
+        }
+        val speedAmount = speedLimitText.toIntOrNull()?.coerceAtLeast(0) ?: 0
+        val speedUnit = if (speedUnitLabel == mbLabel) SPEED_LIMIT_UNIT_MB else SPEED_LIMIT_UNIT_KB
+        val speedLimitBytesPerSec = resolveSpeedLimitBytesPerSec(context, speedAmount, speedUnit)
+        val plan = streamPlan
+        val submission = ManualDownloadSubmission(
+            url = url.trim(),
+            filename = resolvedFilename,
+            retryEnabled = retryEnabled,
+            unmeteredOnly = unmeteredOnly,
+            splitParts = splitParts,
+            multithreadingParts = multithreadingParts,
+            speedLimitBytesPerSec = speedLimitBytesPerSec,
+            locationMode = locationMode,
+            customLocationUri = customUri?.toString(),
+            categorizeEnabled = categorizeEnabled,
+            scheduledStartAtMillis = if (startPaused) 0L else effectiveScheduledMillis,
+            isStream = plan != null,
+            streamFormat = plan?.format,
+            streamVideoUrl = plan?.videoUrl,
+            streamAudioUrl = plan?.audioUrl,
+            streamVideoWidth = plan?.videoWidth,
+            streamVideoHeight = plan?.videoHeight,
+            streamVideoBandwidth = plan?.videoBandwidth,
+            streamAudioBandwidth = plan?.audioBandwidth,
+            streamPrimaryIsAudio = plan?.primaryIsAudio ?: false,
+            estimatedTotalBytes = plan?.estimatedTotalBytes ?: 0L,
+            concurrentSegments = concurrentSegments,
+            convertTsToMp4 = plan?.convertTsToMp4 ?: false,
+            startPaused = startPaused
+        )
+        onSubmit(submission, onDismiss) {}
+    }
+
     ClintDialog(
         title = stringResource(R.string.download_dialog_title),
         hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
@@ -396,9 +460,23 @@ fun DownloadManualDialog(
         compact = compact,
         footer = {
             Row(
-                Modifier.fillMaxWidth().padding(end = if (compact) 8.dp else 12.dp, bottom = if (compact) 0.dp else 4.dp),
+                Modifier.fillMaxWidth().padding(
+                    start = if (compact) 8.dp else 12.dp,
+                    end = if (compact) 8.dp else 12.dp,
+                    bottom = if (compact) 0.dp else 4.dp
+                ),
                 horizontalArrangement = Arrangement.End
             ) {
+                val addEnabled = isFetched && !isFetching && url.isNotBlank() && !scheduleEnabled
+                TextButton(onClick = { submitManual(startPaused = true) }, enabled = addEnabled, modifier = footerButtonModifier, contentPadding = footerButtonPadding) {
+                    Text(
+                        stringResource(R.string.action_add),
+                        color = if (addEnabled) colors.primary else colors.secondaryText,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = footerTextSize
+                    )
+                }
+                Spacer(Modifier.weight(1f))
                 TextButton(onClick = onDismiss, modifier = footerButtonModifier, contentPadding = footerButtonPadding) {
                     Text(stringResource(R.string.action_cancel), color = colors.primary, fontWeight = FontWeight.Medium, fontSize = footerTextSize)
                 }
@@ -406,70 +484,7 @@ fun DownloadManualDialog(
                     modifier = footerButtonModifier,
                     contentPadding = footerButtonPadding,
                     onClick = {
-                        if (!isFetched) {
-                            doFetch()
-                            return@TextButton
-                        }
-                        val resolvedFilename = if (extension.isNotBlank()) "$filename.$extension" else filename
-                        val storageError = checkStorageAvailable(context, fetchedContentLength, locationMode, customUri)
-                        if (storageError != null) {
-                            blockingError = ConfirmDialogConfig(
-                                title = context.getString(R.string.download_error_storage_title),
-                                message = storageError,
-                                positiveLabel = context.getString(R.string.action_ok)
-                            )
-                            return@TextButton
-                        }
-                        val fat32Error = checkFat32FileSizeLimit(context, fetchedContentLength, locationMode, customUri)
-                        if (fat32Error != null) {
-                            blockingError = ConfirmDialogConfig(
-                                title = context.getString(R.string.download_error_fat32_title),
-                                message = fat32Error,
-                                positiveLabel = context.getString(R.string.action_ok)
-                            )
-                            return@TextButton
-                        }
-                        val effectiveScheduledMillis = if (scheduleEnabled) scheduledMillis else 0L
-                        if (effectiveScheduledMillis > 0L && effectiveScheduledMillis <= System.currentTimeMillis()) {
-                            blockingError = ConfirmDialogConfig(
-                                title = context.getString(R.string.download_schedule_invalid_title),
-                                message = context.getString(R.string.download_schedule_past_time_error),
-                                positiveLabel = context.getString(R.string.action_ok)
-                            )
-                            return@TextButton
-                        }
-                        val speedAmount = speedLimitText.toIntOrNull()?.coerceAtLeast(0) ?: 0
-                        val speedUnit = if (speedUnitLabel == mbLabel) SPEED_LIMIT_UNIT_MB else SPEED_LIMIT_UNIT_KB
-                        val speedLimitBytesPerSec = resolveSpeedLimitBytesPerSec(context, speedAmount, speedUnit)
-                        val plan = streamPlan
-                        val submission = ManualDownloadSubmission(
-                            url = url.trim(),
-                            filename = resolvedFilename,
-                            retryEnabled = retryEnabled,
-                            unmeteredOnly = unmeteredOnly,
-                            splitParts = splitParts,
-                            multithreadingParts = multithreadingParts,
-                            speedLimitBytesPerSec = speedLimitBytesPerSec,
-                            locationMode = locationMode,
-                            customLocationUri = customUri?.toString(),
-                            categorizeEnabled = categorizeEnabled,
-                            scheduledStartAtMillis = effectiveScheduledMillis,
-                            isStream = plan != null,
-                            streamFormat = plan?.format,
-                            streamVideoUrl = plan?.videoUrl,
-                            streamAudioUrl = plan?.audioUrl,
-                            streamVideoWidth = plan?.videoWidth,
-                            streamVideoHeight = plan?.videoHeight,
-                            streamVideoBandwidth = plan?.videoBandwidth,
-                            streamAudioBandwidth = plan?.audioBandwidth,
-                            streamPrimaryIsAudio = plan?.primaryIsAudio ?: false,
-                            estimatedTotalBytes = plan?.estimatedTotalBytes ?: 0L,
-                            concurrentSegments = concurrentSegments,
-                            convertTsToMp4 = plan?.convertTsToMp4 ?: false
-                        )
-                        onSubmit(submission, onDismiss) {
-
-                        }
+                        if (!isFetched) doFetch() else submitManual(startPaused = false)
                     },
                     enabled = url.isNotBlank() && !isFetching
                 ) {

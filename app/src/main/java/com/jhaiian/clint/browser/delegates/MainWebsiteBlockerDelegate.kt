@@ -27,7 +27,7 @@ internal fun MainActivity.dismissWebsiteBlockedOverlay() {
     val blockedPageCommitted = !blockedHost.isNullOrEmpty() && blockedHost.equals(currentHost, ignoreCase = true)
     when {
         blockedPageCommitted && tab.webView.canGoBack() -> tab.webView.goBack()
-        blockedPageCommitted || currentUrl.isNullOrEmpty() -> tab.webView.loadUrl(getHomepageUrl())
+        blockedPageCommitted || currentUrl.isNullOrEmpty() -> tab.webView.loadUrl(getHomepageUrl(tab.isIncognito))
         else -> tab.webView.onBlockedLoadDismissed()
     }
 }

@@ -1,6 +1,6 @@
 # Terms of Service for Clint Gecko
 
-*Last updated: October 25, 2026*
+*Last updated: October 30, 2026*
 
 ## 1. What These Terms Cover
 
@@ -16,6 +16,7 @@ Clint Gecko is a **free, open‑source Android browser** built around privacy, p
 - Install and manage browser extensions, including from Mozilla's Add-ons site.
 - Keep audio and video playing in the background with media controls.
 - Block entire categories of sites at the domain level with Website Blocker.
+- Download files and folders from MEGA links.
 - Translate web pages on your device with the translation engine built into GeckoView.
 - Set your own search engine and search suggestions provider, including fully custom ones you point at any URL.
 - Incognito sessions are completely isolated.
@@ -76,6 +77,8 @@ By installing an extension, you understand and agree that:
 - Extensions can slow the browser down, use more battery or data, conflict with Clint Gecko's own features, or cause crashes. If something goes wrong, turn the extension off or remove it.
 - Removing an extension deletes the data it stored in the app, unless you've included it in a backup you made.
 
+Clint Gecko also lets you install extensions that Mozilla hasn't reviewed or signed. Nobody has checked what these extensions do, and they never update on their own. If you install one, you do so entirely at your own risk, and keeping it up to date or removing it is up to you.
+
 ## 9. Background Playback
 
 Clint Gecko can keep audio and video playing when you leave the app or turn off the screen, and shows a media notification with controls while it does. You can turn this on or off in Settings.
@@ -90,29 +93,35 @@ Media Capture works by inspecting webpage content and network requests, and by i
 
 You are responsible for making sure your use of Media Capture, including any content you download with it, complies with the terms of the websites you visit and any applicable copyright or other laws.
 
-## 11. Website Blocker
+Media Capture can't save YouTube videos. On YouTube pages it can send the page link to YTDLnis, a separate app made by someone else. The developer of Clint Gecko doesn't make, control, or support YTDLnis, and your use of it is covered by its own terms.
+
+## 11. MEGA Downloads
+
+Clint Gecko can download files and folders from MEGA links. MEGA is a separate service, and Clint Gecko isn't affiliated with it. Using MEGA links also means following MEGA's own terms. The developer doesn't control MEGA's servers and doesn't guarantee that MEGA downloads will always work, for example if MEGA changes how its service works or limits how much you can download. You are responsible for making sure you have the right to download what you get from MEGA.
+
+## 12. Website Blocker
 
 Website Blocker blocks categories of websites at the domain level, using lists the app downloads from third-party sources on GitHub, plus any sites you add yourself. These lists are maintained by others. The developer does not guarantee that they are complete, accurate, or up to date, that a site in a category really belongs there, or that any site you want blocked will be blocked. Website Blocker is not a replacement for parental controls, security software, or other protection.
 
-## 12. Translations
+## 13. Translations
 
 Clint Gecko can translate web pages using the translation engine built into GeckoView. Translations are made by a machine and can be wrong, incomplete, or miss the meaning of the original. Don't rely on a translation for anything important, such as legal, medical, financial, or safety information. Check the original page or ask a qualified translator instead.
 
 The translation engine and its language files are made by Mozilla. Not every language or page is supported, and the developer doesn't guarantee that translation will work on your device or that language files will always be available to download.
 
-## 13. Privacy and Security Features
+## 14. Privacy and Security Features
 
 Clint Gecko includes features such as Enhanced Tracking Protection, Cookie protection, fingerprinting protection, Secure DNS, and Website isolation. They make tracking and attacks harder, but they can't stop all of them. Tracker lists are maintained by others, so they may miss some trackers or block things that aren't trackers. Stricter settings can make some websites stop working. If that happens, you can turn protection off for that site or change the setting.
 
 Website isolation is a Gecko engine feature that is off by default. Turning it on may use more memory and may make the app less stable on some devices.
 
-Delete browsing data and Clear data on exit permanently delete the data you choose. Make sure you've picked the right data before you use them.
+Delete browsing data and Clear data on exit permanently delete the data you choose. Delete browsing data only removes what falls in the time range you pick. Make sure you've picked the right data and time range before you use them.
 
-## 14. Gecko Engine and Third-Party Components
+## 15. Gecko Engine and Third-Party Components
 
 Clint Gecko renders web pages with GeckoView, which is made by Mozilla and licensed under the Mozilla Public License 2.0, and relies on other third-party components. Clint Gecko is an independent project. It is not affiliated with, endorsed by, or sponsored by Mozilla. "Mozilla" and "Firefox" are trademarks of the Mozilla Foundation, and are used here only to describe the engine Clint Gecko is built on. The developer doesn't control how they work, and they may contain bugs or security flaws. Browser engines need frequent security updates. We aim to update GeckoView regularly, but we can't promise how quickly a fix will reach you, and you may be exposed to known issues until you update. Keep Clint Gecko up to date.
 
-## 15. No Warranty
+## 16. No Warranty
 
 Clint Gecko is provided **"as is"** and **"as available"**. To the maximum extent permitted by law, the developer disclaims all warranties, express or implied, including:
 
@@ -123,7 +132,7 @@ Clint Gecko is provided **"as is"** and **"as available"**. To the maximum exten
 
 You use the app entirely at your own risk.
 
-## 16. Limitation of Liability
+## 17. Limitation of Liability
 
 In no event shall the developer be liable for any damages arising from your use of Clint Gecko, including but not limited to:
 
@@ -132,12 +141,12 @@ In no event shall the developer be liable for any damages arising from your use 
 - Security breaches caused by websites you visit
 - Harm caused by extensions you install
 - Mistakes in machine translations
-- Issues with third‑party services (such as search engines, search suggestions providers, or block list sources)
+- Issues with third‑party services or apps (such as search engines, search suggestions providers, block list sources, MEGA, or YTDLnis)
 - Any indirect, incidental, or consequential damages
 
 Some jurisdictions do not allow certain liability exclusions. In those cases, this limitation applies to the fullest extent permitted by law.
 
-## 17. Third‑Party Content
+## 18. Third‑Party Content
 
 Clint Gecko is a **browser**, it renders content from websites, search engines, extensions, and online services that are completely outside the developer's control. We do not:
 
@@ -146,15 +155,15 @@ Clint Gecko is a **browser**, it renders content from websites, search engines, 
 
 You are responsible for your own browsing choices.
 
-## 18. Changes to These Terms
+## 19. Changes to These Terms
 
 These Terms may be updated occasionally. Changes will be posted on the GitHub repository. The app will always link to the latest version. If you continue using Clint Gecko after an update, you accept the new Terms.
 
-## 19. Governing Law
+## 20. Governing Law
 
 These Terms are governed by the laws of the Philippines. If you live elsewhere, your local consumer rights may also apply.
 
-## 20. Contact
+## 21. Contact
 
 For questions or permission requests:
 

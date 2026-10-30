@@ -18,8 +18,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -37,6 +40,8 @@ import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -83,7 +88,9 @@ fun MediaCaptureDialog(
     onDismiss: () -> Unit,
     onCopyLink: (String) -> Unit,
     onPreviewMediaStarted: () -> Unit,
-    onDownload: (DetectedMedia, DetectedMedia?, List<DetectedMedia>, Long?, String?) -> Unit
+    onDownload: (DetectedMedia, DetectedMedia?, List<DetectedMedia>, Long?, String?) -> Unit,
+    isYouTube: Boolean = false,
+    onGetYtdlnis: () -> Unit = {}
 ) {
     val colors = LocalClintColors.current
     val context = LocalContext.current
@@ -111,17 +118,22 @@ fun MediaCaptureDialog(
         ClintDialogStatusBarEffect(hideStatusBar, hideSystemNavigation)
         Column(Modifier.fillMaxWidth().heightIn(max = maxSheetHeight)) {
             MediaCaptureHeader(
-                detectedItems.size,
+                if (isYouTube) 0 else detectedItems.size,
                 MediaCaptureSortState.mode,
                 { MediaCaptureSortState.mode = it },
-                onDismiss
+                onDismiss,
+                showStatus = !isYouTube
             )
             HorizontalDivider(color = colors.popupStroke)
-            MediaCaptureConvertTsRow(convertTsToMp4) { checked ->
-                convertTsToMp4 = checked
-                prefs.edit().putBoolean(MEDIA_CAPTURE_CONVERT_TS_TO_MP4_PREF, checked).apply()
+            if (!isYouTube) {
+                MediaCaptureConvertTsRow(convertTsToMp4) { checked ->
+                    convertTsToMp4 = checked
+                    prefs.edit().putBoolean(MEDIA_CAPTURE_CONVERT_TS_TO_MP4_PREF, checked).apply()
+                }
             }
-            if (detectedItems.isEmpty()) {
+            if (isYouTube) {
+                MediaCaptureYouTubeState(Modifier.weight(1f, fill = false), onGetYtdlnis)
+            } else if (detectedItems.isEmpty()) {
                 MediaCaptureEmptyState()
             } else {
                 val sortMode = MediaCaptureSortState.mode
@@ -223,7 +235,8 @@ private fun MediaCaptureHeader(
     count: Int,
     sortMode: MediaCaptureSort,
     onSortSelected: (MediaCaptureSort) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    showStatus: Boolean = true
 ) {
     val colors = LocalClintColors.current
     var sortMenuOpen by remember { mutableStateOf(false) }
@@ -238,16 +251,18 @@ private fun MediaCaptureHeader(
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold
             )
-            Text(
-                if (count > 0) {
-                    stringResource(R.string.media_capture_count_label, count)
-                } else {
-                    stringResource(R.string.media_capture_scanning)
-                },
-                color = colors.secondaryText,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 2.dp)
-            )
+            if (showStatus) {
+                Text(
+                    if (count > 0) {
+                        stringResource(R.string.media_capture_count_label, count)
+                    } else {
+                        stringResource(R.string.media_capture_scanning)
+                    },
+                    color = colors.secondaryText,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
         }
         if (count > 1) {
             Box {
@@ -334,6 +349,53 @@ private fun MediaCaptureEmptyState() {
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 12.dp)
         )
+    }
+}
+
+@Composable
+private fun MediaCaptureYouTubeState(modifier: Modifier, onGetYtdlnis: () -> Unit) {
+    val colors = LocalClintColors.current
+    Column(
+        modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(vertical = 32.dp, horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            Icons.Filled.VideoLibrary,
+            contentDescription = null,
+            tint = colors.secondaryText.copy(alpha = 0.5f),
+            modifier = Modifier.size(40.dp)
+        )
+        Text(
+            stringResource(R.string.media_capture_youtube_title),
+            color = colors.popupText,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 12.dp)
+        )
+        Text(
+            stringResource(R.string.media_capture_youtube_message),
+            color = colors.secondaryText,
+            fontSize = 13.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.widthIn(max = 480.dp).padding(top = 8.dp)
+        )
+        Button(
+            onClick = onGetYtdlnis,
+            colors = ButtonDefaults.buttonColors(containerColor = colors.primary, contentColor = colors.onPrimary),
+            shape = RoundedCornerShape(24.dp),
+            modifier = Modifier.padding(top = 20.dp)
+        ) {
+            Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+            Text(
+                stringResource(R.string.media_capture_youtube_get_ytdlnis),
+                fontSize = 14.sp,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+        }
     }
 }
 

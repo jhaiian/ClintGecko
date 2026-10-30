@@ -161,7 +161,7 @@ fun DownloadItemOptionsMenu(
         if (item.status in DownloadStatus.NOT_FINISHED) {
             ListMenuItem(androidx.compose.material.icons.Icons.Filled.Tune, stringResource(R.string.download_menu_change_settings), false) { onDismiss(); onChangeSettings() }
         }
-        if (item.status != DownloadStatus.COMPLETE) {
+        if (item.status != DownloadStatus.COMPLETE && item.mega == null) {
             ListMenuItem(androidx.compose.material.icons.Icons.Filled.Link, stringResource(R.string.download_menu_update_link), false) { onDismiss(); onUpdateLink() }
             ListMenuItem(androidx.compose.material.icons.Icons.Filled.Language, stringResource(R.string.download_menu_update_link_in_browser), false) { onDismiss(); onUpdateLinkInBrowser() }
         }

@@ -1,0 +1,11 @@
+• Downloads de arquivos e pastas do MEGA
+• Adicionar downloads pausados e arquivos duplicados
+• GeckoView mais rápido e leve
+• Captura de mídia encontra mais vídeos
+• Pesquisa e sugestões próprias no modo anônimo
+• Notificação para fechar as abas anônimas
+• Acessibilidade com tamanho da fonte e zoom
+• Extensões não assinadas pela Mozilla
+• Excluir dados respeita o período escolhido
+• Copiar, Colar e Colar e acessar na barra de endereço
+• GeckoView 159 e correções nos atalhos

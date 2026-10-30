@@ -603,7 +603,7 @@ object StreamDownloadJob {
                 current = current.copy(status = DownloadStatus.COMPLETE, completedAt = System.currentTimeMillis())
                 ClintDownloadManager.persistDownload(current)
                 ClintDownloadManager.publish(current)
-                DownloadNotificationHelper.showCompleteNotification(context, current)
+                ClintDownloadManager.onDownloadCompleted(context, current)
                 ClintDownloadManager.tryDequeueNext(context)
             }
         } catch (_: StreamCancelledException) {
@@ -1020,7 +1020,7 @@ object StreamDownloadJob {
                 current = current.copy(status = DownloadStatus.COMPLETE, completedAt = System.currentTimeMillis())
                 ClintDownloadManager.persistDownload(current)
                 ClintDownloadManager.publish(current)
-                DownloadNotificationHelper.showCompleteNotification(context, current)
+                ClintDownloadManager.onDownloadCompleted(context, current)
                 ClintDownloadManager.tryDequeueNext(context)
             }
         } catch (_: StreamCancelledException) {

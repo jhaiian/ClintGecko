@@ -7,6 +7,7 @@ import android.os.Looper
 import android.webkit.JavascriptInterface
 import com.jhaiian.clint.settings.sitepermissions.SitePermissionDatabase
 import com.jhaiian.clint.settings.sitepermissions.SitePermissionManager
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import org.mozilla.geckoview.ContentBlocking
@@ -18,6 +19,7 @@ import org.mozilla.geckoview.GeckoSession
 import org.mozilla.geckoview.StorageController
 import org.mozilla.geckoview.WebExtension
 import java.lang.ref.WeakReference
+import java.lang.reflect.Method
 import java.util.Collections
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
@@ -41,6 +43,10 @@ object ClintGecko {
     private const val TRIM_MEMORY_MODERATE_LEVEL = 60
     private const val TRIM_DEBOUNCE_MS = 5000L
     private const val COOKIE_OP_TIMEOUT_MS = 8000L
+    private const val UNSIGNED_INSTALL_TIMEOUT_MS = 30000L
+    private const val MAX_QUEUED_OBSERVATION_TABS = 16
+    private const val MAX_QUEUED_OBSERVATIONS = 48
+    private const val OBSERVATION_BIND_GRACE_MS = 4000L
     const val PREF_WEBSITE_ISOLATION = "website_isolation_enabled"
     const val DEFAULT_WEBSITE_ISOLATION = false
 
@@ -68,10 +74,13 @@ object ClintGecko {
     private val pendingNonces = ConcurrentHashMap<String, WeakReference<ClintWebView>>()
     private val pendingTabs = ConcurrentHashMap<String, Pair<Int, String>>()
     private val tabByExt = ConcurrentHashMap<Int, WeakReference<ClintWebView>>()
+    private val queuedObservations = LinkedHashMap<Int, MutableList<JSONObject>>()
     private val storeByProfile = ConcurrentHashMap<String, String>()
     private val cookieWaiters = ConcurrentHashMap<Int, (String) -> Unit>()
     private val cookieSeq = AtomicInteger()
     private val cookieOpWaiters = ConcurrentHashMap<Int, (Any?) -> Unit>()
+    private val unsignedWaiters = ConcurrentHashMap<Int, (JSONObject?) -> Unit>()
+    private val unsignedQueue = ArrayList<JSONObject>()
 
     @Volatile var foregroundView: WeakReference<ClintWebView>? = null
 
@@ -79,9 +88,13 @@ object ClintGecko {
 
     private class ScriptEntry(val code: String, val topOnly: Boolean)
 
+    private data class BridgeMethodKey(val type: Class<*>, val name: String, val arity: Int)
+
     private val scripts = LinkedHashMap<String, ScriptEntry>()
     private val specs = ConcurrentHashMap<String, List<Pair<String, String>>>()
     private val specRefs = ConcurrentHashMap<String, WeakReference<Any>>()
+    private val interfaceMethodNames = ConcurrentHashMap<Class<*>, List<String>>()
+    private val bridgeMethods = ConcurrentHashMap<BridgeMethodKey, Method>()
     private var bundleSeq = 0
     private var bundleScheduled = false
     @Volatile private var runtimeJs: String? = null
@@ -141,6 +154,8 @@ object ClintGecko {
         runCatching { com.jhaiian.clint.backup.CookieBackup.applyPending(appContext) }
         runtimeRef = GeckoRuntime.create(appContext, settings)
         disableTelemetry()
+        applyFontSize(appContext)
+        applyForceZoom(appContext)
         com.jhaiian.clint.translation.ClintTranslations.applyPrefs(appContext)
         SecureDns.apply(appContext)
         com.jhaiian.clint.privacy.PrivacyPrefs.applyGeckoPrefs(appContext)
@@ -149,6 +164,10 @@ object ClintGecko {
         com.jhaiian.clint.extensions.ClintExtensions.init(appContext, runtime)
         installExtension()
         main.postDelayed({ markReady() }, READY_TIMEOUT_MS)
+        io.execute {
+            runCatching { loadRuntime() }
+            runCatching { "https://www.example.com/".toHttpUrlOrNull()?.topPrivateDomain() }
+        }
     }
 
     private val telemetryOffBooleans = listOf(
@@ -257,7 +276,10 @@ object ClintGecko {
             "ready" -> {
                 pushConfig()
                 pushBundle()
+                flushUnsignedQueue()
+                com.jhaiian.clint.extensions.ClintExtensions.onBridgeReady()
             }
+            "unsignedRes" -> unsignedWaiters.remove(msg.optInt("id"))?.invoke(msg.optJSONObject("res"))
             "bundleOk" -> {
                 if (msg.optInt("seq") >= synchronized(this) { bundleSeq }) {
                     bundleInFlight = false
@@ -306,7 +328,8 @@ object ClintGecko {
 
     fun trimMemory(level: Int) {
         val rt = runtimeRef ?: return
-        val severe = level >= TRIM_MEMORY_MODERATE_LEVEL || level == RUNNING_CRITICAL
+        val severe = level >= TRIM_MEMORY_MODERATE_LEVEL || level == RUNNING_CRITICAL ||
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && level >= TRIM_MEMORY_BACKGROUND_LEVEL)
         if (level >= TRIM_MEMORY_BACKGROUND_LEVEL) runtimeJs = null
         if (!severe) return
         val now = android.os.SystemClock.elapsedRealtime()
@@ -338,35 +361,86 @@ object ClintGecko {
     }
 
     private fun bindTab(tabId: Int, storeId: String, view: ClintWebView) {
-        if (tabId >= 0) tabByExt[tabId] = WeakReference(view)
+        if (tabId >= 0) {
+            val queued = synchronized(queuedObservations) {
+                tabByExt[tabId] = WeakReference(view)
+                queuedObservations.remove(tabId)
+            }
+            queued?.forEach { handleObservation(it) }
+        }
         if (storeId.isNotEmpty()) {
             view.cookieStoreId = storeId
             storeByProfile[view.profileId ?: ""] = storeId
         }
     }
 
-    private fun resolveView(tabId: Int, pageUrl: String): ClintWebView? {
-        tabByExt[tabId]?.get()?.let { return it }
-        if (pageUrl.isNotEmpty()) {
-            val match = synchronized(views) {
-                views.values.firstNotNullOfOrNull { ref -> ref.get()?.takeIf { it.url == pageUrl || it.rawUrl == pageUrl } }
-            }
-            if (match != null) return match
+    private fun viewForPage(pageUrl: String): ClintWebView? {
+        if (pageUrl.isEmpty()) return null
+        val matches = synchronized(views) {
+            views.values.mapNotNull { ref -> ref.get()?.takeIf { it.url == pageUrl || it.rawUrl == pageUrl } }
         }
-        return foregroundView?.get()
+        val foreground = foregroundView?.get()
+        return matches.firstOrNull { it === foreground } ?: matches.singleOrNull()
+    }
+
+    private fun siteOf(url: String?): String? =
+        url?.toHttpUrlOrNull()?.let { it.topPrivateDomain() ?: it.host }
+
+    private fun viewForSite(pageUrl: String): ClintWebView? {
+        viewForPage(pageUrl)?.let { return it }
+        val site = siteOf(pageUrl) ?: return null
+        return foregroundView?.get()?.takeIf { siteOf(it.url) == site }
+    }
+
+    private fun resolveObservation(msg: JSONObject): ClintWebView? {
+        val tabId = msg.optInt("tab", -1)
+        if (tabId < 0) return viewForSite(msg.optString("page"))
+        synchronized(queuedObservations) {
+            tabByExt[tabId]?.get()?.let { return it }
+            val queue = queuedObservations[tabId]
+            if (queue != null) {
+                if (queue.size < MAX_QUEUED_OBSERVATIONS) queue.add(msg)
+                return null
+            }
+            if (queuedObservations.size >= MAX_QUEUED_OBSERVATION_TABS) {
+                queuedObservations.remove(queuedObservations.keys.first())
+            }
+            queuedObservations[tabId] = mutableListOf(msg)
+        }
+        main.postDelayed({ releaseQueuedObservations(tabId) }, OBSERVATION_BIND_GRACE_MS)
+        return null
+    }
+
+    private fun releaseQueuedObservations(tabId: Int) {
+        val queued = synchronized(queuedObservations) { queuedObservations.remove(tabId) } ?: return
+        io.execute {
+            queued.forEach { msg ->
+                runCatching {
+                    val view = tabByExt[tabId]?.get() ?: viewForPage(msg.optString("page"))
+                    if (view != null) deliverObservation(view, msg)
+                }
+            }
+        }
+    }
+
+    private fun deliverObservation(view: ClintWebView, msg: JSONObject) {
+        val client = view.webViewClient ?: return
+        val headers = LinkedHashMap<String, String>()
+        msg.optJSONObject("h")?.let { h -> h.keys().forEach { k -> headers[k] = h.optString(k) } }
+        val request = ClintRequest.fromExtension(
+            msg.optString("u"),
+            msg.optString("mt", "GET"),
+            msg.optString("t", "other"),
+            headers,
+            msg.optString("ct").takeIf { it.isNotBlank() }
+        )
+        val page = msg.optString("page").takeIf { it.isNotEmpty() && msg.optInt("tab", -1) >= 0 }
+        client.onMediaObserved(request, page)
     }
 
     private fun handleObservation(msg: JSONObject) {
         io.execute {
-            runCatching {
-                val page = msg.optString("page")
-                val view = resolveView(msg.optInt("tab", -1), page)
-                val client = view?.webViewClient ?: return@execute
-                val headers = LinkedHashMap<String, String>()
-                msg.optJSONObject("h")?.let { h -> h.keys().forEach { k -> headers[k] = h.optString(k) } }
-                val request = ClintRequest.fromExtension(msg.optString("u"), msg.optString("mt", "GET"), msg.optString("t", "other"), headers)
-                client.onMediaObserved(request, page.ifEmpty { null })
-            }
+            runCatching { resolveObservation(msg)?.let { deliverObservation(it, msg) } }
         }
     }
 
@@ -388,11 +462,24 @@ object ClintGecko {
     }
 
     fun registerInterface(name: String, obj: Any) {
-        val methods = obj.javaClass.methods.filter { it.isAnnotationPresent(JavascriptInterface::class.java) }
-        val list = methods.map { it.name to (kinds["$name.${it.name}"] ?: "v") }.distinctBy { it.first }
+        val names = interfaceMethodNames.getOrPut(obj.javaClass) {
+            obj.javaClass.methods.filter { it.isAnnotationPresent(JavascriptInterface::class.java) }.map { it.name }.distinct()
+        }
+        val list = names.map { it to (kinds["$name.$it"] ?: "v") }
         val changed = specs.put(name, list) != list
         specRefs[name] = WeakReference(obj)
         if (changed) scheduleBundle()
+    }
+
+    fun bridgeMethod(type: Class<*>, name: String, arity: Int): Method? {
+        val key = BridgeMethodKey(type, name, arity)
+        bridgeMethods[key]?.let { return it }
+        val method = type.methods.firstOrNull {
+            it.name == name && it.parameterTypes.size == arity && it.isAnnotationPresent(JavascriptInterface::class.java)
+        } ?: return null
+        method.isAccessible = true
+        bridgeMethods[key] = method
+        return method
     }
 
     fun syncThen(action: () -> Unit) {
@@ -499,6 +586,27 @@ object ClintGecko {
         main.postDelayed({ cookieOpWaiters.remove(id)?.invoke(null) }, COOKIE_OP_TIMEOUT_MS)
     }
 
+    fun installUnsignedAsync(path: String, callback: (JSONObject?) -> Unit) {
+        main.post {
+            val id = cookieSeq.incrementAndGet()
+            unsignedWaiters[id] = callback
+            val msg = JSONObject().put("k", "unsigned").put("id", id).put("path", path)
+            val port = bgPort
+            if (port != null) port.postMessage(msg) else unsignedQueue.add(msg)
+            main.postDelayed({
+                unsignedQueue.remove(msg)
+                unsignedWaiters.remove(id)?.invoke(null)
+            }, UNSIGNED_INSTALL_TIMEOUT_MS)
+        }
+    }
+
+    private fun flushUnsignedQueue() {
+        val port = bgPort ?: return
+        val pending = ArrayList(unsignedQueue)
+        unsignedQueue.clear()
+        pending.forEach { port.postMessage(it) }
+    }
+
     fun cookieStoreFor(profileId: String?): String? = storeByProfile[profileId ?: ""]
 
     fun cookiesBlocking(url: String, profileId: String? = null): String {
@@ -522,6 +630,13 @@ object ClintGecko {
     fun clearData(flags: Long, onDone: () -> Unit) {
         val started = runCatching {
             runtime.storageController.clearData(flags).accept({ onDone() }, { onDone() })
+        }
+        if (started.isFailure) onDone()
+    }
+
+    fun clearDataFromBaseDomain(baseDomain: String, flags: Long, onDone: () -> Unit) {
+        val started = runCatching {
+            runtime.storageController.clearDataFromBaseDomain(baseDomain, flags).accept({ onDone() }, { onDone() })
         }
         if (started.isFailure) onDone()
     }
@@ -601,6 +716,24 @@ object ClintGecko {
                 .setStrictSocialTrackingProtection(level == com.jhaiian.clint.privacy.PrivacyPrefs.ETP_LEVEL_STRICT)
                 .setEmailTrackerBlockingPrivateBrowsing(level != com.jhaiian.clint.privacy.PrivacyPrefs.ETP_LEVEL_OFF)
         }
+    }
+
+    fun applyFontSize(context: Context) {
+        val rt = runtimeRef ?: return
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        val auto = com.jhaiian.clint.settings.accessibility.AccessibilityPrefs.autoFontSize(prefs)
+        val percent = com.jhaiian.clint.settings.accessibility.AccessibilityPrefs.fontSizePercent(prefs)
+        runCatching {
+            rt.settings.setAutomaticFontSizeAdjustment(auto)
+            if (!auto) rt.settings.setFontSizeFactor(percent / 100f)
+        }
+    }
+
+    fun applyForceZoom(context: Context) {
+        val rt = runtimeRef ?: return
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        val enabled = com.jhaiian.clint.settings.accessibility.AccessibilityPrefs.forceZoom(prefs)
+        runCatching { rt.settings.setForceUserScalableEnabled(enabled) }
     }
 
     fun setDarkMode(mode: Int) {

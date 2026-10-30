@@ -8,10 +8,17 @@ class ClintRequest(
     val isForMainFrame: Boolean,
     val requestHeaders: Map<String, String>,
     val resourceType: String = "other",
-    val hasGesture: Boolean = false
+    val hasGesture: Boolean = false,
+    val responseContentType: String? = null
 ) {
     companion object {
-        fun fromExtension(url: String, method: String, type: String, headers: Map<String, String>? = null): ClintRequest {
+        fun fromExtension(
+            url: String,
+            method: String,
+            type: String,
+            headers: Map<String, String>? = null,
+            responseContentType: String? = null
+        ): ClintRequest {
             val merged = LinkedHashMap<String, String>()
             when (type) {
                 "document", "sub_frame" -> {
@@ -30,7 +37,7 @@ class ClintRequest(
                 "xhr" -> merged["Sec-Fetch-Dest"] = "empty"
             }
             if (headers != null) merged.putAll(headers)
-            return ClintRequest(Uri.parse(url), method, type == "document", merged, type)
+            return ClintRequest(Uri.parse(url), method, type == "document", merged, type, responseContentType = responseContentType)
         }
     }
 }

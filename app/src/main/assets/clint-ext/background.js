@@ -14,6 +14,13 @@
     media: "media", websocket: "websocket", speculative: "other", web_manifest: "other", other: "other"
   };
   var observed = { media: 1, xmlhttprequest: 1, xhr: 1, fetch: 1, other: 1, object: 1, object_subrequest: 1, sub_frame: 1 };
+  var directMediaPath = /\.(mp4|m4v|webm|mkv|mov|ogv|3gp|3g2|avi|flv|f4v|wmv|mp3|m4a|aac|wav|flac|ogg|oga|opus|wma|weba|vtt|srt|m3u8|mpd)$/i;
+  var segmentPath = /\.(ts|m4s|cmfv|cmfa)$/i;
+  var segmentTypes = { "video/mp2t": 1, "video/vnd.dlna.mpeg-tts": 1, "video/iso.segment": 1, "audio/iso.segment": 1 };
+  var nonMediaTypes = /^(text\/(html|css|javascript|ecmascript)|application\/(json|[\w.+-]+\+json|javascript|x-javascript|ecmascript|wasm|x-protobuf|grpc|xhtml\+xml)|image\/|font\/|application\/(font|x-font))/;
+  var MIN_CAPTURE_BYTES = 24;
+  var MAX_PENDING_CAPTURES = 512;
+  var pendingCaptures = new Map();
   var lightTypes = { main_frame: 1, sub_frame: 1, image: 1, imageset: 1, media: 1 };
   var staticTypes = { image: 1, imageset: 1, font: 1 };
   var secondLevel = { co: 1, com: 1, org: 1, net: 1, gov: 1, edu: 1, ac: 1, or: 1, ne: 1, go: 1, gob: 1, mil: 1 };
@@ -89,6 +96,14 @@
   function containsAny(text, list) {
     for (var i = 0; i < list.length; i++) {
       if (text.indexOf(list[i]) !== -1) return true;
+    }
+    return false;
+  }
+
+  function adHost(host) {
+    var dotted = "." + host;
+    for (var i = 0; i < adFrameHints.length; i++) {
+      if (dotted.indexOf("." + adFrameHints[i]) !== -1) return true;
     }
     return false;
   }
@@ -300,14 +315,38 @@
     return { ok: ok, failed: failed };
   }
 
+  async function ckSince(m) {
+    if (!browser.browsingData) return false;
+    var opts = { since: m.since || 0 };
+    try {
+      if (browser.browsingData.removeCookies) await browser.browsingData.removeCookies(opts);
+      else await browser.browsingData.remove(opts, { cookies: true });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   async function cookieOp(m) {
     var res = null;
     try {
       if (m.op === "list") res = await ckList(m);
       else if (m.op === "remove") res = await ckRemove(m);
       else if (m.op === "set") res = await ckSet(m);
+      else if (m.op === "since") res = await ckSince(m);
     } catch (e) {}
     port.postMessage({ k: "ckRes", id: m.id, res: res });
+  }
+
+  async function installUnsigned(m) {
+    var res = null;
+    try {
+      if (browser.clintAddons) res = await browser.clintAddons.installUnsigned(m.path);
+      else res = { error: "unavailable" };
+    } catch (e) {
+      res = { error: String((e && e.message) || e) };
+    }
+    if (port) port.postMessage({ k: "unsignedRes", id: m.id, res: res });
   }
 
   function onNative(m) {
@@ -320,6 +359,8 @@
       cookiesFor(m);
     } else if (m.k === "ck") {
       cookieOp(m);
+    } else if (m.k === "unsigned") {
+      installUnsigned(m);
     }
   }
 
@@ -361,16 +402,56 @@
 
   browser.webRequest.onHeadersReceived.addListener(extendFreshness, { urls: ["<all_urls>"] }, ["blocking", "responseHeaders"]);
 
+  function observe(d, headers, contentType) {
+    send({
+      k: "obs", u: d.url, mt: d.method, t: typeMap[d.type] || "other", tab: d.tabId,
+      h: headers, page: pageUrlOf(d), ct: contentType
+    }).catch(function () {});
+  }
+
+  function responseInfo(headers) {
+    var info = { type: "", length: -1 };
+    (headers || []).forEach(function (h) {
+      var n = h.name.toLowerCase();
+      if (n === "content-type") info.type = (h.value || "").split(";")[0].trim().toLowerCase();
+      else if (n === "content-length") info.length = parseInt(h.value, 10);
+    });
+    return info;
+  }
+
+  function settleCapture(d) {
+    var headers = pendingCaptures.get(d.requestId);
+    if (!headers) return;
+    pendingCaptures.delete(d.requestId);
+    if (!cfg.media || d.statusCode < 200 || d.statusCode >= 300) return;
+    var info = responseInfo(d.responseHeaders);
+    if (segmentTypes[info.type] || nonMediaTypes.test(info.type)) return;
+    if (info.length >= 0 && info.length < MIN_CAPTURE_BYTES) return;
+    observe(d, headers, info.type);
+  }
+
   browser.webRequest.onSendHeaders.addListener(function (d) {
-    if (!cfg.media || !observed[d.type] || !isWeb(d.url) || d.url.indexOf("ws") === 0) return;
+    if (!cfg.media || d.method !== "GET" || !observed[d.type] || !isHttp(d.url)) return;
+    var url = parse(d.url);
+    if (!url || segmentPath.test(url.pathname) || adHost(url.hostname.toLowerCase())) return;
     var headers = {};
     (d.requestHeaders || []).forEach(function (h) {
       var n = h.name.toLowerCase();
       if (n !== "cookie") headers[h.name] = h.value;
     });
-    send({
-      k: "obs", u: d.url, mt: d.method, t: typeMap[d.type] || "other", tab: d.tabId,
-      h: headers, page: pageUrlOf(d)
-    });
+    if (d.type === "media" || directMediaPath.test(url.pathname)) {
+      pendingCaptures.delete(d.requestId);
+      observe(d, headers, "");
+      return;
+    }
+    pendingCaptures.delete(d.requestId);
+    if (pendingCaptures.size >= MAX_PENDING_CAPTURES) pendingCaptures.delete(pendingCaptures.keys().next().value);
+    pendingCaptures.set(d.requestId, headers);
   }, { urls: ["<all_urls>"] }, ["requestHeaders"]);
+
+  browser.webRequest.onHeadersReceived.addListener(settleCapture, { urls: ["<all_urls>"] }, ["responseHeaders"]);
+  browser.webRequest.onCompleted.addListener(settleCapture, { urls: ["<all_urls>"] }, ["responseHeaders"]);
+  browser.webRequest.onErrorOccurred.addListener(function (d) {
+    pendingCaptures.delete(d.requestId);
+  }, { urls: ["<all_urls>"] });
 })();

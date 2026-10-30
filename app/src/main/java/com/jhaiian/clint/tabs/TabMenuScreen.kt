@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridItemScope
@@ -102,6 +103,7 @@ private val CellMinWidth = 160.dp
 private val ListCellMinWidth = 340.dp
 private const val PREF_TAB_MENU_LIST_VIEW = "tab_menu_list_view"
 private const val PREF_TAB_MENU_BUTTONS_AT_BOTTOM = "tab_menu_buttons_at_bottom"
+private const val PREF_TAB_MENU_TABS_AT_BOTTOM = "tab_menu_tabs_at_bottom"
 private val GroupCorner = 18.dp
 
 private sealed class TabMenuItem {
@@ -130,6 +132,15 @@ private sealed class TabMenuItem {
         override val key: String get() = groupFooterKey(group.id)
         override val fullSpan: Boolean get() = true
     }
+
+    data class RowGap(override val key: String) : TabMenuItem()
+}
+
+private fun <T> padPartialRow(items: List<T>, columns: Int, partialRowFirst: Boolean, filler: (Int) -> T): List<T> {
+    val remainder = items.size % columns
+    if (remainder == 0) return items
+    val fillers = List(columns - remainder, filler)
+    return if (partialRowFirst) items.take(remainder) + fillers + items.drop(remainder) else items + fillers
 }
 
 private sealed class TabGroupEditorRequest {
@@ -143,33 +154,54 @@ private fun buildRenderList(
     groups: List<TabGroup>,
     columns: Int,
     forceCollapsed: Boolean = false,
-    forceExpanded: Boolean = false
+    forceExpanded: Boolean = false,
+    reversed: Boolean = false
 ): List<TabMenuItem> {
     val hasBothSections = tabs.any { !it.isIncognito } && tabs.any { it.isIncognito }
     val groupsById = groups.associateBy { it.id }
     val result = mutableListOf<TabMenuItem>()
-    for (incognitoSection in listOf(false, true)) {
-        val sectionTabs = tabs.filter { it.isIncognito == incognitoSection }
+    for (incognitoSection in if (reversed) listOf(true, false) else listOf(false, true)) {
+        val sectionTabs = tabs.filter { it.isIncognito == incognitoSection }.let { if (reversed) it.asReversed() else it }
         if (sectionTabs.isEmpty()) continue
         if (hasBothSections) result.add(TabMenuItem.SectionHeader(incognitoSection))
         val emitted = mutableSetOf<String>()
         val membersByGroup = sectionTabs.groupBy { it.groupId }
+        val looseRun = mutableListOf<TabMenuItem>()
+        var runIndex = 0
+        fun flushLooseRun() {
+            if (looseRun.isEmpty()) return
+            val run = runIndex++
+            result.addAll(
+                if (reversed) {
+                    padPartialRow(looseRun.toList(), columns, partialRowFirst = true) { slot ->
+                        TabMenuItem.RowGap("gap:$incognitoSection:$run:$slot")
+                    }
+                } else {
+                    looseRun
+                }
+            )
+            looseRun.clear()
+        }
         sectionTabs.forEach { preview ->
             val group = preview.groupId?.let { groupsById[it] }?.takeIf { it.isIncognito == incognitoSection }
             if (group == null) {
-                result.add(TabMenuItem.Tab(preview, null))
+                looseRun.add(TabMenuItem.Tab(preview, null))
             } else if (emitted.add(group.id)) {
+                flushLooseRun()
                 val members = membersByGroup[group.id].orEmpty()
                 val collapsed = forceCollapsed || (group.collapsed && !forceExpanded)
                 result.add(TabMenuItem.GroupHeader(if (collapsed != group.collapsed) group.copy(collapsed = collapsed) else group, members))
                 if (!collapsed) {
-                    members.forEach { result.add(TabMenuItem.Tab(it, group)) }
-                    val remainder = members.size % columns
-                    if (remainder != 0) repeat(columns - remainder) { slot -> result.add(TabMenuItem.GroupFiller(group, slot)) }
+                    result.addAll(
+                        padPartialRow(members.map { TabMenuItem.Tab(it, group) }, columns, partialRowFirst = reversed) { slot ->
+                            TabMenuItem.GroupFiller(group, slot)
+                        }
+                    )
                     result.add(TabMenuItem.GroupFooter(group))
                 }
             }
         }
+        flushLooseRun()
     }
     return result
 }
@@ -227,6 +259,7 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
     var searchQuery by remember { mutableStateOf("") }
     var listView by remember { mutableStateOf(prefs.getBoolean(PREF_TAB_MENU_LIST_VIEW, false)) }
     var buttonsAtBottom by remember { mutableStateOf(prefs.getBoolean(PREF_TAB_MENU_BUTTONS_AT_BOTTOM, false)) }
+    var tabsAtBottom by remember { mutableStateOf(prefs.getBoolean(PREF_TAB_MENU_TABS_AT_BOTTOM, false)) }
     val hasDuplicates by remember { derivedStateOf { duplicateTabIds(tabs, activeTabId).isNotEmpty() } }
 
     fun closeSearch() {
@@ -385,7 +418,7 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
     BoxWithConstraints(Modifier.fillMaxSize().background(colors.surface).statusBarsPadding().navigationBarsPadding()) {
         val columns = ((maxWidth - GridEdgePadding * 2) / if (listView) ListCellMinWidth else CellMinWidth).toInt().coerceAtLeast(1)
         val initialIndex = remember {
-            val renderList = buildRenderList(tabs, groups, columns)
+            val renderList = buildRenderList(tabs, groups, columns, reversed = tabsAtBottom)
             val activeGroupId = tabs.firstOrNull { it.id == activeTabId }?.groupId
             val focusIndex = focusGroupId?.let { id -> renderList.indexOfFirst { it.key == groupHeaderKey(id) } } ?: -1
             val activeIndex = renderList.indexOfFirst { it is TabMenuItem.Tab && it.preview.id == activeTabId }
@@ -398,7 +431,7 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
         }
         val gridState = rememberLazyGridState(initialFirstVisibleItemIndex = initialIndex)
         val dragState = remember(gridState) { TabDragState(gridState) }
-        val renderList by remember(columns) {
+        val renderList by remember(columns, tabsAtBottom) {
             derivedStateOf {
                 val query = searchQuery.trim()
                 buildRenderList(
@@ -406,7 +439,8 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
                     groups,
                     columns,
                     forceCollapsed = dragState.draggingGroupId != null,
-                    forceExpanded = query.isNotEmpty()
+                    forceExpanded = query.isNotEmpty(),
+                    reversed = tabsAtBottom
                 )
             }
         }
@@ -432,16 +466,32 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
 
         val haptic = LocalHapticFeedback.current
 
+        fun orderedHoverKey(): String? {
+            val key = dragState.hoverKey as? String ?: return null
+            if (!tabsAtBottom) return key
+            return when {
+                key.startsWith("tabBefore:") -> tabAfterKey(key.removePrefix("tabBefore:"))
+                key.startsWith("tabAfter:") -> tabBeforeKey(key.removePrefix("tabAfter:"))
+                key.startsWith("before:") -> groupAfterKey(key.removePrefix("before:"))
+                key.startsWith("after:") -> groupBeforeKey(key.removePrefix("after:"))
+                else -> key
+            }
+        }
+
+        fun endDropIndex(others: List<TabPreview>, incognito: Boolean): Int =
+            if (tabsAtBottom) others.indexOfFirst { it.isIncognito == incognito }.coerceAtLeast(0)
+            else others.indexOfLast { it.isIncognito == incognito } + 1
+
         fun onDragMoved() {
             val draggedId = dragState.draggingId ?: return
             val dragged = tabs.find { it.id == draggedId } ?: return
-            val hoverKey = dragState.hoverKey as? String ?: return
+            val hoverKey = orderedHoverKey() ?: return
             val others = tabs.filter { it.id != draggedId }
             var targetGroupId: String? = null
             fun sameModeGroup(groupId: String): Boolean =
                 groups.any { it.id == groupId && it.isIncognito == dragged.isIncognito }
             val insertAt = when {
-                hoverKey == END_DROP_KEY -> others.indexOfLast { it.isIncognito == dragged.isIncognito } + 1
+                hoverKey == END_DROP_KEY -> endDropIndex(others, dragged.isIncognito)
                 hoverKey.startsWith("before:") -> {
                     val groupId = hoverKey.removePrefix("before:")
                     if (!sameModeGroup(groupId)) return
@@ -523,12 +573,12 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
         fun onGroupDragMoved() {
             val groupId = dragState.draggingGroupId ?: return
             val group = groups.find { it.id == groupId } ?: return
-            val hoverKey = dragState.hoverKey as? String ?: return
+            val hoverKey = orderedHoverKey() ?: return
             val members = tabs.filter { it.groupId == groupId }
             if (members.isEmpty()) return
             val others = tabs.filter { it.groupId != groupId }
             val insertAt = when {
-                hoverKey == END_DROP_KEY -> others.indexOfLast { it.isIncognito == group.isIncognito } + 1
+                hoverKey == END_DROP_KEY -> endDropIndex(others, group.isIncognito)
                 hoverKey.startsWith("before:") -> {
                     val targetId = hoverKey.removePrefix("before:")
                     others.indexOfFirst { it.groupId == targetId && it.isIncognito == group.isIncognito }.takeIf { it >= 0 } ?: return
@@ -687,6 +737,11 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
                 onToggleButtonsAtBottom = {
                     buttonsAtBottom = !buttonsAtBottom
                     prefs.edit().putBoolean(PREF_TAB_MENU_BUTTONS_AT_BOTTOM, buttonsAtBottom).apply()
+                },
+                tabsAtBottom = tabsAtBottom,
+                onToggleTabsAtBottom = {
+                    tabsAtBottom = !tabsAtBottom
+                    prefs.edit().putBoolean(PREF_TAB_MENU_TABS_AT_BOTTOM, tabsAtBottom).apply()
                 }
             )
         }
@@ -771,7 +826,8 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
                         columns = GridCells.Fixed(columns),
                         state = gridState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(GridEdgePadding)
+                        contentPadding = PaddingValues(GridEdgePadding),
+                        verticalArrangement = if (tabsAtBottom) Arrangement.Bottom else Arrangement.Top
                     ) {
                         items(
                             items = renderList,
@@ -853,6 +909,7 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
                                     ) {
                                         Spacer(if (listView) Modifier.fillMaxWidth().height(TabListRowHeight) else Modifier.fillMaxWidth().aspectRatio(0.76f))
                                     }
+                                    is TabMenuItem.RowGap -> Spacer(Modifier.fillMaxWidth())
                                     is TabMenuItem.GroupFooter -> Box(
                                         Modifier
                                             .fillMaxWidth()
@@ -1115,7 +1172,9 @@ private fun TabMenuTopBar(
     onNewProfileTab: () -> Unit,
     onCloseAllTabs: () -> Unit,
     buttonsAtBottom: Boolean,
-    onToggleButtonsAtBottom: () -> Unit
+    onToggleButtonsAtBottom: () -> Unit,
+    tabsAtBottom: Boolean,
+    onToggleTabsAtBottom: () -> Unit
 ) {
     val colors = LocalClintColors.current
     var overflowMenuExpanded by remember { mutableStateOf(false) }
@@ -1199,7 +1258,9 @@ private fun TabMenuTopBar(
                             listView = listView,
                             onToggleListView = onToggleListView,
                             buttonsAtBottom = buttonsAtBottom,
-                            onToggleButtonsAtBottom = onToggleButtonsAtBottom
+                            onToggleButtonsAtBottom = onToggleButtonsAtBottom,
+                            tabsAtBottom = tabsAtBottom,
+                            onToggleTabsAtBottom = onToggleTabsAtBottom
                         )
                     }
                 }

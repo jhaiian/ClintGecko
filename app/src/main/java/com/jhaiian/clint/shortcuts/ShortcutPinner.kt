@@ -24,22 +24,45 @@ object ShortcutPinner {
             ?.any { it.id == shortcutId && it.isEnabled } == true
     }.getOrDefault(false)
 
-    fun requestPin(context: Context, shortcut: WebAppShortcut): Boolean {
-        val shortcutIntent = Intent(Intent.ACTION_VIEW, Uri.parse(shortcut.url)).apply {
-            setClass(context, MainActivity::class.java)
+    fun launchIntent(context: Context, shortcut: WebAppShortcut): Intent =
+        Intent(Intent.ACTION_VIEW, Uri.parse(shortcut.url)).apply {
+            setClass(context, ShortcutLaunchActivity::class.java)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             putExtra(MainActivity.EXTRA_SHORTCUT_ID, shortcut.id)
         }
+
+    fun requestPin(context: Context, shortcut: WebAppShortcut): Boolean {
         val icon = ShortcutIconStore.load(shortcut.iconPath)?.let { IconCompat.createWithBitmap(it) }
             ?: fallbackLauncherIcon(context)
         val info = ShortcutInfoCompat.Builder(context, shortcut.id)
             .setShortLabel(shortcut.name)
             .setLongLabel(shortcut.name)
             .setIcon(icon)
-            .setIntent(shortcutIntent)
+            .setIntent(launchIntent(context, shortcut))
             .build()
         return ShortcutManagerCompat.requestPinShortcut(context, info, null)
     }
+
+    fun migrateLaunchIntents(context: Context) {
+        val appContext = context.applicationContext
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(appContext)
+        if (prefs.getBoolean(PREF_LAUNCH_INTENTS_MIGRATED, false)) return
+        Thread {
+            val infos = runCatching { ShortcutStore.getAll(appContext) }.getOrDefault(emptyList()).mapNotNull { shortcut ->
+                runCatching {
+                    ShortcutInfoCompat.Builder(appContext, shortcut.id)
+                        .setShortLabel(shortcut.name)
+                        .setLongLabel(shortcut.name)
+                        .setIntent(launchIntent(appContext, shortcut))
+                        .build()
+                }.getOrNull()
+            }
+            val updated = infos.isEmpty() || runCatching { ShortcutManagerCompat.updateShortcuts(appContext, infos) }.getOrDefault(false)
+            if (updated) prefs.edit().putBoolean(PREF_LAUNCH_INTENTS_MIGRATED, true).apply()
+        }.start()
+    }
+
+    private const val PREF_LAUNCH_INTENTS_MIGRATED = "shortcut_launch_intents_migrated"
 
     private fun fallbackLauncherIcon(context: Context): IconCompat {
         val drawable = ContextCompat.getDrawable(context, R.mipmap.ic_launcher)

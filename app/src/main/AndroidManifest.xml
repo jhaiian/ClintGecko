@@ -76,7 +76,7 @@
             android:name=".browser.MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode"
             android:windowSoftInputMode="stateHidden|adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -107,6 +107,14 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".shortcuts.ShortcutLaunchActivity"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <activity
             android:name=".mediacapture.VideoPreviewActivity"
@@ -259,6 +267,10 @@
 
         <receiver
             android:name=".downloads.DownloadCustomScheduleReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".privacy.IncognitoCloseReceiver"
             android:exported="false" />
 
         <activity

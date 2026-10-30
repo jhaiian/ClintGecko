@@ -38,6 +38,14 @@ sealed class ExtensionPrompt(
     ) : ExtensionPrompt(extension, permissions, origins, dataCollection)
 }
 
+class UnsignedInstallRequest(val uri: String) {
+    val fileName: String
+        get() = runCatching { android.net.Uri.decode(uri.substringBefore('#').substringBefore('?').substringAfterLast('/')) }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: uri
+}
+
 class ExtensionPopup(
     val extensionId: String,
     val title: String,

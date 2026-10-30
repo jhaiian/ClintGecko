@@ -51,6 +51,9 @@ import com.jhaiian.clint.history.HistoryActivity
 import com.jhaiian.clint.settings.about.AboutScreen
 import com.jhaiian.clint.settings.browser.BrowserSettingsScreen
 import com.jhaiian.clint.settings.browser.BrowserSettingsUiState
+import com.jhaiian.clint.settings.accessibility.AccessibilityPrefs
+import com.jhaiian.clint.settings.accessibility.AccessibilityScreen
+import com.jhaiian.clint.settings.accessibility.AccessibilityUiState
 import com.jhaiian.clint.settings.datasaver.DataSaverScreen
 import com.jhaiian.clint.settings.datasaver.DataSaverUiState
 import com.jhaiian.clint.settings.desktopmode.DesktopModeActivity
@@ -373,6 +376,7 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
             initialHomepageShowQuickActions = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_QUICK_ACTIONS, true),
             initialHomepageShowRecent = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_RECENT, true),
             initialHomepageCenterContent = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_CENTER_CONTENT, true),
+            initialHomepageImageFullBrightness = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_IMAGE_FULL_BRIGHTNESS, false),
             initialDeleteInactiveTabs = com.jhaiian.clint.tabs.InactiveTabsPolicy.normalize(prefs.getString(com.jhaiian.clint.tabs.InactiveTabsPolicy.PREF_DELETE_INACTIVE_TABS, null)),
             initialSearchEngine = prefs.getString("search_engine", "duckduckgo") ?: "duckduckgo",
             initialCustomSearchEngineName = com.jhaiian.clint.browser.customSearchEngineName(prefs),
@@ -380,12 +384,19 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
             initialSearchSuggestionsApi = prefs.getString("search_suggestions_api", "duckduckgo") ?: "duckduckgo",
             initialCustomSearchSuggestionsApiName = com.jhaiian.clint.browser.customSearchSuggestionsApiName(prefs),
             initialCustomSearchSuggestionsApiUrl = com.jhaiian.clint.browser.customSearchSuggestionsApiUrlTemplate(prefs),
+            initialIncognitoSearchEngine = com.jhaiian.clint.browser.incognitoSearchEngineSetting(prefs),
+            initialIncognitoCustomSearchEngineName = com.jhaiian.clint.browser.incognitoCustomSearchEngineName(prefs),
+            initialIncognitoCustomSearchEngineUrl = com.jhaiian.clint.browser.incognitoCustomSearchEngineUrlTemplate(prefs),
+            initialIncognitoSearchSuggestionsApi = com.jhaiian.clint.browser.incognitoSearchSuggestionsApiSetting(prefs),
+            initialIncognitoCustomSearchSuggestionsApiName = com.jhaiian.clint.browser.incognitoCustomSearchSuggestionsApiName(prefs),
+            initialIncognitoCustomSearchSuggestionsApiUrl = com.jhaiian.clint.browser.incognitoCustomSearchSuggestionsApiUrlTemplate(prefs),
             initialSuggestionsShowHistory = prefs.getBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_HISTORY, true),
             initialSuggestionsShowBookmarks = prefs.getBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_BOOKMARKS, true),
             initialJavascriptEnabled = prefs.getBoolean("javascript_enabled", true),
             initialHideStatusBar = prefs.getBoolean("hide_status_bar", false),
             initialHideSystemNavigation = prefs.getBoolean("hide_system_navigation", false),
             initialIncognitoSearchHistory = prefs.getBoolean("incognito_search_history_enabled", false),
+            initialRememberBrowsingMode = prefs.getBoolean(com.jhaiian.clint.browser.delegates.PREF_REMEMBER_BROWSING_MODE, false),
             initialBackgroundPlayback = com.jhaiian.clint.media.MediaPlaybackSettings.isBackgroundPlaybackEnabled(activity),
             initialAboutConfigEnabled = prefs.getBoolean("about_config_enabled", false)
         )
@@ -400,18 +411,26 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
         uiState.homepageShowQuickActions = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_QUICK_ACTIONS, true)
         uiState.homepageShowRecent = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_RECENT, true)
         uiState.homepageCenterContent = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_CENTER_CONTENT, true)
+        uiState.homepageImageFullBrightness = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_IMAGE_FULL_BRIGHTNESS, false)
         uiState.searchEngine = prefs.getString("search_engine", "duckduckgo") ?: "duckduckgo"
         uiState.customSearchEngineName = com.jhaiian.clint.browser.customSearchEngineName(prefs)
         uiState.customSearchEngineUrl = com.jhaiian.clint.browser.customSearchEngineUrlTemplate(prefs)
         uiState.searchSuggestionsApi = prefs.getString("search_suggestions_api", "duckduckgo") ?: "duckduckgo"
         uiState.customSearchSuggestionsApiName = com.jhaiian.clint.browser.customSearchSuggestionsApiName(prefs)
         uiState.customSearchSuggestionsApiUrl = com.jhaiian.clint.browser.customSearchSuggestionsApiUrlTemplate(prefs)
+        uiState.incognitoSearchEngine = com.jhaiian.clint.browser.incognitoSearchEngineSetting(prefs)
+        uiState.incognitoCustomSearchEngineName = com.jhaiian.clint.browser.incognitoCustomSearchEngineName(prefs)
+        uiState.incognitoCustomSearchEngineUrl = com.jhaiian.clint.browser.incognitoCustomSearchEngineUrlTemplate(prefs)
+        uiState.incognitoSearchSuggestionsApi = com.jhaiian.clint.browser.incognitoSearchSuggestionsApiSetting(prefs)
+        uiState.incognitoCustomSearchSuggestionsApiName = com.jhaiian.clint.browser.incognitoCustomSearchSuggestionsApiName(prefs)
+        uiState.incognitoCustomSearchSuggestionsApiUrl = com.jhaiian.clint.browser.incognitoCustomSearchSuggestionsApiUrlTemplate(prefs)
         uiState.suggestionsShowHistory = prefs.getBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_HISTORY, true)
         uiState.suggestionsShowBookmarks = prefs.getBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_BOOKMARKS, true)
         uiState.javascriptEnabled = prefs.getBoolean("javascript_enabled", true)
         uiState.hideStatusBar = prefs.getBoolean("hide_status_bar", false)
         uiState.hideSystemNavigation = prefs.getBoolean("hide_system_navigation", false)
         uiState.incognitoSearchHistory = prefs.getBoolean("incognito_search_history_enabled", false)
+        uiState.rememberBrowsingMode = prefs.getBoolean(com.jhaiian.clint.browser.delegates.PREF_REMEMBER_BROWSING_MODE, false)
         uiState.backgroundPlayback = com.jhaiian.clint.media.MediaPlaybackSettings.isBackgroundPlaybackEnabled(activity)
         uiState.aboutConfigEnabled = prefs.getBoolean("about_config_enabled", false)
     }
@@ -492,6 +511,12 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
         uiState.homepageCenterContent = newValue
     }
 
+    fun onHomepageImageFullBrightnessClicked() {
+        val newValue = !uiState.homepageImageFullBrightness
+        prefs.edit().putBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_IMAGE_FULL_BRIGHTNESS, newValue).apply()
+        uiState.homepageImageFullBrightness = newValue
+    }
+
     fun confirmEngine(engine: String) {
         prefs.edit().putString("search_engine", engine).apply()
         uiState.searchEngine = engine
@@ -550,6 +575,66 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
         } else {
             confirmSuggestionsApi(selected)
         }
+    }
+
+    fun confirmIncognitoEngine(engine: String) {
+        prefs.edit().putString(com.jhaiian.clint.browser.IncognitoSearchEngineKey, engine).apply()
+        uiState.incognitoSearchEngine = engine
+    }
+
+    fun onIncognitoSearchEngineConfirmed(selected: String) {
+        val current = uiState.incognitoSearchEngine
+        uiState.incognitoSearchEngineDialogOpen = false
+        if (selected == "google" && current != "google") {
+            confirmDialog = ConfirmDialogConfig(
+                title = activity.getString(R.string.google_warning_title),
+                message = activity.getString(R.string.google_warning_message),
+                positiveLabel = activity.getString(R.string.use_google_anyway),
+                onPositive = { confirmIncognitoEngine("google") },
+                negativeLabel = activity.getString(R.string.choose_another)
+            )
+        } else {
+            confirmIncognitoEngine(selected)
+        }
+    }
+
+    fun onIncognitoCustomSearchEngineSaved(name: String, url: String) {
+        prefs.edit()
+            .putString(com.jhaiian.clint.browser.IncognitoCustomSearchEngineNameKey, name)
+            .putString(com.jhaiian.clint.browser.IncognitoCustomSearchEngineUrlKey, url)
+            .apply()
+        uiState.incognitoCustomSearchEngineName = name
+        uiState.incognitoCustomSearchEngineUrl = url
+    }
+
+    fun confirmIncognitoSuggestionsApi(api: String) {
+        prefs.edit().putString(com.jhaiian.clint.browser.IncognitoSearchSuggestionsApiKey, api).apply()
+        uiState.incognitoSearchSuggestionsApi = api
+    }
+
+    fun onIncognitoSearchSuggestionsApiConfirmed(selected: String) {
+        val current = uiState.incognitoSearchSuggestionsApi
+        uiState.incognitoSearchSuggestionsApiDialogOpen = false
+        if (selected == "google" && current != "google") {
+            confirmDialog = ConfirmDialogConfig(
+                title = activity.getString(R.string.google_warning_title),
+                message = activity.getString(R.string.suggestions_google_warning_message),
+                positiveLabel = activity.getString(R.string.use_google_anyway),
+                onPositive = { confirmIncognitoSuggestionsApi("google") },
+                negativeLabel = activity.getString(R.string.choose_another)
+            )
+        } else {
+            confirmIncognitoSuggestionsApi(selected)
+        }
+    }
+
+    fun onIncognitoCustomSearchSuggestionsApiSaved(name: String, url: String) {
+        prefs.edit()
+            .putString(com.jhaiian.clint.browser.IncognitoCustomSearchSuggestionsApiNameKey, name)
+            .putString(com.jhaiian.clint.browser.IncognitoCustomSearchSuggestionsApiUrlKey, url)
+            .apply()
+        uiState.incognitoCustomSearchSuggestionsApiName = name
+        uiState.incognitoCustomSearchSuggestionsApiUrl = url
     }
 
     fun onJavascriptRowClicked() {
@@ -628,6 +713,12 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
         uiState.incognitoSearchHistory = newValue
     }
 
+    fun onRememberBrowsingModeRowClicked() {
+        val newValue = !uiState.rememberBrowsingMode
+        prefs.edit().putBoolean(com.jhaiian.clint.browser.delegates.PREF_REMEMBER_BROWSING_MODE, newValue).apply()
+        uiState.rememberBrowsingMode = newValue
+    }
+
     BrowserSettingsScreen(
         state = uiState,
         onHomepageConfirmed = ::onHomepageConfirmed,
@@ -637,11 +728,16 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
         onHomepageShowQuickActionsClicked = ::onHomepageShowQuickActionsClicked,
         onHomepageShowRecentClicked = ::onHomepageShowRecentClicked,
         onHomepageCenterContentClicked = ::onHomepageCenterContentClicked,
+        onHomepageImageFullBrightnessClicked = ::onHomepageImageFullBrightnessClicked,
         onDeleteInactiveTabsConfirmed = ::onDeleteInactiveTabsConfirmed,
         onSearchEngineConfirmed = ::onSearchEngineConfirmed,
         onCustomSearchEngineSaved = ::onCustomSearchEngineSaved,
         onSearchSuggestionsApiConfirmed = ::onSearchSuggestionsApiConfirmed,
         onCustomSearchSuggestionsApiSaved = ::onCustomSearchSuggestionsApiSaved,
+        onIncognitoSearchEngineConfirmed = ::onIncognitoSearchEngineConfirmed,
+        onIncognitoCustomSearchEngineSaved = ::onIncognitoCustomSearchEngineSaved,
+        onIncognitoSearchSuggestionsApiConfirmed = ::onIncognitoSearchSuggestionsApiConfirmed,
+        onIncognitoCustomSearchSuggestionsApiSaved = ::onIncognitoCustomSearchSuggestionsApiSaved,
         onSuggestionsShowHistoryClicked = ::onSuggestionsShowHistoryClicked,
         onSuggestionsShowBookmarksClicked = ::onSuggestionsShowBookmarksClicked,
         onJavascriptRowClicked = ::onJavascriptRowClicked,
@@ -654,6 +750,7 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
             activity.startActivity(android.content.Intent(activity, com.jhaiian.clint.blocker.WebsiteBlockerActivity::class.java))
         },
         onIncognitoSearchHistoryRowClicked = ::onIncognitoSearchHistoryRowClicked,
+        onRememberBrowsingModeRowClicked = ::onRememberBrowsingModeRowClicked,
         onProfilesRowClicked = {
             activity.startActivity(android.content.Intent(activity, com.jhaiian.clint.profiles.ProfilesActivity::class.java))
         },
@@ -967,6 +1064,43 @@ fun DataSaverPane(activity: SettingsActivity) {
 }
 
 @Composable
+fun AccessibilityPane(activity: SettingsActivity) {
+    val prefs = remember { PreferenceManager.getDefaultSharedPreferences(activity) }
+    val uiState = remember {
+        AccessibilityUiState(
+            initialAutoFontSize = AccessibilityPrefs.autoFontSize(prefs),
+            initialFontSizePercent = AccessibilityPrefs.fontSizePercent(prefs),
+            initialForceZoom = AccessibilityPrefs.forceZoom(prefs)
+        )
+    }
+
+    AccessibilityScreen(
+        state = uiState,
+        onAutoFontSizeClick = {
+            val newValue = !uiState.autoFontSize
+            prefs.edit().putBoolean(AccessibilityPrefs.PREF_AUTO_FONT_SIZE, newValue).apply()
+            uiState.autoFontSize = newValue
+            ClintGecko.applyFontSize(activity)
+        },
+        onFontSizeChange = { percent ->
+            if (!uiState.autoFontSize) uiState.fontSizePercent = percent
+        },
+        onFontSizeChangeFinished = {
+            if (!uiState.autoFontSize) {
+                prefs.edit().putInt(AccessibilityPrefs.PREF_FONT_SIZE_PERCENT, uiState.fontSizePercent).apply()
+                ClintGecko.applyFontSize(activity)
+            }
+        },
+        onForceZoomClick = {
+            val newValue = !uiState.forceZoom
+            prefs.edit().putBoolean(AccessibilityPrefs.PREF_FORCE_ZOOM, newValue).apply()
+            uiState.forceZoom = newValue
+            ClintGecko.applyForceZoom(activity)
+        }
+    )
+}
+
+@Composable
 fun UpdateSettingsPane(activity: SettingsActivity) {
     val prefs = remember { PreferenceManager.getDefaultSharedPreferences(activity) }
     val uiState = remember {
@@ -1223,6 +1357,7 @@ fun DownloadSettingsPane(activity: SettingsActivity) {
             initialCustomUri = prefs.getString(DownloadSettingsKeys.PREF_DOWNLOAD_CUSTOM_URI, null)?.let { Uri.parse(it) },
             initialCategorizeDownloads = prefs.getBoolean(DownloadSettingsKeys.PREF_CATEGORIZE_DOWNLOADS, DownloadSettingsKeys.DEFAULT_CATEGORIZE_DOWNLOADS),
             initialDialogUi = prefs.getString(DownloadSettingsKeys.PREF_DOWNLOAD_DIALOG_UI, DownloadSettingsKeys.DEFAULT_DOWNLOAD_DIALOG_UI) ?: DownloadSettingsKeys.DEFAULT_DOWNLOAD_DIALOG_UI,
+            initialDuplicateHandling = prefs.getString(DownloadSettingsKeys.PREF_DUPLICATE_HANDLING, DownloadSettingsKeys.DEFAULT_DUPLICATE_HANDLING) ?: DownloadSettingsKeys.DEFAULT_DUPLICATE_HANDLING,
             initialMeasurementSystemDecimal = prefs.getString(PREF_MEASUREMENT_SYSTEM, DEFAULT_MEASUREMENT_SYSTEM) == MEASUREMENT_SYSTEM_DECIMAL,
             initialUnmeteredOnly = prefs.getBoolean(DownloadSettingsKeys.PREF_UNMETERED_ONLY, DownloadSettingsKeys.DEFAULT_UNMETERED_ONLY),
             initialScheduleEnabled = prefs.getBoolean(DownloadSettingsKeys.PREF_SCHEDULE_ENABLED, DownloadSettingsKeys.DEFAULT_SCHEDULE_ENABLED),
@@ -1244,10 +1379,13 @@ fun DownloadSettingsPane(activity: SettingsActivity) {
             initialShowGrantAllFilesAccessRow = showGrantAllFilesAccessRow(),
             initialAllFilesAccessGranted = isAllFilesAccessGranted(),
             initialPushNotifications = prefs.getBoolean(DownloadSettingsKeys.PREF_PUSH_NOTIFICATIONS, DownloadSettingsKeys.DEFAULT_PUSH_NOTIFICATIONS),
+            initialHistoryNormal = prefs.getBoolean(DownloadSettingsKeys.PREF_HISTORY_NORMAL, DownloadSettingsKeys.DEFAULT_HISTORY_NORMAL),
+            initialHistoryIncognito = prefs.getBoolean(DownloadSettingsKeys.PREF_HISTORY_INCOGNITO, DownloadSettingsKeys.DEFAULT_HISTORY_INCOGNITO),
             initialKeepScreenOn = prefs.getBoolean(DownloadSettingsKeys.PREF_KEEP_SCREEN_ON, DownloadSettingsKeys.DEFAULT_KEEP_SCREEN_ON),
             initialDownloadLog = prefs.getBoolean(DownloadSettingsKeys.PREF_DOWNLOAD_LOG, DownloadSettingsKeys.DEFAULT_DOWNLOAD_LOG),
             initialQuickDownload = prefs.getBoolean(DownloadSettingsKeys.PREF_QUICK_DOWNLOAD, DownloadSettingsKeys.DEFAULT_QUICK_DOWNLOAD),
             initialQuickDownloadImages = prefs.getBoolean(DownloadSettingsKeys.PREF_QUICK_DOWNLOAD_IMAGES, DownloadSettingsKeys.DEFAULT_QUICK_DOWNLOAD_IMAGES),
+            initialDetectMegaLinks = prefs.getBoolean(DownloadSettingsKeys.PREF_DETECT_MEGA_LINKS, DownloadSettingsKeys.DEFAULT_DETECT_MEGA_LINKS),
             initialHideStatusBar = prefs.getBoolean("hide_status_bar", false),
             initialHideSystemNavigation = prefs.getBoolean("hide_system_navigation", false)
         )
@@ -1333,6 +1471,11 @@ fun DownloadSettingsPane(activity: SettingsActivity) {
         onDialogUiSelected = { value ->
             prefs.edit().putString(DownloadSettingsKeys.PREF_DOWNLOAD_DIALOG_UI, value).apply()
             uiState.dialogUi = value
+            uiState.openDialog = null
+        },
+        onDuplicateHandlingSelected = { value ->
+            prefs.edit().putString(DownloadSettingsKeys.PREF_DUPLICATE_HANDLING, value).apply()
+            uiState.duplicateHandling = value
             uiState.openDialog = null
         },
         onMeasurementSystemSelected = { decimal ->
@@ -1421,6 +1564,16 @@ fun DownloadSettingsPane(activity: SettingsActivity) {
             prefs.edit().putBoolean(DownloadSettingsKeys.PREF_PUSH_NOTIFICATIONS, newValue).apply()
             uiState.pushNotifications = newValue
         },
+        onHistoryNormalClick = {
+            val newValue = !uiState.historyNormal
+            prefs.edit().putBoolean(DownloadSettingsKeys.PREF_HISTORY_NORMAL, newValue).apply()
+            uiState.historyNormal = newValue
+        },
+        onHistoryIncognitoClick = {
+            val newValue = !uiState.historyIncognito
+            prefs.edit().putBoolean(DownloadSettingsKeys.PREF_HISTORY_INCOGNITO, newValue).apply()
+            uiState.historyIncognito = newValue
+        },
         onDownloadLogClick = {
             val newValue = !uiState.downloadLog
             prefs.edit().putBoolean(DownloadSettingsKeys.PREF_DOWNLOAD_LOG, newValue).apply()
@@ -1440,6 +1593,11 @@ fun DownloadSettingsPane(activity: SettingsActivity) {
             val newValue = !uiState.quickDownloadImages
             prefs.edit().putBoolean(DownloadSettingsKeys.PREF_QUICK_DOWNLOAD_IMAGES, newValue).apply()
             uiState.quickDownloadImages = newValue
+        },
+        onDetectMegaLinksClick = {
+            val newValue = !uiState.detectMegaLinks
+            prefs.edit().putBoolean(DownloadSettingsKeys.PREF_DETECT_MEGA_LINKS, newValue).apply()
+            uiState.detectMegaLinks = newValue
         }
     )
 }

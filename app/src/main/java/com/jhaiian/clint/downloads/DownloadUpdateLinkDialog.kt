@@ -41,6 +41,47 @@ private fun sizesWithinTolerance(a: Long, b: Long): Boolean {
     return diff <= tolerance
 }
 
+private class LinkProbe(val size: Long, val isWebPage: Boolean)
+
+private fun isWebPageType(contentType: String?): Boolean {
+    val type = contentType?.substringBefore(';')?.trim()?.lowercase() ?: return false
+    return type == "text/html" || type == "application/xhtml+xml"
+}
+
+private fun linkProbeRequest(item: DownloadItem, url: String): okhttp3.Request.Builder =
+    okhttp3.Request.Builder().url(url)
+        .header("Accept", "*/*")
+        .header("Accept-Encoding", "identity")
+        .apply {
+            if (item.userAgent.isNotBlank()) header("User-Agent", item.userAgent)
+            if (item.referer.isNotBlank()) header("Referer", item.referer)
+            if (item.cookies.isNotBlank()) header("Cookie", item.cookies)
+        }
+
+private fun probeLink(item: DownloadItem, url: String): LinkProbe? {
+    val head = runCatching {
+        ClintDownloadManager.httpClient.newCall(linkProbeRequest(item, url).head().build()).execute().use { response ->
+            if (!response.isSuccessful) null
+            else LinkProbe(response.header("Content-Length")?.toLongOrNull() ?: -1L, isWebPageType(response.header("Content-Type")))
+        }
+    }.getOrNull()
+    if (head != null && (head.size >= 0 || head.isWebPage)) return head
+    val ranged = runCatching {
+        ClintDownloadManager.httpClient.newCall(linkProbeRequest(item, url).get().header("Range", "bytes=0-0").build()).execute().use { response ->
+            if (!response.isSuccessful) null
+            else {
+                val size = if (response.code == 206) {
+                    response.header("Content-Range")?.substringAfterLast('/')?.trim()?.toLongOrNull() ?: -1L
+                } else {
+                    response.header("Content-Length")?.toLongOrNull() ?: -1L
+                }
+                LinkProbe(size, isWebPageType(response.header("Content-Type")))
+            }
+        }
+    }.getOrNull()
+    return ranged ?: head
+}
+
 @Composable
 fun DownloadUpdateLinkDialog(item: DownloadItem, hideStatusBar: Boolean, hideSystemNavigation: Boolean, onDismiss: () -> Unit) {
     if (item.isStream) {
@@ -59,7 +100,7 @@ fun DownloadUpdateLinkDialog(item: DownloadItem, hideStatusBar: Boolean, hideSys
     LaunchedEffect(text) {
         verifiedUrl = null
         val typed = text.trim()
-        if (typed.isEmpty()) {
+        if (typed.isEmpty() || typed == item.url) {
             checking = false
             errorText = null
             helperText = null
@@ -69,37 +110,18 @@ fun DownloadUpdateLinkDialog(item: DownloadItem, hideStatusBar: Boolean, hideSys
         helperText = null
         checking = true
         delay(600)
-        val remoteSize = withContext(Dispatchers.IO) {
-            try {
-                var size = -1L
-                val headRequest = okhttp3.Request.Builder().url(typed).head().build()
-                val headResponse = ClintDownloadManager.httpClient.newCall(headRequest).execute()
-                size = headResponse.header("Content-Length")?.toLongOrNull() ?: -1L
-                headResponse.close()
-                if (size < 0) {
-                    val rangeRequest = okhttp3.Request.Builder().url(typed).get()
-                        .header("Range", "bytes=0-0").build()
-                    val rangeResponse = ClintDownloadManager.httpClient.newCall(rangeRequest).execute()
-                    val contentRange = rangeResponse.header("Content-Range")
-                    if (contentRange != null) {
-                        size = contentRange.substringAfterLast("/").trim().toLongOrNull() ?: -1L
-                    }
-                    if (size < 0) {
-                        size = rangeResponse.header("Content-Length")?.toLongOrNull() ?: -1L
-                    }
-                    rangeResponse.body.close()
-                    rangeResponse.close()
-                }
-                size
-            } catch (e: Throwable) {
-                null
-            }
-        }
+        val probe = withContext(Dispatchers.IO) { probeLink(item, typed) }
+        val remoteSize = probe?.size ?: -1L
+        val expectsWebPage = item.filename.endsWith(".html", ignoreCase = true) || item.filename.endsWith(".htm", ignoreCase = true)
         checking = false
         when {
-            remoteSize == null -> {
+            probe == null -> {
                 helperText = null
                 errorText = context.getString(R.string.download_update_link_dialog_fetch_failed)
+            }
+            probe.isWebPage && !expectsWebPage -> {
+                helperText = null
+                errorText = context.getString(R.string.download_update_link_dialog_not_a_file)
             }
             remoteSize < 0 -> {
                 errorText = null

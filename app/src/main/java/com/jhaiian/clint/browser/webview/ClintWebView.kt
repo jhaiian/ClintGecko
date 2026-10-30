@@ -7,7 +7,6 @@ import android.util.Base64
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
-import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
 import android.widget.FrameLayout
 import androidx.core.content.ContextCompat
@@ -64,19 +63,37 @@ class ClintWebView(
             val downTime = event.downTime
             touchDownTime = downTime
             touchPullAllowed = null
+            dragScrollAllowed = null
             if (this.session == null) {
                 touchPullAllowed = false
+                dragScrollAllowed = false
                 return false
             }
             onTouchEventForDetailResult(event).accept(
-                { detail -> if (touchDownTime == downTime) touchPullAllowed = detail != null && allowsPullToRefresh(detail) },
-                { if (touchDownTime == downTime) touchPullAllowed = false }
+                { detail ->
+                    if (touchDownTime == downTime) {
+                        touchPullAllowed = detail != null && allowsPullToRefresh(detail)
+                        dragScrollAllowed = detail != null && allowsDragScroll(detail)
+                    }
+                },
+                {
+                    if (touchDownTime == downTime) {
+                        touchPullAllowed = false
+                        dragScrollAllowed = false
+                    }
+                }
             )
             return true
         }
     }
     private var touchDownTime = -1L
     private var touchPullAllowed: Boolean? = null
+    private var dragScrollAllowed: Boolean? = false
+    private var dragPointerId = MotionEvent.INVALID_POINTER_ID
+    private var dragStartY = 0f
+    private var dragLastY = 0f
+    private var dragging = false
+    private val dragTouchSlop = android.view.ViewConfiguration.get(context).scaledTouchSlop
     val session: GeckoSession
     val translator: com.jhaiian.clint.translation.PageTranslator
     private val cover = android.view.View(context).apply {
@@ -85,12 +102,13 @@ class ClintWebView(
     }
     private val hideCoverRunnable = Runnable { hideCover() }
     private val detachDeactivateRunnable = Runnable {
-        if (!destroyed && session.isOpen && !isAttachedToWindow && !isMediaPlaying) session.setActive(false)
+        if (!destroyed && session.isOpen && !isAttachedToWindow && !isMediaPlaying) deactivateSession()
     }
     private var loadingBackground = 0
     private var coverEnabled = false
     private var initialCoverPending = true
     private var pagePainted = false
+    private var surfaceComposited = false
     val settings = ClintWebSettings(this)
 
     var webViewClient: ClintWebViewClient? = null
@@ -98,6 +116,7 @@ class ClintWebView(
     var downloadListener: ClintDownloadListener? = null
     var contextMenuListener: ((ContextMenuInfo) -> Unit)? = null
     var scrollListener: ((Int, Int) -> Unit)? = null
+    var dragScrollListener: ((Int) -> Unit)? = null
     var touchObserver: ((MotionEvent) -> Unit)? = null
     var cookieStoreId: String? = null
     var selectPromptHandler: ((String, List<com.jhaiian.clint.browser.dialogs.SelectPickerOption>, Boolean, (List<String>) -> Unit, () -> Unit) -> Unit)? = null
@@ -136,6 +155,7 @@ class ClintWebView(
     private var recoveryPending = false
     private var neverOpened = deferOpen
     private var paused = false
+    private var sessionDeactivated = false
 
     val url: String? get() = currentUrl
     val originalUrl: String? get() = currentUrl
@@ -216,10 +236,7 @@ class ClintWebView(
 
     private fun invokeBridge(iface: String, method: String, args: JSONArray): Any? {
         val target = bridges[iface] ?: return null
-        val m = target.javaClass.methods.firstOrNull {
-            it.name == method && it.parameterTypes.size == args.length() && it.isAnnotationPresent(JavascriptInterface::class.java)
-        } ?: return null
-        m.isAccessible = true
+        val m = ClintGecko.bridgeMethod(target.javaClass, method, args.length()) ?: return null
         val params = Array<Any?>(args.length()) { i ->
             val raw = args.opt(i)
             val isNull = raw == null || raw == JSONObject.NULL
@@ -264,7 +281,7 @@ class ClintWebView(
     }
 
     fun onMediaIdle() {
-        if (!destroyed && session.isOpen && (paused || !isAttachedToWindow)) session.setActive(false)
+        if (!destroyed && session.isOpen && (paused || !isAttachedToWindow)) deactivateSession()
     }
 
     fun evaluateJavascript(script: String, callback: ((String?) -> Unit)?) {
@@ -401,8 +418,7 @@ class ClintWebView(
         ClintGecko.setForeground(this)
         if (recoverIfNeeded()) return
         if (!session.isOpen) return
-        session.setActive(true)
-        session.setFocused(true)
+        activateSession()
     }
 
     fun onPause() {
@@ -410,7 +426,21 @@ class ClintWebView(
         ClintGecko.clearForeground(this)
         if (destroyed || !session.isOpen) return
         session.setFocused(false)
-        if (!isMediaPlaying) session.setActive(false)
+        if (!isMediaPlaying) deactivateSession()
+    }
+
+    private fun activateSession() {
+        sessionDeactivated = false
+        session.setActive(true)
+        session.setFocused(true)
+        session.setPriorityHint(GeckoSession.PRIORITY_HIGH)
+    }
+
+    private fun deactivateSession() {
+        if (sessionDeactivated) return
+        sessionDeactivated = true
+        session.setActive(false)
+        session.setPriorityHint(GeckoSession.PRIORITY_DEFAULT)
     }
 
     fun setLoadingBackground(color: Int, enabled: Boolean) {
@@ -420,7 +450,7 @@ class ClintWebView(
         cover.setBackgroundColor(color)
         setBackgroundColor(color)
         geckoView.setBackgroundColor(color)
-        coverSurface()
+        if (!surfaceComposited) coverSurface()
         if (enabled && color != 0 && initialCoverPending) {
             initialCoverPending = false
             showCover()
@@ -431,6 +461,7 @@ class ClintWebView(
 
     private fun coverSurface() {
         if (destroyed || loadingBackground == 0) return
+        surfaceComposited = false
         runCatching { geckoView.coverUntilFirstPaint(loadingBackground) }
     }
 
@@ -533,6 +564,7 @@ class ClintWebView(
         downloadListener = null
         contextMenuListener = null
         scrollListener = null
+        dragScrollListener = null
         touchObserver = null
         selectPromptHandler = null
         clipboardPermissionHandler = null
@@ -546,8 +578,7 @@ class ClintWebView(
         coverSurface()
         paused = false
         if (!destroyed && !(isWindowActive() && recoverIfNeeded()) && session.isOpen) {
-            session.setActive(true)
-            session.setFocused(true)
+            activateSession()
         }
     }
 
@@ -580,7 +611,44 @@ class ClintWebView(
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         touchObserver?.invoke(ev)
+        trackDragScroll(ev)
         return super.dispatchTouchEvent(ev)
+    }
+
+    private fun allowsDragScroll(detail: PanZoomController.InputResultDetail): Boolean {
+        if (detail.handledResult() != PanZoomController.INPUT_RESULT_HANDLED) return false
+        val vertical = PanZoomController.SCROLLABLE_FLAG_TOP or PanZoomController.SCROLLABLE_FLAG_BOTTOM
+        return (detail.scrollableDirections() and vertical) != 0
+    }
+
+    private fun trackDragScroll(ev: MotionEvent) {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                dragPointerId = ev.getPointerId(0)
+                dragStartY = ev.rawY
+                dragLastY = ev.rawY
+                dragging = false
+            }
+            MotionEvent.ACTION_POINTER_DOWN -> dragPointerId = MotionEvent.INVALID_POINTER_ID
+            MotionEvent.ACTION_MOVE -> {
+                if (dragPointerId == MotionEvent.INVALID_POINTER_ID || ev.pointerCount != 1 || ev.getPointerId(0) != dragPointerId) return
+                val y = ev.rawY
+                if (!dragging) {
+                    if (kotlin.math.abs(y - dragStartY) < dragTouchSlop) return
+                    dragging = true
+                    dragLastY = y
+                    return
+                }
+                val delta = (dragLastY - y).toInt()
+                if (delta == 0) return
+                dragLastY -= delta
+                if (dragScrollAllowed != false) dragScrollListener?.invoke(delta)
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                dragPointerId = MotionEvent.INVALID_POINTER_ID
+                dragging = false
+            }
+        }
     }
 
     private fun mapUrl(raw: String?): String? {
@@ -756,6 +824,10 @@ class ClintWebView(
     }
 
     private val contentDelegate = object : GeckoSession.ContentDelegate {
+        override fun onFirstComposite(session: GeckoSession) {
+            surfaceComposited = true
+        }
+
         override fun onFirstContentfulPaint(session: GeckoSession) {
             if (!isClintHomeUrl(currentUrl)) {
                 pagePainted = true
@@ -846,6 +918,7 @@ class ClintWebView(
     private fun reopenSession() {
         neverOpened = false
         pagePainted = false
+        sessionDeactivated = false
         runCatching { geckoView.releaseSession() }
         if (!session.isOpen) session.open(ClintGecko.runtime)
         geckoView.setSession(session)
@@ -869,8 +942,7 @@ class ClintWebView(
             state != null -> session.restoreState(state)
             else -> session.loadUri(target)
         }
-        session.setActive(true)
-        session.setFocused(true)
+        activateSession()
     }
 
     private fun ensureOpen() {

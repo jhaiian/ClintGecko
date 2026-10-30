@@ -78,6 +78,18 @@ internal fun MainActivity.handleLinkCopyAddress(url: String) {
     }
 }
 
+internal fun MainActivity.copyCurrentPageLink(fallback: String) {
+    val url = tabManager.activeTab?.webView?.url
+        ?.takeUnless { it.isBlank() || com.jhaiian.clint.browser.home.isClintHomeUrl(it) }
+        ?: fallback.takeIf { it.isNotBlank() }
+        ?: return
+    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText(getString(R.string.address_bar_copy_link), url))
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
+        Toast.makeText(this, getString(R.string.address_bar_link_copied), Toast.LENGTH_SHORT).show()
+    }
+}
+
 internal fun MainActivity.handleLinkCopyText(text: String) {
     val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     clipboard.setPrimaryClip(ClipData.newPlainText(getString(R.string.link_copy_text), text))

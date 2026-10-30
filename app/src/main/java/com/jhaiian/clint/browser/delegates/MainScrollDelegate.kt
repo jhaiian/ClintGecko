@@ -31,6 +31,16 @@ internal fun MainActivity.setupSwipeRefresh() {
 }
 
 internal fun MainActivity.updateMainContentInsets() {
+    if (swipeRefreshView.isInLayout) {
+        if (!contentInsetsUpdatePosted) {
+            contentInsetsUpdatePosted = true
+            swipeRefreshView.post {
+                contentInsetsUpdatePosted = false
+                updateMainContentInsets()
+            }
+        }
+        return
+    }
     if (uiState.isFullscreen) {
         uiState.contentPaddingTopPx = 0
         uiState.contentPaddingBottomPx = 0
@@ -167,14 +177,13 @@ internal fun MainActivity.attachScrollListener(webView: ClintWebView) {
     var accumulated = 0
     var settleUntil = 0L
 
-    fun handleScroll(scrollY: Int, oldScrollY: Int) {
+    fun handleScroll(atTop: Boolean, delta: Int) {
         val mode = prefs.getString("scroll_hide_mode", "off") ?: "off"
         if (mode == "off" || webView !== tabManager.activeTab?.webView) return
         val position = prefs.getString("address_bar_position", "top") ?: "top"
         val hidden = scrollHideSettledHidden(mode, position)
         val now = SystemClock.uptimeMillis()
-        val delta = scrollY - oldScrollY
-        if (scrollY <= 0) {
+        if (atTop) {
             accumulated = 0
             if (hidden) {
                 animateScrollHideBars(mode, position, 0f)
@@ -198,7 +207,12 @@ internal fun MainActivity.attachScrollListener(webView: ClintWebView) {
     }
 
     webView.touchObserver = null
-    webView.scrollListener = { scrollY, oldScrollY -> handleScroll(scrollY, oldScrollY) }
+    webView.scrollListener = { scrollY, oldScrollY ->
+        if (webView.progress >= 100 || scrollY <= 0) handleScroll(scrollY <= 0, scrollY - oldScrollY)
+    }
+    webView.dragScrollListener = { delta ->
+        if (webView.progress < 100 && !canvasTouchActive) handleScroll(false, delta)
+    }
 }
 
 internal fun MainActivity.injectScrollTracker(webView: ClintWebView) {

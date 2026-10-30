@@ -4,13 +4,16 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Speed
@@ -18,6 +21,7 @@ import androidx.compose.material.icons.filled.Splitscreen
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.VideoSettings
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.FileCopy
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.ViewCompact
 import androidx.compose.material.icons.filled.Visibility
@@ -98,11 +102,15 @@ fun DownloadSettingsScreen(
     onIgnoreBatteryOptClick: () -> Unit,
     onGrantAllFilesAccessClick: () -> Unit,
     onPushNotificationsClick: () -> Unit,
+    onHistoryNormalClick: () -> Unit,
+    onHistoryIncognitoClick: () -> Unit,
     onKeepScreenOnClick: () -> Unit,
     onDownloadLogClick: () -> Unit,
     onQuickDownloadClick: () -> Unit,
     onQuickDownloadImagesClick: () -> Unit,
-    onDialogUiSelected: (String) -> Unit
+    onDetectMegaLinksClick: () -> Unit,
+    onDialogUiSelected: (String) -> Unit,
+    onDuplicateHandlingSelected: (String) -> Unit
 ) {
     val colors = LocalClintColors.current
     val context = LocalContext.current
@@ -151,6 +159,10 @@ fun DownloadSettingsScreen(
                 DownloadSettingsDialog.DIALOG_UI -> DownloadDialogUiDialog(
                     current = state.dialogUi, hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
                     onSelect = onDialogUiSelected, onDismiss = { state.openDialog = null }
+                )
+                DownloadSettingsDialog.DUPLICATE_HANDLING -> DuplicateHandlingDialog(
+                    current = state.duplicateHandling, hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
+                    onSelect = onDuplicateHandlingSelected, onDismiss = { state.openDialog = null }
                 )
                 null -> {}
             }
@@ -202,6 +214,14 @@ fun DownloadSettingsScreen(
         SettingsSectionLabel(stringResource(R.string.download_section_general))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.FileCopy,
+                title = stringResource(R.string.download_duplicate_handling_title),
+                summary = stringResource(duplicateHandlingLabelRes(state.duplicateHandling)),
+                colors = colors,
+                onClick = { state.openDialog = DownloadSettingsDialog.DUPLICATE_HANDLING }
+            )
+            RowDivider(colors.divider)
+            SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.FlashOn,
                 title = stringResource(R.string.download_quick_download_title),
                 summary = stringResource(R.string.download_quick_download_summary),
@@ -218,6 +238,15 @@ fun DownloadSettingsScreen(
                 enabled = !state.quickDownload,
                 onClick = { if (!state.quickDownload) onQuickDownloadImagesClick() },
                 trailing = { ClintSwitch(checked = state.quickDownloadImages && !state.quickDownload) }
+            )
+            RowDivider(colors.divider)
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.CloudDownload,
+                title = stringResource(R.string.download_detect_mega_title),
+                summary = stringResource(R.string.download_detect_mega_summary),
+                colors = colors,
+                onClick = onDetectMegaLinksClick,
+                trailing = { ClintSwitch(checked = state.detectMegaLinks) }
             )
             RowDivider(colors.divider)
             SettingsRow(
@@ -259,6 +288,27 @@ fun DownloadSettingsScreen(
                 colors = colors,
                 onClick = onPushNotificationsClick,
                 trailing = { ClintSwitch(checked = state.pushNotifications) }
+            )
+        }
+
+        SettingsSectionLabel(stringResource(R.string.download_section_history))
+        SettingsSection(colors.cardBackground) {
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.History,
+                title = stringResource(R.string.download_history_normal_title),
+                summary = stringResource(R.string.download_history_normal_summary),
+                colors = colors,
+                onClick = onHistoryNormalClick,
+                trailing = { ClintSwitch(checked = state.historyNormal) }
+            )
+            RowDivider(colors.divider)
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.VisibilityOff,
+                title = stringResource(R.string.download_history_incognito_title),
+                summary = stringResource(R.string.download_history_incognito_summary),
+                colors = colors,
+                onClick = onHistoryIncognitoClick,
+                trailing = { ClintSwitch(checked = state.historyIncognito) }
             )
         }
 

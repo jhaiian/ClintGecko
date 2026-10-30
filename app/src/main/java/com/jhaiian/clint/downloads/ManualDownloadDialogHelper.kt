@@ -20,6 +20,10 @@ internal fun DownloadsActivity.performManualDownload(
     onDismiss: () -> Unit,
     onRename: () -> Unit
 ) {
+    if (submission.startPaused) {
+        checkConflictAndEnqueueManual(submission, userAgent, onDismiss, onRename)
+        return
+    }
     val prefs = PreferenceManager.getDefaultSharedPreferences(this)
     val pm = getSystemService(android.os.PowerManager::class.java)
     if (!prefs.getBoolean(PREF_BATTERY_OPT_ASKED, false) && !pm.isIgnoringBatteryOptimizations(packageName)) {
@@ -132,7 +136,8 @@ private fun DownloadsActivity.enqueueManualDownload(
             primaryIsAudio = submission.streamPrimaryIsAudio,
             locationMode = submission.locationMode,
             customLocationUri = submission.customLocationUri,
-            categorizeEnabled = submission.categorizeEnabled
+            categorizeEnabled = submission.categorizeEnabled,
+            startPaused = submission.startPaused
         )
         return
     }
@@ -140,7 +145,7 @@ private fun DownloadsActivity.enqueueManualDownload(
         this, submission.url, submission.filename, userAgent, "", "",
         submission.retryEnabled, submission.unmeteredOnly, submission.splitParts, submission.multithreadingParts,
         submission.speedLimitBytesPerSec, submission.locationMode, submission.customLocationUri, submission.scheduledStartAtMillis,
-        submission.categorizeEnabled
+        submission.categorizeEnabled, startPaused = submission.startPaused
     )
 }
 
@@ -164,7 +169,7 @@ private fun DownloadsActivity.checkFilenameConflictAndEnqueueManual(
         enqueueManualDownload(submission, userAgent, onDismiss)
         return
     }
-    uiState.conflictDialogRequest = DownloadConflictDialogRequest(
+    uiState.conflictDialogRequest = resolveDownloadConflict(this, !hasUnfinishedDownloadNamed(submission.filename), DownloadConflictDialogRequest(
         onAddDuplicate = {
             enqueueManualDownload(submission, userAgent, onDismiss)
         },
@@ -173,7 +178,7 @@ private fun DownloadsActivity.checkFilenameConflictAndEnqueueManual(
             enqueueManualDownload(submission, userAgent, onDismiss)
         },
         onRename = onRename
-    )
+    ))
 }
 
 private fun DownloadsActivity.deleteExistingManual(
