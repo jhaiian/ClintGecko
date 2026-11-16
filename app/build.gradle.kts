@@ -169,7 +169,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-service:2.11.0")
     implementation("androidx.work:work-runtime-ktx:2.12.0")
     implementation("androidx.biometric:biometric:1.1.0")
-    implementation("org.bouncycastle:bcprov-jdk18on:1.86")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.87")
     implementation("androidx.media3:media3-common:1.11.1")
     implementation("androidx.media3:media3-muxer:1.11.1")
     implementation("androidx.media3:media3-exoplayer:1.11.1")
