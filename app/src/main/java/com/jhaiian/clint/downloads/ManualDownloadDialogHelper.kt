@@ -117,8 +117,8 @@ private fun DownloadsActivity.enqueueManualDownload(
             audioUrl = submission.streamAudioUrl,
             subtitleUrl = null,
             pageUrl = "",
-            referer = "",
-            cookies = "",
+            referer = submission.referer,
+            cookies = submission.cookies,
             userAgent = userAgent,
             filename = submission.filename,
             estimatedTotalBytes = submission.estimatedTotalBytes,
@@ -142,7 +142,7 @@ private fun DownloadsActivity.enqueueManualDownload(
         return
     }
     ClintDownloadManager.enqueue(
-        this, submission.url, submission.filename, userAgent, "", "",
+        this, submission.url, submission.filename, userAgent, submission.referer, submission.cookies,
         submission.retryEnabled, submission.unmeteredOnly, submission.splitParts, submission.multithreadingParts,
         submission.speedLimitBytesPerSec, submission.locationMode, submission.customLocationUri, submission.scheduledStartAtMillis,
         submission.categorizeEnabled, startPaused = submission.startPaused

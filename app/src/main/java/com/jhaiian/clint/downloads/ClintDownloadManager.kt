@@ -2,7 +2,10 @@ package com.jhaiian.clint.downloads
 
 import android.app.NotificationManager
 import android.content.Context
+import android.media.MediaScannerConnection
 import android.net.Uri
+import android.os.Environment
+import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
 import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
@@ -51,6 +54,9 @@ object ClintDownloadManager {
     private val pendingProgress = HashMap<Int, DownloadItem>()
     private val progressFlushScheduled = java.util.concurrent.atomic.AtomicBoolean(false)
     private const val PROGRESS_FLUSH_MS = 250L
+    private val IMMEDIATE_PAUSE_STATUSES = setOf(DownloadStatus.DOWNLOADING, DownloadStatus.ALLOCATING)
+    private val REQUEUE_STATUSES = setOf(DownloadStatus.CONNECTING, DownloadStatus.DOWNLOADING, DownloadStatus.RETRYING)
+    private const val CONCURRENT_LIMIT_DEBOUNCE_MS = 400L
     private const val SUPERSEDE_WAIT_ATTEMPTS = 50
 
     private val launchGenerations: MutableMap<Int, Long> = ConcurrentHashMap()
@@ -94,12 +100,15 @@ object ClintDownloadManager {
     private fun currentItemLocked(id: Int): DownloadItem? =
         pendingProgress[id] ?: _downloads.value.firstOrNull { it.id == id }
 
+    private fun latestItem(id: Int): DownloadItem? = synchronized(publishLock) { currentItemLocked(id) }
+
     private fun isProgressOnly(before: DownloadItem, after: DownloadItem): Boolean =
         before.status == after.status && before.copy(
             bytesDownloaded = after.bytesDownloaded,
             totalBytes = after.totalBytes,
             speedBytesPerSec = after.speedBytesPerSec,
             partProgress = after.partProgress,
+            partMap = after.partMap,
             segmentsCompleted = after.segmentsCompleted,
             segmentsTotal = after.segmentsTotal,
             streamSegDone = after.streamSegDone,
@@ -177,6 +186,7 @@ object ClintDownloadManager {
     internal val activeSpeedLimiters: MutableMap<Int, SpeedLimiter> = ConcurrentHashMap()
 
     internal val pauseRequested: MutableSet<Int> = ConcurrentHashMap.newKeySet()
+    internal val requeueRequested: MutableSet<Int> = ConcurrentHashMap.newKeySet()
     internal val timeoutPausedIds: MutableSet<Int> = ConcurrentHashMap.newKeySet()
 
     fun resumeTimeoutPaused(context: Context) {
@@ -207,6 +217,20 @@ object ClintDownloadManager {
 
     private fun startedInIncognito(): Boolean = incognitoSource?.invoke() == true
 
+    private fun startedInProfile(): String = com.jhaiian.clint.profiles.ActiveProfile.current()
+
+    fun removeProfileDownloads(context: Context, profileId: String) {
+        downloadsFlow.value.filter { it.profileId == profileId }.forEach { remove(context, it.id, false) }
+        runCatching { DownloadPersistence.deleteProfile(context, profileId) }
+    }
+
+    fun reassignProfile(context: Context, profileId: String) {
+        runCatching { DownloadPersistence.reassignProfile(context, profileId) }
+        downloadsFlow.value.filter { it.profileId == profileId }.forEach { item ->
+            updateItem(item.id) { it.copy(profileId = "default") }
+        }
+    }
+
     fun recordsHistory(context: Context, isIncognito: Boolean): Boolean {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         return if (isIncognito) {
@@ -218,7 +242,21 @@ object ClintDownloadManager {
 
     fun findItem(id: Int): DownloadItem? = downloadsFlow.value.find { it.id == id } ?: unrecordedItems[id]
 
+    private fun scanCompletedFile(context: Context, item: DownloadItem) {
+        val path = item.file?.absolutePath ?: run {
+            val uriStr = item.contentUri ?: return
+            val uri = Uri.parse(uriStr)
+            if (!DocumentsContract.isDocumentUri(context, uri)) return
+            val docId = runCatching { DocumentsContract.getDocumentId(uri) }.getOrNull() ?: return
+            val parts = docId.split(":")
+            if (parts.size != 2 || parts[0] != "primary") return
+            File(Environment.getExternalStorageDirectory(), parts[1]).absolutePath
+        }
+        runCatching { MediaScannerConnection.scanFile(context, arrayOf(path), null, null) }
+    }
+
     internal fun onDownloadCompleted(context: Context, item: DownloadItem) {
+        scanCompletedFile(context, item)
         DownloadNotificationHelper.showCompleteNotification(context, item)
         if (recordsHistory(context, item.isIncognito)) return
         DownloadLog.i(item.id, "HISTORY") { "Finished download not kept in the list" }
@@ -238,7 +276,7 @@ object ClintDownloadManager {
         synchronized(publishLock) {
             if (isStale(item)) return
             val current = currentItemLocked(item.id)
-            val next = if (current != null) mergeOwned(current, item) else item.copy(generation = 0L)
+            val next = holdPausedWhileStopping(if (current != null) mergeOwned(current, item) else item.copy(generation = 0L))
             if (DownloadLog.enabled) DownloadLog.observe(current, next)
             if (current != null && isProgressOnly(current, next)) {
                 pendingProgress[item.id] = next
@@ -253,6 +291,63 @@ object ClintDownloadManager {
             pendingProgress.remove(item.id)
             _downloads.update { list -> list.map { if (it.id == item.id) next else it } }
         }
+    }
+
+    private fun holdPausedWhileStopping(item: DownloadItem): DownloadItem =
+        if (item.id in pauseRequested && item.status in IMMEDIATE_PAUSE_STATUSES) {
+            item.copy(
+                status = if (item.id in requeueRequested) DownloadStatus.QUEUED else DownloadStatus.PAUSED,
+                speedBytesPerSec = 0L
+            )
+        } else item
+
+    internal fun stoppedStatusFor(id: Int): DownloadStatus =
+        if (requeueRequested.remove(id)) DownloadStatus.QUEUED else DownloadStatus.PAUSED
+
+    @Volatile private var concurrentLimitJob: Job? = null
+
+    fun applyConcurrentLimit(context: Context) {
+        val appContext = context.applicationContext
+        concurrentLimitJob?.cancel()
+        concurrentLimitJob = applicationScope.launch {
+            kotlinx.coroutines.delay(CONCURRENT_LIMIT_DEBOUNCE_MS)
+            applyConcurrentLimitNow(appContext)
+        }
+    }
+
+    private fun applyConcurrentLimitNow(context: Context) {
+        val limit = concurrentLimit(context)
+        val items = downloadsFlow.value
+        val excess = items.count { it.status in DownloadStatus.ACTIVELY_WORKING } - limit
+        if (excess > 0) {
+            items.filter {
+                it.status in REQUEUE_STATUSES && it.id !in pauseRequested && (it.resumable || it.bytesDownloaded == 0L)
+            }
+                .sortedWith(compareByDescending<DownloadItem> { it.queueOrder }.thenByDescending { it.id })
+                .take(excess)
+                .forEach { requeue(context, it) }
+        }
+        tryDequeueNext(context)
+    }
+
+    private fun requeue(context: Context, item: DownloadItem) {
+        val id = item.id
+        DownloadLog.i(id, "QUEUE") { "Moved back to the queue after the download limit changed" }
+        if (item.status in IMMEDIATE_PAUSE_STATUSES) {
+            requeueRequested.add(id)
+            pauseRequested.add(id)
+            publish(stopClock(item).copy(status = DownloadStatus.QUEUED, speedBytesPerSec = 0L))
+            cancelCalls(id)
+            DownloadNotificationHelper.showQueuedNotification(context, item.copy(status = DownloadStatus.QUEUED))
+            return
+        }
+        stopWorker(id)
+        val updated = stopClock(item).copy(
+            status = DownloadStatus.QUEUED, retryDelaySec = 0, retryAttempt = 0, speedBytesPerSec = 0L
+        )
+        publish(updated)
+        persistLater(updated)
+        DownloadNotificationHelper.showQueuedNotification(context, updated)
     }
 
     internal fun updateItem(id: Int, transform: (DownloadItem) -> DownloadItem) {
@@ -332,6 +427,7 @@ object ClintDownloadManager {
                 DownloadScheduleMonitor.reconcile(appCtx)
                 DownloadCustomScheduleMonitor.rearmAll(appCtx)
                 DownloadStallMonitor.register(appCtx)
+                DownloadWifiLock.register(appCtx)
                 DownloadSpeedHistory.start(applicationScope, downloadsFlow)
                 tryDequeueNext(appCtx)
             }
@@ -422,7 +518,7 @@ object ClintDownloadManager {
             while (active < limit) {
                 val idx = result.withIndex()
                     .filter { (_, candidate) ->
-                        candidate.status == DownloadStatus.QUEUED && (!candidate.unmeteredOnly || !isMetered) &&
+                        candidate.status == DownloadStatus.QUEUED && candidate.id !in requeueRequested && (!candidate.unmeteredOnly || !isMetered) &&
                             (globalWindowOpen || candidate.scheduledStartAtMillis > 0L)
                     }
                     .minWithOrNull(compareBy<IndexedValue<DownloadItem>>({ it.value.queueOrder }, { it.value.id }))
@@ -498,6 +594,7 @@ object ClintDownloadManager {
         launchGenerations.remove(id)
         pendingAttempts.remove(id)
         pauseRequested.remove(id)
+        requeueRequested.remove(id)
         activeJobs[id]?.cancel()
         cancelCalls(id)
     }
@@ -637,7 +734,7 @@ object ClintDownloadManager {
         val queued = activeCount() >= concurrentLimit(context)
         val baseItem = DownloadItem(
             id = id,
-            isIncognito = startedInIncognito(),
+            isIncognito = startedInIncognito(), profileId = startedInProfile(),
             url = request.videoUrl ?: request.audioUrl ?: "",
             filename = request.filename,
             userAgent = request.userAgent,
@@ -821,7 +918,7 @@ object ClintDownloadManager {
         val id = nextId(context)
         val item = DownloadItem(
             id = id, url = "blob:", filename = filename, userAgent = "",
-            startedAt = System.currentTimeMillis(), isIncognito = startedInIncognito()
+            startedAt = System.currentTimeMillis(), isIncognito = startedInIncognito(), profileId = startedInProfile()
         )
         if (startPaused) {
             addPausedBlob(context, item.copy(status = DownloadStatus.PAUSED, totalBytes = blob.length()), blob, mimeType)
@@ -1019,7 +1116,7 @@ object ClintDownloadManager {
         ) return
         val id = nextId(context)
         val baseItem = DownloadItem(
-            id = id, isIncognito = startedInIncognito(), url = url, filename = filename, userAgent = userAgent, referer = referer, pageUrl = pageUrl,
+            id = id, isIncognito = startedInIncognito(), profileId = startedInProfile(), url = url, filename = filename, userAgent = userAgent, referer = referer, pageUrl = pageUrl,
             cookies = cookies, retryEnabled = retryEnabled, unmeteredOnly = unmeteredOnly,
             splitParts = splitParts, multithreadingParts = multithreadingParts,
             speedLimitBytesPerSec = speedLimitBytesPerSec,
@@ -1071,7 +1168,7 @@ object ClintDownloadManager {
             val source = entry.source.copy(path = MegaPaths.clean(entry.source.path))
             val filename = DownloadFileHelper.sanitizeFileName(entry.filename)
             val baseItem = DownloadItem(
-                id = nextId(context), isIncognito = startedInIncognito(), url = entry.url.ifBlank { source.link }, filename = filename, userAgent = userAgent,
+                id = nextId(context), isIncognito = startedInIncognito(), profileId = startedInProfile(), url = entry.url.ifBlank { source.link }, filename = filename, userAgent = userAgent,
                 totalBytes = entry.size, resumable = entry.size > 0L, retryEnabled = retryEnabled, unmeteredOnly = unmeteredOnly,
                 splitParts = splitParts, multithreadingParts = multithreadingParts,
                 speedLimitBytesPerSec = speedLimitBytesPerSec,
@@ -1129,9 +1226,24 @@ object ClintDownloadManager {
         remove(context, id)
     }
 
-    fun pause(context: Context, id: Int) {
+    fun pauseByUser(context: Context, id: Int) {
         val item = downloadsFlow.value.find { it.id == id } ?: return
+        val unsafe = item.status in DownloadStatus.ACTIVELY_WORKING && !item.resumable && item.bytesDownloaded > 0L
+        if (unsafe) {
+            DownloadLog.w(id, "USER") { "Pause ignored: this download cannot be resumed" }
+            return
+        }
+        pause(context, id)
+    }
+
+    fun pause(context: Context, id: Int) {
+        val item = latestItem(id) ?: return
         DownloadLog.i(id, "USER") { "Pause requested while ${item.status.name.lowercase()}" }
+        val stillStopping = requeueRequested.remove(id)
+        if (stillStopping) {
+            publish(item.copy(status = DownloadStatus.PAUSED, speedBytesPerSec = 0L))
+            return
+        }
 
         if (item.status == DownloadStatus.QUEUED) {
             val updated = item.copy(status = DownloadStatus.PAUSED, waitingForUnmetered = false)
@@ -1141,6 +1253,12 @@ object ClintDownloadManager {
         }
 
         pauseRequested.add(id)
+
+        if (item.status in IMMEDIATE_PAUSE_STATUSES) {
+            publish(stopClock(item).copy(status = DownloadStatus.PAUSED, speedBytesPerSec = 0L))
+            cancelCalls(id)
+            return
+        }
 
         if (item.status == DownloadStatus.RETRYING || item.status == DownloadStatus.CONNECTING) {
             stopWorker(id)
@@ -1205,7 +1323,7 @@ object ClintDownloadManager {
     }
 
     fun resume(context: Context, id: Int) {
-        val item = downloadsFlow.value.find { it.id == id } ?: return
+        val item = latestItem(id) ?: return
         if (item.status != DownloadStatus.PAUSED) return
         DownloadLog.i(id, "USER") { "Resume requested" }
         pauseRequested.remove(id)

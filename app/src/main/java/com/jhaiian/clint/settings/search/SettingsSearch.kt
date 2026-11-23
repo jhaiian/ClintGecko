@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.SmartButton
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ManageSearch
 import androidx.compose.material.icons.automirrored.filled.AddToHomeScreen
@@ -26,6 +27,8 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.PictureInPictureAlt
+import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowDropDownCircle
 import androidx.compose.material.icons.filled.Backup
@@ -36,6 +39,35 @@ import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.ViewAgenda
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.Widgets
+import androidx.compose.material.icons.filled.ColorLens
+import androidx.compose.material.icons.automirrored.filled.RotateRight
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Brightness6
+import androidx.compose.material.icons.filled.BrightnessHigh
+import androidx.compose.material.icons.filled.BlurOn
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Animation
+import androidx.compose.material.icons.filled.Gif
+import androidx.compose.material.icons.filled.ViewInAr
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.RoundedCorner
+import androidx.compose.material.icons.filled.Bookmarks
+import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material.icons.filled.Opacity
+import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.automirrored.filled.CallMade
+import androidx.compose.material.icons.filled.Title
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Category
@@ -52,11 +84,17 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.GppGood
 import androidx.compose.material.icons.filled.PhonelinkLock
 import androidx.compose.material.icons.filled.ContentPasteOff
+import androidx.compose.material.icons.filled.Contrast
+import androidx.compose.material.icons.filled.FilterBAndW
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.FindInPage
+import androidx.compose.material.icons.filled.LinearScale
+import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.DataSaverOff
 import androidx.compose.material.icons.filled.DataSaverOn
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.DesktopWindows
+import androidx.compose.material.icons.filled.DonutLarge
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.FlashOn
@@ -77,8 +115,14 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.BrightnessMedium
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.PausePresentation
 import androidx.compose.material.icons.filled.Refresh
@@ -94,6 +138,7 @@ import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Splitscreen
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.SupervisorAccount
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.Translate
@@ -141,9 +186,16 @@ import com.jhaiian.clint.settings.DEST_BROWSER
 import com.jhaiian.clint.settings.DEST_DATA_SAVER
 import com.jhaiian.clint.settings.DEST_DEBUG
 import com.jhaiian.clint.settings.DEST_DOWNLOADS
+import com.jhaiian.clint.settings.DEST_DOWNLOAD_APPEARANCE
+import com.jhaiian.clint.settings.DEST_FIND_IN_PAGE
+import com.jhaiian.clint.settings.DEST_HOMEPAGE
+import com.jhaiian.clint.settings.DEST_SUGGESTIONS
+import com.jhaiian.clint.settings.DEST_VIDEO_PLAYER
 import com.jhaiian.clint.settings.DEST_LOOK_AND_FEEL
 import com.jhaiian.clint.settings.DEST_MISC
+import com.jhaiian.clint.settings.DEST_PERFORMANCE
 import com.jhaiian.clint.settings.DEST_PRIVACY
+import com.jhaiian.clint.settings.DEST_PARENTAL_CONTROLS
 import com.jhaiian.clint.settings.DEST_SITE_SETTINGS
 import com.jhaiian.clint.settings.DEST_SUPPORT_CLINT
 import com.jhaiian.clint.settings.DEST_TRANSLATIONS
@@ -272,6 +324,7 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
     category(DEST_ACCESSIBILITY, R.string.accessibility_title, R.string.accessibility_summary, Icons.Filled.Accessibility)
     category(DEST_PRIVACY, R.string.privacy_settings, R.string.privacy_settings_summary, Icons.Filled.Lock)
     category(DEST_SITE_SETTINGS, R.string.site_settings, R.string.site_settings_summary, Icons.Filled.WebAsset)
+    category(DEST_PARENTAL_CONTROLS, R.string.parental_controls_title, R.string.parental_controls_summary, Icons.Filled.SupervisorAccount)
     category(DEST_DOWNLOADS, R.string.download_settings_title, R.string.download_settings_summary, Icons.Filled.Download)
     category(DEST_DATA_SAVER, R.string.data_saver_title, R.string.data_saver_settings_summary, Icons.Filled.DataSaverOn)
     category(DEST_BACKUP_RESTORE, R.string.backup_restore_title, R.string.backup_restore_summary, Icons.Filled.SettingsBackupRestore)
@@ -280,6 +333,7 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
     } else {
         category(DEST_UPDATES, R.string.pref_updates_title, R.string.pref_updates_summary, Icons.Filled.Update)
     }
+    category(DEST_PERFORMANCE, R.string.perf_boost_title, R.string.perf_boost_settings_summary, Icons.Filled.Bolt)
     category(DEST_MISC, R.string.pref_misc_title, R.string.pref_misc_summary, Icons.Filled.Tune)
     category(DEST_DEBUG, R.string.debug_title, R.string.debug_summary, Icons.Filled.BugReport)
     category(DEST_SUPPORT_CLINT, R.string.support_clint_title, R.string.support_clint_summary, Icons.Filled.VolunteerActivism)
@@ -307,11 +361,32 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
             R.string.pref_address_bar_position_title, section = R.string.pref_category_address_bar,
             extras = listOf(R.string.address_bar_position_top, R.string.address_bar_position_bottom, R.string.address_bar_position_split)
         )
+        item(R.string.pref_strip_url_scheme_title, R.string.pref_strip_url_scheme_summary, R.string.pref_category_address_bar, icon = Icons.Filled.Link)
         item(
             R.string.pref_menu_style_title, section = R.string.menu,
             extras = listOf(R.string.menu_style_bottom_sheet, R.string.menu_style_popup)
         )
-        item(R.string.menu_customization_title, R.string.menu_customization_settings_summary, R.string.menu, icon = Icons.Filled.Reorder)
+        item(
+            R.string.menu_customization_title, R.string.menu_customization_settings_summary, R.string.menu,
+            extras = listOf(
+                R.string.menu_customization_grid_columns, R.string.menu_customization_density,
+                R.string.menu_customization_show_header, R.string.menu_customization_grid_labels, R.string.menu_customization_show_nav_bar,
+                R.string.menu_customization_nav_bar, R.string.menu_section_grid, R.string.menu_section_toggles,
+                R.string.menu_section_hidden
+            ),
+            icon = Icons.Filled.Reorder
+        )
+        item(
+            R.string.toolbar_customization_title, R.string.toolbar_customization_settings_summary, R.string.pref_category_address_bar,
+            extras = listOf(
+                R.string.toolbar_customization_top_section, R.string.toolbar_customization_bottom_section,
+                R.string.toolbar_customization_tab_counter, R.string.profiles_toolbar_button, R.string.toolbar_customization_add_action,
+                R.string.toolbar_customization_compact, R.string.toolbar_customization_labels, R.string.toolbar_customization_bottom_position,
+                R.string.homepage_search_shape_title, R.string.homepage_shape_pill, R.string.homepage_shape_rounded, R.string.homepage_shape_square,
+                R.string.toolbar_customization_progress_title, R.string.toolbar_customization_progress_classic, R.string.toolbar_customization_progress_squiggle
+            ),
+            icon = Icons.Filled.Reorder
+        )
         item(R.string.pref_tab_strip_title, R.string.pref_tab_strip_summary, R.string.pref_category_tabs, icon = Icons.Filled.Tab)
         item(
             R.string.pref_tab_strip_position_title, section = R.string.pref_category_tabs,
@@ -329,31 +404,22 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
             extras = listOf(R.string.exit_confirmation_off, R.string.exit_confirmation_toast, R.string.exit_confirmation_dialog)
         )
         item(
+            R.string.back_close_tab_title, section = R.string.pref_category_navigation,
+            extras = listOf(R.string.back_close_tab_opener, R.string.back_close_tab_any, R.string.back_close_tab_never)
+        )
+        item(
             R.string.pref_popup_alert_style_title, section = R.string.pref_category_navigation,
             extras = listOf(R.string.popup_alert_style_dialog, R.string.popup_alert_style_snackbar)
         )
+        item(R.string.pref_popup_extensions_first_title, R.string.pref_popup_extensions_first_summary, R.string.pref_category_navigation, icon = Icons.Filled.Extension)
     }
 
     page(DEST_BROWSER, R.string.browser_settings, Icons.Filled.Explore) {
-        item(
-            R.string.homepage_title, section = R.string.pref_category_homepage,
-            extras = listOf(R.string.homepage_clint, R.string.homepage_search_engine)
-        )
-        item(
-            R.string.homepage_design_title, section = R.string.pref_category_homepage,
-            extras = listOf(R.string.homepage_design_plain, R.string.homepage_design_gradient, R.string.homepage_design_image)
-        )
-        item(R.string.homepage_show_quick_actions_title, R.string.homepage_show_quick_actions_summary, R.string.pref_category_homepage, icon = Icons.Filled.Apps)
-        item(R.string.homepage_show_favorites_title, R.string.homepage_show_favorites_summary, R.string.pref_category_homepage, icon = Icons.Filled.Bookmark)
-        item(R.string.homepage_show_recent_title, R.string.homepage_show_recent_summary, R.string.pref_category_homepage, icon = Icons.Filled.History)
-        item(R.string.homepage_center_content_title, R.string.homepage_center_content_summary, R.string.pref_category_homepage, icon = Icons.Filled.VerticalAlignCenter)
         item(
             R.string.search_engine, section = R.string.pref_category_search,
             extras = listOf(R.string.engine_google, R.string.engine_duckduckgo, R.string.engine_brave, R.string.engine_ecosia, R.string.engine_custom)
         )
         item(R.string.search_suggestions_api, section = R.string.pref_category_search, icon = Icons.AutoMirrored.Filled.ManageSearch)
-        item(R.string.suggestions_show_history_title, R.string.suggestions_show_history_summary, R.string.pref_category_search, icon = Icons.Filled.History)
-        item(R.string.suggestions_show_bookmarks_title, R.string.suggestions_show_bookmarks_summary, R.string.pref_category_search, icon = Icons.Filled.Bookmark)
         item(
             R.string.delete_inactive_tabs_title, section = R.string.pref_category_tabs,
             extras = listOf(
@@ -369,9 +435,96 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
         item(R.string.javascript_enabled, R.string.javascript_enabled_summary, R.string.pref_category_web_content, icon = Icons.Filled.DesktopWindows)
         item(R.string.background_playback_title, R.string.background_playback_summary, R.string.pref_category_web_content, icon = androidx.compose.material.icons.Icons.Filled.Headphones)
         item(R.string.profiles_title, R.string.profiles_settings_summary, R.string.pref_category_tools, icon = androidx.compose.material.icons.Icons.Filled.AccountCircle)
+        item(R.string.bookmarks_title, R.string.bookmarks_settings_summary, R.string.pref_category_tools, icon = Icons.Filled.Bookmark)
         item(R.string.translation_settings_title, R.string.translation_settings_summary, R.string.pref_category_tools, icon = Icons.Filled.Translate)
+        item(R.string.find_settings_title, R.string.find_settings_summary, R.string.pref_category_tools, icon = Icons.Filled.FindInPage)
         item(R.string.ext_title, R.string.ext_settings_summary, R.string.pref_category_tools, icon = androidx.compose.material.icons.Icons.Filled.Extension)
         item(R.string.shortcut_manager_title, R.string.shortcut_manager_summary, R.string.pref_category_tools, icon = Icons.AutoMirrored.Filled.AddToHomeScreen)
+    }
+
+    page(DEST_VIDEO_PLAYER, R.string.video_player_title, Icons.Filled.SmartDisplay) {
+        item(R.string.video_player_title, R.string.video_player_summary)
+        item(R.string.video_player_site_fullscreen_title, R.string.video_player_site_fullscreen_summary, icon = Icons.Filled.Fullscreen)
+        item(R.string.video_player_floating_button_title, R.string.video_player_floating_button_summary, icon = Icons.Filled.SmartButton)
+        item(R.string.video_player_auto_pip_title, R.string.video_player_auto_pip_summary, icon = Icons.Filled.PictureInPictureAlt)
+        item(R.string.video_player_gestures_title, R.string.video_player_gestures_summary, icon = Icons.Filled.TouchApp)
+        item(R.string.video_player_remember_levels_title, R.string.video_player_remember_levels_summary, icon = Icons.Filled.BrightnessMedium)
+        item(R.string.video_player_double_tap_title, R.string.video_player_double_tap_summary, icon = Icons.Filled.FastForward)
+        item(R.string.video_player_hold_boost_title, R.string.video_player_hold_boost_summary, icon = Icons.Filled.Speed)
+        item(R.string.video_player_seek_style_title, icon = Icons.Filled.LinearScale)
+        item(R.string.video_player_buttons_title, R.string.video_player_buttons_summary, icon = Icons.Filled.Tune)
+        item(R.string.video_player_skip_title, icon = Icons.Filled.Forward10)
+        item(R.string.video_player_hide_delay_title, icon = Icons.Filled.Timer)
+        item(R.string.video_player_accent_icons_title, R.string.video_player_accent_icons_summary, icon = Icons.Filled.Palette)
+    }
+
+    page(DEST_HOMEPAGE, R.string.homepage_title, Icons.Filled.Home) {
+        item(
+            R.string.homepage_title, section = R.string.pref_category_homepage,
+            extras = listOf(R.string.homepage_clint, R.string.homepage_search_engine)
+        )
+        item(
+            R.string.homepage_design_title, section = R.string.pref_category_homepage,
+            extras = listOf(R.string.homepage_design_plain, R.string.homepage_design_gradient, R.string.homepage_design_solid, R.string.homepage_design_custom_gradient, R.string.homepage_design_image)
+        )
+        item(R.string.homepage_show_quick_actions_title, R.string.homepage_show_quick_actions_summary, R.string.homepage_section_content, icon = Icons.Filled.Apps)
+        item(R.string.homepage_show_favorites_title, R.string.homepage_show_favorites_summary, R.string.homepage_section_content, icon = Icons.Filled.Bookmark)
+        item(R.string.homepage_show_recent_title, R.string.homepage_show_recent_summary, R.string.homepage_section_content, icon = Icons.Filled.History)
+        item(R.string.homepage_center_content_title, R.string.homepage_center_content_summary, R.string.homepage_section_content, icon = Icons.Filled.VerticalAlignCenter)
+        item(R.string.homepage_section_order_title, section = R.string.homepage_section_content, icon = Icons.Filled.ViewAgenda)
+        item(R.string.homepage_block_widgets, section = R.string.homepage_section_content, icon = Icons.Filled.Widgets, extras = listOf(R.string.homepage_widget_clock, R.string.homepage_widget_continue, R.string.homepage_widget_downloads))
+        item(R.string.homepage_recent_count_title, section = R.string.homepage_section_content, icon = androidx.compose.material.icons.Icons.Filled.FormatListNumbered)
+        item(R.string.homepage_columns_title, section = R.string.homepage_section_content, icon = androidx.compose.material.icons.Icons.Filled.GridView)
+        item(R.string.homepage_bg_color_title, section = R.string.pref_category_homepage, icon = Icons.Filled.Palette)
+        item(R.string.homepage_gradient_start_title, section = R.string.pref_category_homepage, icon = Icons.Filled.ColorLens)
+        item(R.string.homepage_gradient_end_title, section = R.string.pref_category_homepage, icon = Icons.Filled.ColorLens)
+        item(R.string.homepage_gradient_angle_title, section = R.string.pref_category_homepage, icon = Icons.AutoMirrored.Filled.RotateRight)
+        item(R.string.homepage_image_dark_title, R.string.homepage_image_dark_summary, R.string.pref_category_homepage, icon = Icons.Filled.DarkMode)
+        item(R.string.homepage_image_full_brightness_title, R.string.homepage_image_full_brightness_summary, R.string.pref_category_homepage, icon = Icons.Filled.BrightnessHigh)
+        item(R.string.homepage_image_dim_title, section = R.string.pref_category_homepage, icon = Icons.Filled.Brightness6)
+        item(R.string.homepage_image_blur_title, section = R.string.pref_category_homepage, icon = Icons.Filled.BlurOn)
+        item(R.string.homepage_image_parallax_title, R.string.homepage_image_parallax_summary, R.string.pref_category_homepage, icon = Icons.Filled.Layers)
+        item(R.string.homepage_scope_title, section = R.string.homepage_section_profile, icon = Icons.Filled.AccountCircle)
+        item(R.string.homepage_separate_tiles_title, R.string.homepage_separate_tiles_summary, R.string.homepage_section_profile, icon = Icons.Filled.Bookmarks)
+        item(R.string.homepage_profile_reset_title, R.string.homepage_profile_reset_summary, R.string.homepage_section_profile, icon = Icons.Filled.RestartAlt)
+        item(
+            R.string.homepage_hero_style_title, section = R.string.homepage_section_header,
+            icon = androidx.compose.material.icons.Icons.Filled.Title,
+            extras = listOf(R.string.homepage_hero_full, R.string.homepage_hero_logo, R.string.homepage_hero_text, R.string.homepage_hero_none)
+        )
+        item(R.string.homepage_title_text_title, section = R.string.homepage_section_header, icon = androidx.compose.material.icons.Icons.Filled.Edit)
+        item(R.string.homepage_greeting_title, R.string.homepage_greeting_summary, R.string.homepage_section_header, icon = androidx.compose.material.icons.Icons.Filled.WbSunny)
+        item(R.string.homepage_quick_actions_choose, section = R.string.homepage_section_content, icon = Icons.Filled.Apps)
+        item(R.string.homepage_voice_title, R.string.homepage_voice_summary, R.string.homepage_section_shortcuts, icon = androidx.compose.material.icons.Icons.Filled.Mic)
+        item(R.string.homepage_card_opacity_title, section = R.string.homepage_section_shortcuts, icon = androidx.compose.material.icons.Icons.Filled.Opacity)
+        item(R.string.homepage_card_corner_title, section = R.string.homepage_section_shortcuts, icon = Icons.Filled.RoundedCorner)
+        item(
+            R.string.homepage_tile_shape_title, section = R.string.homepage_section_tiles, icon = Icons.Filled.Category,
+            extras = listOf(R.string.homepage_tile_squircle, R.string.homepage_tile_circle, R.string.homepage_tile_square)
+        )
+        item(R.string.homepage_tile_size_title, section = R.string.homepage_section_tiles, icon = Icons.Filled.ZoomIn)
+        item(R.string.homepage_tile_labels_title, R.string.homepage_tile_labels_summary, R.string.homepage_section_tiles, icon = Icons.Filled.TextFields)
+        item(
+            R.string.homepage_folder_style_title, section = R.string.homepage_section_tiles, icon = Icons.Filled.Folder,
+            extras = listOf(R.string.homepage_folder_grid, R.string.homepage_folder_plain)
+        )
+    }
+
+    page(DEST_SUGGESTIONS, R.string.pref_category_suggestions, Icons.Filled.ViewAgenda) {
+        item(R.string.suggestions_style_title, section = R.string.pref_category_suggestions, icon = Icons.Filled.ViewAgenda)
+        item(R.string.suggestions_order_title, section = R.string.pref_category_suggestions, icon = Icons.AutoMirrored.Filled.Sort)
+        item(R.string.suggestions_text_size_title, section = R.string.pref_category_suggestions, icon = Icons.Filled.FormatSize)
+        item(R.string.suggestions_url_mode_title, section = R.string.pref_category_suggestions, icon = Icons.Filled.Link)
+        item(R.string.suggestions_show_headers_title, R.string.suggestions_show_headers_summary, R.string.pref_category_suggestions, icon = Icons.Filled.Title)
+        item(R.string.suggestions_show_fill_title, R.string.suggestions_show_fill_summary, R.string.pref_category_suggestions, icon = Icons.AutoMirrored.Filled.CallMade)
+        item(R.string.suggestions_show_bookmarks_title, R.string.suggestions_show_bookmarks_summary, R.string.pref_category_suggestions, icon = Icons.Filled.Bookmark)
+        item(R.string.suggestions_bookmark_limit_title, section = R.string.pref_category_suggestions, icon = Icons.Filled.FormatListNumbered)
+        item(R.string.suggestions_show_history_title, R.string.suggestions_show_history_summary, R.string.pref_category_suggestions, icon = Icons.Filled.History)
+        item(R.string.suggestions_history_limit_title, section = R.string.pref_category_suggestions, icon = Icons.Filled.FormatListNumbered)
+        item(R.string.suggestions_show_tabs_title, R.string.suggestions_show_tabs_summary, R.string.pref_category_suggestions, icon = Icons.Filled.Tab)
+        item(R.string.suggestions_show_favorites_title, R.string.suggestions_show_favorites_summary, R.string.pref_category_suggestions, icon = Icons.Filled.Star)
+        item(R.string.suggestions_show_paste_title, R.string.suggestions_show_paste_summary, R.string.pref_category_suggestions, icon = Icons.Filled.ContentPaste)
+        item(R.string.suggestions_show_engines_title, R.string.suggestions_show_engines_summary, R.string.pref_category_suggestions, icon = Icons.Filled.TravelExplore)
     }
 
     page(DEST_PRIVACY, R.string.privacy_settings, Icons.Filled.Lock) {
@@ -407,6 +560,10 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
         item(R.string.delete_data_title, R.string.delete_data_settings_summary, R.string.privacy_section_history, icon = Icons.Filled.DeleteSweep)
     }
 
+    page(DEST_PARENTAL_CONTROLS, R.string.parental_controls_title, Icons.Filled.SupervisorAccount) {
+        item(R.string.parental_password_title, R.string.parental_password_summary_off, R.string.parental_controls_section_password, icon = Icons.Filled.Lock)
+    }
+
     page(DEST_SITE_SETTINGS, R.string.site_settings, Icons.Filled.WebAsset) {
         item(R.string.site_settings_camera, section = R.string.site_section_permissions, icon = Icons.Filled.Videocam)
         item(R.string.site_settings_mic, section = R.string.site_section_permissions, icon = Icons.Filled.Mic)
@@ -422,6 +579,7 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
         item(R.string.accessibility_auto_font_size_title, R.string.accessibility_auto_font_size_summary, R.string.accessibility_section_text, icon = Icons.Filled.TextFields)
         item(R.string.accessibility_font_size_title, R.string.accessibility_font_size_summary, R.string.accessibility_section_text, icon = Icons.Filled.FormatSize)
         item(R.string.accessibility_force_zoom_title, R.string.accessibility_force_zoom_summary, R.string.accessibility_section_zoom, icon = Icons.Filled.ZoomIn)
+        item(R.string.accessibility_color_filter_title, R.string.accessibility_color_filter_summary, R.string.accessibility_section_colors, icon = Icons.Filled.FilterBAndW)
     }
 
     page(DEST_DATA_SAVER, R.string.data_saver_title, Icons.Filled.DataSaverOn) {
@@ -441,8 +599,17 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
         item(R.string.data_saver_disable_favicons_title, R.string.data_saver_disable_favicons_summary, R.string.data_saver_browser_section, icon = Icons.Filled.Language)
     }
 
+    page(DEST_PERFORMANCE, R.string.perf_boost_title, Icons.Filled.Bolt) {
+        item(R.string.perf_boost_reduce_blur_title, R.string.perf_boost_reduce_blur_summary, R.string.perf_boost_section_graphics, icon = Icons.Filled.BlurOn)
+        item(R.string.perf_boost_disable_webgl_title, R.string.perf_boost_disable_webgl_summary, R.string.perf_boost_section_graphics, icon = Icons.Filled.ViewInAr)
+        item(R.string.perf_boost_limit_frame_rate_title, R.string.perf_boost_limit_frame_rate_summary, R.string.perf_boost_section_graphics, icon = Icons.Filled.Speed)
+        item(R.string.perf_boost_reduce_motion_title, R.string.perf_boost_reduce_motion_summary, R.string.perf_boost_section_motion, icon = Icons.Filled.Animation)
+        item(R.string.perf_boost_stop_animated_images_title, R.string.perf_boost_stop_animated_images_summary, R.string.perf_boost_section_motion, icon = Icons.Filled.Gif)
+    }
+
     page(DEST_DOWNLOADS, R.string.download_settings_title, Icons.Filled.Download) {
-        item(R.string.download_manager_title, section = R.string.download_section_manager, icon = Icons.Filled.Apps)
+        item(R.string.download_appearance_title, R.string.download_appearance_summary, R.string.download_appearance_section, icon = androidx.compose.material.icons.Icons.Filled.Palette)
+        item(R.string.download_saved_locations_title, R.string.download_saved_locations_summary, R.string.download_section_location, icon = Icons.Filled.Folder)
         item(R.string.download_categorize_title, R.string.download_categorize_summary, R.string.download_section_location, icon = Icons.Filled.Category)
         item(R.string.measurement_system_title, section = R.string.download_section_measurement, icon = Icons.Filled.FormatSize)
         item(R.string.download_unmetered_only_title, R.string.download_unmetered_only_summary, R.string.download_section_network, icon = Icons.Filled.Wifi)
@@ -464,12 +631,36 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
         item(R.string.download_detect_mega_title, R.string.download_detect_mega_summary, R.string.download_section_general, icon = Icons.Filled.CloudDownload)
         item(R.string.download_keep_screen_on_title, R.string.download_keep_screen_on_summary, R.string.download_section_general, icon = Icons.Filled.Visibility)
         item(R.string.download_dialog_ui_title, section = R.string.download_section_dialog_ui, icon = Icons.Filled.ViewCompact)
-        item(R.string.download_push_notifications_title, R.string.download_push_notifications_summary, R.string.download_section_notifications, icon = Icons.Filled.Notifications)
         item(R.string.download_history_normal_title, R.string.download_history_normal_summary, R.string.download_section_history, icon = Icons.Filled.History)
         item(R.string.download_history_incognito_title, R.string.download_history_incognito_summary, R.string.download_section_history, icon = Icons.Filled.VisibilityOff)
         item(R.string.download_ignore_battery_opt_title, R.string.download_ignore_battery_opt_summary, R.string.download_section_permissions, icon = Icons.Filled.BatterySaver)
         if (!BuildConfig.IS_FOSS && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             item(R.string.download_grant_all_files_access_title, R.string.download_grant_all_files_access_summary, R.string.download_section_permissions, icon = Icons.Filled.Folder)
+        }
+        item(R.string.download_manager_title, section = R.string.download_section_manager, icon = Icons.Filled.Apps)
+    }
+
+    page(DEST_DOWNLOAD_APPEARANCE, R.string.download_appearance_title, androidx.compose.material.icons.Icons.Filled.Palette) {
+        item(R.string.download_appearance_progress_title, section = R.string.download_appearance_section_layout, icon = Icons.Filled.DonutLarge, extras = listOf(R.string.download_appearance_progress_ring, R.string.download_appearance_progress_bar))
+        item(R.string.download_appearance_density_title, section = R.string.download_appearance_section_layout, icon = Icons.Filled.LinearScale, extras = listOf(R.string.download_appearance_density_compact, R.string.download_appearance_density_comfortable, R.string.download_appearance_density_spacious))
+        item(R.string.download_appearance_thumbnail_title, R.string.download_appearance_thumbnail_summary, R.string.download_appearance_section_layout, icon = Icons.Filled.Image)
+        item(R.string.download_appearance_speed_title, R.string.download_appearance_speed_summary, R.string.download_appearance_section_layout, icon = Icons.Filled.Speed)
+        item(R.string.download_appearance_eta_title, R.string.download_appearance_eta_summary, R.string.download_appearance_section_layout, icon = Icons.Filled.Timer)
+        item(R.string.download_appearance_source_title, R.string.download_appearance_source_summary, R.string.download_appearance_section_layout, icon = Icons.Filled.Language)
+        item(R.string.download_appearance_parts_title, R.string.download_appearance_parts_summary, R.string.download_appearance_section_layout, icon = Icons.Filled.Splitscreen)
+        item(R.string.download_appearance_live_stats_title, R.string.download_appearance_live_stats_summary, R.string.download_appearance_section_layout, icon = Icons.Filled.Speed)
+        item(R.string.download_appearance_item_graph_title, R.string.download_appearance_item_graph_summary, R.string.download_appearance_section_layout, icon = Icons.AutoMirrored.Filled.ShowChart)
+        item(R.string.download_appearance_total_graph_title, R.string.download_appearance_total_graph_summary, R.string.download_appearance_section_layout, icon = Icons.AutoMirrored.Filled.ShowChart)
+        item(R.string.download_appearance_sort_title, section = R.string.download_appearance_section_library, icon = androidx.compose.material.icons.Icons.AutoMirrored.Filled.Sort, extras = listOf(R.string.downloads_sort_by_date, R.string.downloads_sort_by_name, R.string.downloads_sort_by_size, R.string.downloads_sort_by_status))
+        item(R.string.download_appearance_tap_title, section = R.string.download_appearance_section_library, icon = Icons.Filled.TouchApp, extras = listOf(R.string.download_appearance_tap_open, R.string.download_appearance_tap_details, R.string.download_appearance_tap_share))
+        item(R.string.download_appearance_sheet_title, section = R.string.download_appearance_section_library, icon = Icons.Filled.Tune)
+        item(R.string.download_push_notifications_title, R.string.download_push_notifications_summary, R.string.download_section_notifications, icon = Icons.Filled.Notifications)
+        item(R.string.download_appearance_notif_actions_title, R.string.download_appearance_notif_actions_summary, R.string.download_section_notifications, icon = Icons.Filled.Notifications)
+        item(R.string.download_appearance_notif_speed_title, R.string.download_appearance_notif_speed_summary, R.string.download_section_notifications, icon = Icons.Filled.Speed)
+        item(R.string.download_appearance_notif_progress_title, R.string.download_appearance_notif_progress_summary, R.string.download_section_notifications, icon = Icons.Filled.LinearScale)
+        item(R.string.download_appearance_notif_quiet_title, R.string.download_appearance_notif_quiet_summary, R.string.download_section_notifications, icon = Icons.Filled.NotificationsOff)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+            item(R.string.download_appearance_notif_live_title, R.string.download_appearance_notif_live_summary, R.string.download_section_notifications, icon = Icons.Filled.Bolt)
         }
     }
 
@@ -494,6 +685,16 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
         item(R.string.translation_language_preferences_title, R.string.translation_language_preferences_summary, R.string.translation_section_automatic)
         item(R.string.translation_never_sites_title, section = R.string.translation_section_automatic, icon = Icons.Filled.Block)
         item(R.string.translation_delete_all_title, R.string.translation_delete_all_summary, R.string.translation_section_languages, icon = Icons.Filled.Delete)
+    }
+
+    page(DEST_FIND_IN_PAGE, R.string.find_settings_title, Icons.Filled.FindInPage) {
+        item(R.string.find_bar_top_title, R.string.find_bar_top_summary, R.string.find_section_bar, icon = Icons.Filled.VerticalAlignTop)
+        item(R.string.find_dim_page_title, R.string.find_dim_page_summary, R.string.find_section_bar, icon = Icons.Filled.Contrast)
+        item(R.string.find_scroll_markers_title, R.string.find_scroll_markers_summary, R.string.find_section_bar, icon = Icons.Filled.LinearScale)
+        item(R.string.find_remember_options_title, R.string.find_remember_options_summary, R.string.find_section_search, icon = Icons.Filled.Restore)
+        item(R.string.find_address_bar_title, R.string.find_address_bar_summary, R.string.find_section_search, icon = Icons.Filled.Search)
+        item(R.string.find_save_recent_title, R.string.find_save_recent_summary, R.string.find_section_history, icon = Icons.Filled.History)
+        item(R.string.find_clear_recent_title, R.string.find_clear_recent_summary, R.string.find_section_history, icon = Icons.Filled.DeleteSweep)
     }
 
     page(DEST_MISC, R.string.pref_misc_title, Icons.Filled.Tune) {

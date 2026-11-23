@@ -1,0 +1,1 @@
+Android-Browser auf Firefox-Basis mit ADM, Medienerfassung und Erweiterungen.

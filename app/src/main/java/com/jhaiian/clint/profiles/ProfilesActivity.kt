@@ -4,18 +4,18 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.core.view.WindowCompat
 import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
 import com.jhaiian.clint.base.ClintActivity
-import com.jhaiian.clint.shortcuts.ShortcutStore
-import com.jhaiian.clint.tabs.TabSessionManager
 import com.jhaiian.clint.ui.rememberMaxContentWidth
 import com.jhaiian.clint.ui.theme.ClintComposeTheme
 
 class ProfilesActivity : ClintActivity() {
 
     private val profiles = mutableStateListOf<BrowserProfile>()
+    private val activeId = mutableStateOf(WebProfiles.DEFAULT_ID)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,6 +27,7 @@ class ProfilesActivity : ClintActivity() {
         val hideSystemNavigation = prefs.getBoolean("hide_system_navigation", false)
         val supported = WebProfiles.isSupported()
 
+        activeId.value = ActiveProfile.id(this)
         reload()
 
         setContent {
@@ -39,12 +40,19 @@ class ProfilesActivity : ClintActivity() {
                     hideStatusBar = hideStatusBar,
                     hideSystemNavigation = hideSystemNavigation,
                     onExit = { finish() },
-                    onCreate = { name, color ->
-                        ProfileRepository.create(this@ProfilesActivity, name, color)
+                    activeId = activeId.value,
+                    onSwitch = { id ->
+                        ActiveProfile.set(this@ProfilesActivity, id)
+                        activeId.value = ActiveProfile.id(this@ProfilesActivity)
+                        val name = profiles.firstOrNull { it.id == id }?.name ?: getString(R.string.profiles_default_name)
+                        Toast.makeText(this@ProfilesActivity, getString(R.string.profiles_switched, name), Toast.LENGTH_SHORT).show()
+                    },
+                    onCreate = { name, color, temporary ->
+                        ProfileRepository.create(this@ProfilesActivity, name, color, temporary)
                         reload()
                     },
-                    onUpdate = { id, name, color ->
-                        ProfileRepository.update(this@ProfilesActivity, id, name, color)
+                    onUpdate = { id, name, color, temporary ->
+                        ProfileRepository.update(this@ProfilesActivity, id, name, color, temporary)
                         reload()
                     },
                     onClearData = { profile ->
@@ -55,11 +63,11 @@ class ProfilesActivity : ClintActivity() {
                         val result = WebProfiles.deleteProfileData(profile.id)
                         if (result == ProfileDeleteResult.DELETED) {
                             ProfileRepository.remove(this@ProfilesActivity, profile.id)
-                            val appContext = applicationContext
-                            Thread {
-                                ShortcutStore.clearProfile(appContext, profile.id)
-                                TabSessionManager.removeProfile(appContext, profile.id)
-                            }.start()
+                            if (activeId.value == profile.id) {
+                                ActiveProfile.reset(this@ProfilesActivity)
+                                activeId.value = WebProfiles.DEFAULT_ID
+                            }
+                            ProfileWiper.eraseData(applicationContext, profile.id, keepDownloads = !profile.temporary)
                             reload()
                         }
                         result

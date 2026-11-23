@@ -62,7 +62,9 @@ class DownloadBackgroundJobService : JobService() {
             ClintDownloadManager.timeoutPausedIds.add(it.id)
             ClintDownloadManager.pause(applicationContext, it.id)
         }
-        return paused.isNotEmpty()
+        val unresumableLeft = DownloadForegroundService.hasUnresumableTransfer() &&
+            !DownloadForegroundService.startService(applicationContext)
+        return paused.isNotEmpty() || unresumableLeft
     }
 
     override fun onDestroy() {

@@ -15,24 +15,16 @@ const val CustomSearchSuggestionsApiQueryPlaceholder = "{query}"
 fun incognitoSearchSuggestionsApiSetting(prefs: SharedPreferences): String =
     prefs.getString(IncognitoSearchSuggestionsApiKey, SameAsNormalMode) ?: SameAsNormalMode
 
-private fun usesIncognitoSuggestionsApi(prefs: SharedPreferences, incognito: Boolean): Boolean =
-    incognito && incognitoSearchSuggestionsApiSetting(prefs) != SameAsNormalMode
+private fun usableSuggestionsApi(prefs: SharedPreferences, api: String): Boolean =
+    !isCustomEngineKey(api) || customSearchEngineFor(prefs, api)?.hasSuggestions == true
 
-fun searchSuggestionsApiFor(prefs: SharedPreferences, incognito: Boolean = false): String =
-    if (usesIncognitoSuggestionsApi(prefs, incognito)) incognitoSearchSuggestionsApiSetting(prefs)
-    else prefs.getString(SearchSuggestionsApiKey, DefaultSearchSuggestionsApi) ?: DefaultSearchSuggestionsApi
-
-fun customSearchSuggestionsApiName(prefs: SharedPreferences, incognito: Boolean = false): String =
-    prefs.getString(if (usesIncognitoSuggestionsApi(prefs, incognito)) IncognitoCustomSearchSuggestionsApiNameKey else CustomSearchSuggestionsApiNameKey, "") ?: ""
-
-fun customSearchSuggestionsApiUrlTemplate(prefs: SharedPreferences, incognito: Boolean = false): String =
-    prefs.getString(if (usesIncognitoSuggestionsApi(prefs, incognito)) IncognitoCustomSearchSuggestionsApiUrlKey else CustomSearchSuggestionsApiUrlKey, "") ?: ""
-
-fun incognitoCustomSearchSuggestionsApiName(prefs: SharedPreferences): String =
-    prefs.getString(IncognitoCustomSearchSuggestionsApiNameKey, "") ?: ""
-
-fun incognitoCustomSearchSuggestionsApiUrlTemplate(prefs: SharedPreferences): String =
-    prefs.getString(IncognitoCustomSearchSuggestionsApiUrlKey, "") ?: ""
+fun searchSuggestionsApiFor(prefs: SharedPreferences, incognito: Boolean = false): String {
+    migrateLegacyCustomEngines(prefs)
+    val incognitoApi = incognitoSearchSuggestionsApiSetting(prefs)
+    if (incognito && incognitoApi != SameAsNormalMode && usableSuggestionsApi(prefs, incognitoApi)) return incognitoApi
+    val api = prefs.getString(SearchSuggestionsApiKey, DefaultSearchSuggestionsApi) ?: DefaultSearchSuggestionsApi
+    return if (usableSuggestionsApi(prefs, api)) api else DefaultSearchSuggestionsApi
+}
 
 fun isValidCustomSearchSuggestionsApiUrl(url: String): Boolean {
     if (!url.contains(CustomSearchSuggestionsApiQueryPlaceholder)) return false
@@ -41,9 +33,6 @@ fun isValidCustomSearchSuggestionsApiUrl(url: String): Boolean {
     return (scheme == "http" || scheme == "https") && !uri.host.isNullOrBlank()
 }
 
-/** Builds the request URL for the user's custom suggestions API, or null if none is configured/valid. */
-fun customSearchSuggestionsApiQueryUrl(prefs: SharedPreferences, encodedQuery: String, incognito: Boolean = false): String? {
-    val template = customSearchSuggestionsApiUrlTemplate(prefs, incognito)
-    if (!isValidCustomSearchSuggestionsApiUrl(template)) return null
-    return template.replace(CustomSearchSuggestionsApiQueryPlaceholder, encodedQuery)
-}
+fun suggestionsQueryUrlFor(prefs: SharedPreferences, api: String, encodedQuery: String): String? =
+    customSearchEngineFor(prefs, api)?.takeIf { it.hasSuggestions }
+        ?.suggestUrl?.replace(CustomSearchSuggestionsApiQueryPlaceholder, encodedQuery)

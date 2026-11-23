@@ -14,6 +14,8 @@ import java.io.File
 import java.io.FileOutputStream
 
 const val HOMEPAGE_DESIGN_IMAGE = "image"
+const val HOMEPAGE_DESIGN_SOLID = "solid"
+const val HOMEPAGE_DESIGN_CUSTOM_GRADIENT = "custom_gradient"
 const val PREF_HOMEPAGE_IMAGE_VERSION = "homepage_image_version"
 
 internal val LocalHomeCardAlpha = compositionLocalOf { 1f }
@@ -27,7 +29,20 @@ private const val HOMEPAGE_IMAGE_DIR_NAME = "homepage"
 
 fun homepageImageDir(context: Context): File = File(context.filesDir, HOMEPAGE_IMAGE_DIR_NAME)
 
-fun homepageImageFile(context: Context): File = File(homepageImageDir(context), HOMEPAGE_IMAGE_FILE)
+fun homepageImageFile(context: Context, profileId: String? = null, dark: Boolean = false): File {
+    val suffix = if (isDefaultHomepageProfile(profileId)) "" else "@$profileId"
+    val name = if (dark) "homepage_background_dark" else "homepage_background"
+    return File(homepageImageDir(context), "$name$suffix.jpg")
+}
+
+internal fun resolveHomepageImage(context: Context, profileId: String?, dark: Boolean): File? {
+    val scopes = if (isDefaultHomepageProfile(profileId)) listOf<String?>(null) else listOf(profileId, null)
+    for (scope in scopes) {
+        if (dark) homepageImageFile(context, scope, true).takeIf { it.exists() }?.let { return it }
+        homepageImageFile(context, scope, false).takeIf { it.exists() }?.let { return it }
+    }
+    return null
+}
 
 private fun migrateLegacyHomepageImage(context: Context) {
     val legacy = File(context.filesDir, HOMEPAGE_IMAGE_FILE)
@@ -41,16 +56,17 @@ private fun migrateLegacyHomepageImage(context: Context) {
     }
 }
 
-fun readHomepageDesign(context: Context, prefs: SharedPreferences): String {
+fun readHomepageDesign(context: Context, prefs: SharedPreferences, profileId: String? = null): String {
     migrateLegacyHomepageImage(context)
-    return when (prefs.getString(PREF_HOMEPAGE_DESIGN, HOMEPAGE_DESIGN_PLAIN)) {
-        HOMEPAGE_DESIGN_GRADIENT -> HOMEPAGE_DESIGN_GRADIENT
-        HOMEPAGE_DESIGN_IMAGE -> if (homepageImageFile(context).exists()) HOMEPAGE_DESIGN_IMAGE else HOMEPAGE_DESIGN_PLAIN
+    val raw = prefs.getString(homepageResolvedKey(prefs, PREF_HOMEPAGE_DESIGN, profileId), HOMEPAGE_DESIGN_PLAIN) ?: HOMEPAGE_DESIGN_PLAIN
+    return when (raw) {
+        HOMEPAGE_DESIGN_GRADIENT, HOMEPAGE_DESIGN_SOLID, HOMEPAGE_DESIGN_CUSTOM_GRADIENT -> raw
+        HOMEPAGE_DESIGN_IMAGE -> if (resolveHomepageImage(context, profileId, false) != null) HOMEPAGE_DESIGN_IMAGE else HOMEPAGE_DESIGN_PLAIN
         else -> HOMEPAGE_DESIGN_PLAIN
     }
 }
 
-fun saveHomepageBackground(context: Context, uri: Uri): Boolean = runCatching {
+fun saveHomepageBackground(context: Context, uri: Uri, profileId: String? = null, dark: Boolean = false): Boolean = runCatching {
     val resolver = context.contentResolver
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
@@ -101,7 +117,7 @@ fun saveHomepageBackground(context: Context, uri: Uri): Boolean = runCatching {
         return@runCatching false
     }
     homepageImageDir(context).mkdirs()
-    val target = homepageImageFile(context)
+    val target = homepageImageFile(context, profileId, dark)
     if (!temp.renameTo(target)) {
         temp.copyTo(target, overwrite = true)
         temp.delete()
@@ -109,7 +125,23 @@ fun saveHomepageBackground(context: Context, uri: Uri): Boolean = runCatching {
     true
 }.getOrDefault(false)
 
-fun loadHomepageBackground(context: Context): ImageBitmap? = runCatching {
-    val file = homepageImageFile(context)
-    if (!file.exists()) null else BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
+private fun softenBitmap(source: Bitmap, blur: Int): Bitmap {
+    val targetWidth = (source.width / (1f + blur / 100f * 23f)).toInt().coerceAtLeast(16)
+    var current = source
+    while (current.width > targetWidth) {
+        val nextWidth = maxOf(targetWidth, current.width / 2)
+        val nextHeight = (current.height.toLong() * nextWidth / current.width).toInt().coerceAtLeast(1)
+        val next = Bitmap.createScaledBitmap(current, nextWidth, nextHeight, true)
+        if (current !== source) current.recycle()
+        current = next
+    }
+    return current
+}
+
+fun loadHomepageBackground(context: Context, profileId: String? = null, dark: Boolean = false, blur: Int = 0): ImageBitmap? = runCatching {
+    val file = resolveHomepageImage(context, profileId, dark) ?: return@runCatching null
+    val decoded = BitmapFactory.decodeFile(file.absolutePath) ?: return@runCatching null
+    val result = if (blur > 0) softenBitmap(decoded, blur) else decoded
+    if (result !== decoded) decoded.recycle()
+    result.asImageBitmap()
 }.getOrNull()

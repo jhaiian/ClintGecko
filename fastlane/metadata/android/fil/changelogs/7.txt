@@ -1,0 +1,11 @@
+• Sariling video player na may gestures at PiP
+• Hiwalay na mga profile na madaling palitan
+• Bagong menu at nako-customize na toolbar
+• Mas maraming opsyon sa homepage at suggestions
+• Maghanap sa pahina
+• I-pin at ayusin ang mga tab, at kamakailang isinara
+• Suporta sa Custom Tabs
+• Bagong view ng downloads, live update, kahit anong download manager
+• Pagpili ng marami at filter ng laki sa Media Capture
+• Parental controls at Performance boost
+• GeckoView 160, bagong setup at 5 bagong wika

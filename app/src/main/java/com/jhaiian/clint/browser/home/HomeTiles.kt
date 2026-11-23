@@ -135,52 +135,78 @@ internal object HomeTileStore {
     private const val ICON_PREFIX = "tile_icon_"
     private const val ICON_MAX_SIDE = 256
     private const val SEED_LIMIT = 8
+    private const val DEFAULT_KEY = ""
 
     private val writer = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val caches = HashMap<String, List<HomeTile>>()
 
-    @Volatile
-    private var cache: List<HomeTile>? = null
+    private fun cacheKey(profileId: String?): String = if (isDefaultHomepageProfile(profileId)) DEFAULT_KEY else profileId.orEmpty()
 
-    private fun dataFile(context: Context): File = File(homepageImageDir(context), FILE_NAME)
+    private fun dataFile(context: Context, profileId: String?): File {
+        val name = if (isDefaultHomepageProfile(profileId)) FILE_NAME else "home_tiles@$profileId.json"
+        return File(homepageImageDir(context), name)
+    }
 
     private fun iconFile(context: Context, id: String): File = File(homepageImageDir(context), "$ICON_PREFIX$id.png")
 
     @Synchronized
-    fun load(context: Context): List<HomeTile> {
-        cache?.let { return it }
-        val file = dataFile(context)
+    fun load(context: Context, profileId: String? = null): List<HomeTile> {
+        val key = cacheKey(profileId)
+        caches[key]?.let { return it }
+        val file = dataFile(context, profileId)
         val loaded = if (!file.exists()) {
-            seed(context).also { save(context, it) }
+            val initial = if (key == DEFAULT_KEY) seed(context) else load(context, null)
+            initial.also { save(context, it, profileId) }
         } else {
             runCatching { parse(JSONArray(file.readText())) }.getOrElse { emptyList() }
         }
-        cache = loaded
+        caches[key] = loaded
         return loaded
     }
 
-    fun saveAsync(context: Context, tiles: List<HomeTile>, icon: Pair<String, Bitmap>? = null, onDone: (() -> Unit)? = null) {
+    @Synchronized
+    fun forget(profileId: String) {
+        caches.remove(cacheKey(profileId))
+    }
+
+    fun saveAsync(
+        context: Context,
+        tiles: List<HomeTile>,
+        icon: Pair<String, Bitmap>? = null,
+        profileId: String? = null,
+        onDone: (() -> Unit)? = null
+    ) {
         val appContext = context.applicationContext
-        cache = tiles
+        synchronized(this) { caches[cacheKey(profileId)] = tiles }
         writer.execute {
             icon?.let { saveIcon(appContext, it.first, it.second) }
-            save(appContext, tiles)
+            save(appContext, tiles, profileId)
             onDone?.let { mainHandler.post(it) }
         }
     }
 
+    private fun customIconNames(tiles: List<HomeTile>): List<String> =
+        tiles.allSites().filter { it.customIcon }.map { "$ICON_PREFIX${it.id}.png" }
+
     @Synchronized
-    private fun save(context: Context, tiles: List<HomeTile>) {
+    private fun save(context: Context, tiles: List<HomeTile>, profileId: String?) {
         runCatching {
             val dir = homepageImageDir(context)
             dir.mkdirs()
-            val temp = File(dir, "$FILE_NAME.tmp")
+            val target = dataFile(context, profileId)
+            val temp = File(dir, "${target.name}.tmp")
             temp.writeText(serialize(tiles).toString())
-            if (!temp.renameTo(dataFile(context))) {
-                temp.copyTo(dataFile(context), overwrite = true)
+            if (!temp.renameTo(target)) {
+                temp.copyTo(target, overwrite = true)
                 temp.delete()
             }
-            val keep = tiles.allSites().filter { it.customIcon }.map { "$ICON_PREFIX${it.id}.png" }.toSet()
+            val keep = HashSet(customIconNames(tiles))
+            dir.listFiles()?.forEach { other ->
+                if (other.name.startsWith("home_tiles") && other.name.endsWith(".json") && other != target) {
+                    runCatching { keep.addAll(customIconNames(parse(JSONArray(other.readText())))) }
+                }
+            }
             dir.listFiles()?.forEach { if (it.name.startsWith(ICON_PREFIX) && it.name !in keep) it.delete() }
         }
     }

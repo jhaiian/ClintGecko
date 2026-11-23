@@ -21,25 +21,27 @@ import com.jhaiian.clint.downloads.resolveSpeedLimitBytesPerSec
 import com.jhaiian.clint.settings.downloads.DownloadSettingsKeys
 import com.jhaiian.clint.ui.showClintSnackbar
 import com.jhaiian.clint.ui.theme.ClintComposeTheme
-import java.util.WeakHashMap
-
-private val offeredMegaLinks = WeakHashMap<ClintWebView, String>()
+import com.jhaiian.clint.browser.MegaOffer
 
 internal fun MainActivity.maybeOfferMegaDownload(webView: ClintWebView, url: String) {
+    val tabId = tabManager.tabs.firstOrNull { it.webView === webView }?.id ?: return
     val link = MegaLink.parse(url)
-    if (link == null) {
-        offeredMegaLinks.remove(webView)
+    val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+    val manager = prefs.getString(DownloadSettingsKeys.PREF_DOWNLOAD_MANAGER, DownloadSettingsKeys.DEFAULT_DOWNLOAD_MANAGER)
+    if (link == null ||
+        !prefs.getBoolean(DownloadSettingsKeys.PREF_DETECT_MEGA_LINKS, DownloadSettingsKeys.DEFAULT_DETECT_MEGA_LINKS) ||
+        (manager != null && manager != DownloadSettingsKeys.DEFAULT_DOWNLOAD_MANAGER)
+    ) {
+        uiState.megaOffers.remove(tabId)
         return
     }
-    if (tabManager.activeTab?.webView !== webView) return
-    if (offeredMegaLinks[webView] == link.identity) return
-    val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-    if (!prefs.getBoolean(DownloadSettingsKeys.PREF_DETECT_MEGA_LINKS, DownloadSettingsKeys.DEFAULT_DETECT_MEGA_LINKS)) return
-    val manager = prefs.getString(DownloadSettingsKeys.PREF_DOWNLOAD_MANAGER, DownloadSettingsKeys.DEFAULT_DOWNLOAD_MANAGER)
-    if (manager != null && manager != DownloadSettingsKeys.DEFAULT_DOWNLOAD_MANAGER) return
+    val offer = MegaOffer(link, webView.settings.userAgentString)
+    if (uiState.megaOffers[tabId] != offer) uiState.megaOffers[tabId] = offer
+}
+
+internal fun MainActivity.openMegaOffer(offer: MegaOffer) {
     if (overlayContent != null) return
-    offeredMegaLinks[webView] = link.identity
-    showMegaDownload(link, webView.settings.userAgentString, allowQuick = false)
+    showMegaDownload(offer.link, offer.userAgent, allowQuick = false)
 }
 
 internal fun MainActivity.showMegaDownload(link: MegaLink, userAgent: String, allowQuick: Boolean = true) {

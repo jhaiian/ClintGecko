@@ -241,6 +241,15 @@ private fun HeroCard(
                 .rotate(18f)
                 .alpha(0.06f)
         )
+        val heroContext = androidx.compose.ui.platform.LocalContext.current
+        val profileName = remember {
+            if (com.jhaiian.clint.profiles.ProfileRepository.all(heroContext).isEmpty()) null
+            else {
+                val id = com.jhaiian.clint.profiles.ActiveProfile.id(heroContext)
+                com.jhaiian.clint.profiles.ProfileRepository.get(heroContext, id)?.name
+                    ?: heroContext.getString(R.string.profiles_default_name)
+            }
+        }
         Column(Modifier.fillMaxWidth().padding(20.dp)) {
             Text(
                 stringResource(R.string.ext_title),
@@ -254,8 +263,16 @@ private fun HeroCard(
                 color = Color.White.copy(alpha = 0.82f),
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
-                modifier = Modifier.padding(top = 4.dp, bottom = 18.dp)
+                modifier = Modifier.padding(top = 4.dp, bottom = if (profileName == null) 18.dp else 4.dp)
             )
+            if (profileName != null) {
+                Text(
+                    stringResource(R.string.ext_profile_scope, profileName),
+                    color = Color.White.copy(alpha = 0.82f),
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(bottom = 18.dp)
+                )
+            }
             Row(
                 Modifier
                     .fillMaxWidth()

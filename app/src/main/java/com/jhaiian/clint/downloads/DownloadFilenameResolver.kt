@@ -22,6 +22,15 @@ internal object DownloadFilenameResolver {
 
     private val textExtensions = setOf("html", "htm", "xhtml", "xml", "txt", "json", "js", "css", "csv", "svg", "php")
 
+    private val placeholderMimeTypes = setOf(
+        "text/html", "text/plain", "application/json", "application/xml", "text/xml", "application/xhtml+xml",
+        "application/vnd.apple.mpegurl", "application/x-mpegurl", "audio/mpegurl", "audio/x-mpegurl", "application/dash+xml"
+    )
+
+    private val textLikeExtensions = textExtensions + setOf("m3u8", "m3u", "mpd", "vtt", "srt", "md")
+
+    private val placeholderSignatures = listOf("#EXTM3U", "<!DOCTYPE", "<HTML", "<?XML", "<MPD", "<HEAD", "<BODY")
+
     private val genericMimeTypes = setOf(
         "application/octet-stream", "binary/octet-stream", "application/binary",
         "application/force-download", "application/download", "application/x-download",
@@ -103,6 +112,17 @@ internal object DownloadFilenameResolver {
             ext in markupExtensions && sniffed != null && sniffed !in textExtensions -> "$safeBase.$sniffed"
             else -> filename
         }
+    }
+
+    fun looksLikePlaceholder(filename: String, mimeType: String?, head: ByteArray?): Boolean {
+        if (split(filename).second in textLikeExtensions) return false
+        if (normalizeMime(mimeType) in placeholderMimeTypes) return true
+        val text = head?.takeIf { it.isNotEmpty() }
+            ?.let { String(it, 0, minOf(it.size, 64), Charsets.ISO_8859_1) }
+            ?.trimStart('\u00EF', '\u00BB', '\u00BF', '\uFEFF', ' ', '\t', '\r', '\n')
+            ?.uppercase(Locale.ROOT)
+            ?: return false
+        return placeholderSignatures.any { text.startsWith(it) }
     }
 
     fun needsSniffing(filename: String): Boolean {

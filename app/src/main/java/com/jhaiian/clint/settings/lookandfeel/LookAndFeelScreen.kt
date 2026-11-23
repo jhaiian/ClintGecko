@@ -5,10 +5,12 @@ import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Contrast
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Workspaces
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Palette
@@ -71,13 +73,17 @@ fun LookAndFeelScreen(
     onHideStatusBarRowClicked: () -> Unit,
     onHideSystemNavigationRowClicked: () -> Unit,
     onShowHomeButtonRowClicked: () -> Unit,
+    onStripUrlSchemeRowClicked: () -> Unit,
     onShowTabStripRowClicked: () -> Unit,
     onTabStripPositionSelected: (String) -> Unit,
     onTabGroupsRowClicked: () -> Unit,
     onTabGroupBarPositionSelected: (String) -> Unit,
     onCustomizeMenuRowClicked: () -> Unit,
+    onCustomizeToolbarRowClicked: () -> Unit,
     onExitConfirmationConfirmed: (String) -> Unit,
-    onPopupAlertStyleSelected: (String) -> Unit
+    onBackCloseTabSelected: (String) -> Unit,
+    onPopupAlertStyleSelected: (String) -> Unit,
+    onPopupExtensionsFirstRowClicked: () -> Unit
 ) {
     val colors = LocalClintColors.current
     val intensityEnabled = ThemeSwatchUtils.isSurfaceIntensityEnabled(state.theme, state.accent)
@@ -112,6 +118,10 @@ fun LookAndFeelScreen(
                 LookAndFeelDialog.EXIT_CONFIRMATION -> ExitConfirmationDialog(
                     current = state.exitConfirmation, hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
                     onConfirm = onExitConfirmationConfirmed, onDismiss = { state.openDialog = null }
+                )
+                LookAndFeelDialog.BACK_CLOSE_TAB -> BackCloseTabDialog(
+                    current = state.backCloseTab, hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
+                    onSelect = onBackCloseTabSelected, onDismiss = { state.openDialog = null }
                 )
                 LookAndFeelDialog.TAB_STRIP_POSITION -> TabBarPositionDialog(
                     title = stringResource(R.string.pref_tab_strip_position_title),
@@ -215,6 +225,25 @@ fun LookAndFeelScreen(
                     ClintSwitch(checked = state.showHomeButton)
                 }
             )
+            RowDivider(colors.divider)
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Link,
+                title = stringResource(R.string.pref_strip_url_scheme_title),
+                summary = stringResource(R.string.pref_strip_url_scheme_summary),
+                colors = colors,
+                onClick = onStripUrlSchemeRowClicked,
+                trailing = {
+                    ClintSwitch(checked = state.stripUrlScheme)
+                }
+            )
+            RowDivider(colors.divider)
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Reorder,
+                title = stringResource(R.string.toolbar_customization_title),
+                summary = stringResource(R.string.toolbar_customization_settings_summary),
+                colors = colors,
+                onClick = onCustomizeToolbarRowClicked
+            )
         }
 
         SettingsSectionLabel(stringResource(R.string.pref_category_tabs))
@@ -314,11 +343,30 @@ fun LookAndFeelScreen(
             )
             RowDivider(colors.divider)
             SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Tab,
+                title = stringResource(R.string.back_close_tab_title),
+                summary = stringResource(backCloseTabSummaryRes(state.backCloseTab)),
+                colors = colors,
+                onClick = { state.openDialog = LookAndFeelDialog.BACK_CLOSE_TAB }
+            )
+            RowDivider(colors.divider)
+            SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Layers,
                 title = stringResource(R.string.pref_popup_alert_style_title),
                 summary = stringResource(popupAlertStyleSummaryRes(state.popupAlertStyle)),
                 colors = colors,
                 onClick = { state.openDialog = LookAndFeelDialog.POPUP_ALERT_STYLE }
+            )
+            RowDivider(colors.divider)
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Extension,
+                title = stringResource(R.string.pref_popup_extensions_first_title),
+                summary = stringResource(R.string.pref_popup_extensions_first_summary),
+                colors = colors,
+                onClick = onPopupExtensionsFirstRowClicked,
+                trailing = {
+                    ClintSwitch(checked = state.popupExtensionsFirst)
+                }
             )
         }
     }
@@ -411,6 +459,12 @@ private fun exitConfirmationSummaryRes(value: String): Int = when (value) {
     "off" -> R.string.exit_confirmation_off
     "dialog" -> R.string.exit_confirmation_dialog
     else -> R.string.exit_confirmation_toast
+}
+
+private fun backCloseTabSummaryRes(value: String): Int = when (value) {
+    "any" -> R.string.back_close_tab_any
+    "never" -> R.string.back_close_tab_never
+    else -> R.string.back_close_tab_opener
 }
 
 private fun popupAlertStyleSummaryRes(value: String): Int =

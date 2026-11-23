@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -35,6 +36,10 @@
             <category android:name="android.intent.category.BROWSABLE" />
             <category android:name="android.intent.category.DEFAULT" />
             <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" android:mimeType="application/*" />
         </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />
@@ -76,12 +81,27 @@
             android:name=".browser.MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
+            android:supportsPictureInPicture="true"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode"
             android:windowSoftInputMode="stateHidden|adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".customtab.CustomTabLauncherActivity"
+            android:exported="true"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -101,12 +121,13 @@
                 <data android:scheme="https" />
                 <data android:scheme="file" />
             </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <data android:mimeType="text/plain" />
-            </intent-filter>
         </activity>
+
+        <activity
+            android:name=".customtab.CustomTabActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode"
+            android:windowSoftInputMode="stateHidden|adjustResize" />
 
         <activity
             android:name=".shortcuts.ShortcutLaunchActivity"
@@ -119,6 +140,7 @@
         <activity
             android:name=".mediacapture.VideoPreviewActivity"
             android:exported="false"
+            android:supportsPictureInPicture="true"
             android:configChanges="uiMode|screenSize|smallestScreenSize|screenLayout|orientation"
             android:parentActivityName=".browser.MainActivity" />
 
@@ -134,9 +156,18 @@
             android:configChanges="uiMode|screenSize|smallestScreenSize|screenLayout|orientation"
             android:parentActivityName=".browser.MainActivity" />
 
+        <activity
+            android:name=".downloads.DownloadReceiverActivity"
+            android:exported="false"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:configChanges="uiMode|screenSize|smallestScreenSize|screenLayout|orientation"
+            android:windowSoftInputMode="stateHidden|adjustResize"
+            android:theme="@style/Theme.Clint.Translucent" />
+
         <activity-alias
             android:name=".downloads.ClintDownloaderAlias"
-            android:targetActivity=".downloads.DownloadsActivity"
+            android:targetActivity=".downloads.DownloadReceiverActivity"
             android:exported="true"
             android:label="@string/clint_downloader_label"
             android:icon="@mipmap/ic_launcher"
@@ -145,6 +176,14 @@
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:mimeType="application/*" />
             </intent-filter>
         </activity-alias>
 
@@ -233,6 +272,12 @@
             android:parentActivityName=".settings.SettingsActivity" />
 
         <activity
+            android:name=".settings.toolbarcustomization.ToolbarCustomizationActivity"
+            android:exported="false"
+            android:configChanges="uiMode|screenSize|smallestScreenSize|screenLayout|orientation"
+            android:parentActivityName=".settings.SettingsActivity" />
+
+        <activity
             android:name=".settings.supportclint.SupportClintActivity"
             android:exported="false"
             android:configChanges="uiMode|screenSize|smallestScreenSize|screenLayout|orientation"
@@ -279,6 +324,14 @@
             android:launchMode="singleTop"
             android:configChanges="uiMode|screenSize|smallestScreenSize|screenLayout|orientation"
             android:windowSoftInputMode="stateHidden" />
+
+        <service
+            android:name=".customtab.ClintCustomTabsService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.support.customtabs.action.CustomTabsService" />
+            </intent-filter>
+        </service>
 
         <service
             android:name=".downloads.DownloadForegroundService"

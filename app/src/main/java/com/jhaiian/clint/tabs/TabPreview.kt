@@ -9,5 +9,6 @@ data class TabPreview(
     val isIncognito: Boolean,
     val profileId: String = "default",
     val audio: TabAudioState? = null,
-    val groupId: String? = null
+    val groupId: String? = null,
+    val isPinned: Boolean = false
 )

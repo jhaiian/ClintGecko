@@ -4,6 +4,8 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.BatterySaver
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.CreateNewFolder
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Folder
@@ -12,7 +14,7 @@ import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material.icons.filled.RestartAlt
@@ -39,6 +41,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import com.jhaiian.clint.ui.ClintRadioButton
 import com.jhaiian.clint.ui.ClintOutlinedTextField
 import com.jhaiian.clint.ui.ClintSlider
 import com.jhaiian.clint.ui.ClintSwitch
@@ -81,8 +85,11 @@ import com.jhaiian.clint.ui.theme.LocalClintColors
 fun DownloadSettingsScreen(
     state: DownloadSettingsUiState,
     onDownloadManagerSelected: (String) -> Unit,
+    onCustomDownloadManagerSelected: (String) -> Unit,
     onLocationModeSelected: (String) -> Unit,
     onFolderRowClick: () -> Unit,
+    onSavedLocationSelected: (android.net.Uri) -> Unit,
+    onSavedLocationRemoved: (android.net.Uri) -> Unit,
     onCategorizeDownloadsClick: () -> Unit,
     onMeasurementSystemSelected: (Boolean) -> Unit,
     onUnmeteredOnlyClick: () -> Unit,
@@ -101,7 +108,6 @@ fun DownloadSettingsScreen(
     onRetryIntervalConfirm: (Int) -> Unit,
     onIgnoreBatteryOptClick: () -> Unit,
     onGrantAllFilesAccessClick: () -> Unit,
-    onPushNotificationsClick: () -> Unit,
     onHistoryNormalClick: () -> Unit,
     onHistoryIncognitoClick: () -> Unit,
     onKeepScreenOnClick: () -> Unit,
@@ -110,18 +116,19 @@ fun DownloadSettingsScreen(
     onQuickDownloadImagesClick: () -> Unit,
     onDetectMegaLinksClick: () -> Unit,
     onDialogUiSelected: (String) -> Unit,
-    onDuplicateHandlingSelected: (String) -> Unit
+    onDuplicateHandlingSelected: (String) -> Unit,
+    onCustomizeClick: () -> Unit
 ) {
     val colors = LocalClintColors.current
     val context = LocalContext.current
 
-    val tapToChooseText = stringResource(R.string.download_location_tap_to_choose)
-    val folderPathText = remember(state.locationMode, state.customUri, tapToChooseText) {
-        when {
-            state.locationMode != DownloadSettingsKeys.MODE_CUSTOM -> DEFAULT_DOWNLOAD_PATH
-            state.customUri != null -> uriToDisplayPath(state.customUri!!)
-            else -> tapToChooseText
-        }
+    val customDownloadManagerName = remember(state.customDownloadManagerPackage) {
+        state.customDownloadManagerPackage?.let { com.jhaiian.clint.downloads.customDownloadManagerLabel(context, it) }
+    }
+    val downloadManagerSummary = if (state.downloadManagerApp == com.jhaiian.clint.downloads.DownloadManagerAppIds.CUSTOM) {
+        customDownloadManagerName ?: stringResource(R.string.download_manager_option_custom)
+    } else {
+        stringResource(downloadManagerOptionLabelRes(state.downloadManagerApp))
     }
     val storageInfoText = remember(state.locationMode, state.customUri, state.measurementSystemDecimal) {
         resolveStorageInfoText(context, state.locationMode, state.customUri)
@@ -153,8 +160,10 @@ fun DownloadSettingsScreen(
                     onConfirm = onTotalSpeedLimitConfirm, onDismiss = { state.openDialog = null }
                 )
                 DownloadSettingsDialog.DOWNLOAD_MANAGER -> DownloadManagerDialog(
-                    current = state.downloadManagerApp, hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
-                    onSelect = onDownloadManagerSelected, onDismiss = { state.openDialog = null }
+                    current = state.downloadManagerApp, customPackage = state.customDownloadManagerPackage,
+                    hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
+                    onSelect = onDownloadManagerSelected, onSelectCustom = onCustomDownloadManagerSelected,
+                    onDismiss = { state.openDialog = null }
                 )
                 DownloadSettingsDialog.DIALOG_UI -> DownloadDialogUiDialog(
                     current = state.dialogUi, hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
@@ -168,35 +177,47 @@ fun DownloadSettingsScreen(
             }
         }
     ) {
-        SettingsSectionLabel(stringResource(R.string.download_section_manager))
+        SettingsSectionLabel(stringResource(R.string.download_appearance_section))
         SettingsSection(colors.cardBackground) {
             SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.Apps,
-                title = stringResource(R.string.download_manager_title),
-                summary = stringResource(downloadManagerOptionLabelRes(state.downloadManagerApp)),
+                icon = androidx.compose.material.icons.Icons.Filled.Palette,
+                title = stringResource(R.string.download_appearance_title),
+                summary = stringResource(R.string.download_appearance_summary),
                 colors = colors,
-                onClick = { state.openDialog = DownloadSettingsDialog.DOWNLOAD_MANAGER }
+                onClick = onCustomizeClick
             )
         }
 
         SettingsSectionLabel(stringResource(R.string.download_section_location))
         SettingsSection(colors.cardBackground) {
-            Column(Modifier.padding(16.dp)) {
+            val savedLocationsTitle = stringResource(R.string.download_saved_locations_title)
+            Column(Modifier.settingsSearchHighlight(savedLocationsTitle, colors.primary).padding(16.dp)) {
                 DownloadLocationDropdown(mode = state.locationMode, colors = colors, onModeSelected = onLocationModeSelected)
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp)
-                        .alpha(if (state.locationMode == DownloadSettingsKeys.MODE_CUSTOM) 1f else 0.4f)
-                        .clickable(enabled = state.locationMode == DownloadSettingsKeys.MODE_CUSTOM, onClick = onFolderRowClick)
-                        .padding(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(androidx.compose.material.icons.Icons.Filled.Folder, contentDescription = null, tint = colors.iconTint, modifier = Modifier.size(20.dp))
-                    Text(
-                        folderPathText, color = colors.onSurface, fontSize = 14.sp, fontFamily = FontFamily.Monospace,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp)
+                if (state.locationMode == DownloadSettingsKeys.MODE_CUSTOM) {
+                    SavedLocationsList(
+                        title = savedLocationsTitle,
+                        locations = state.savedLocations,
+                        selected = state.customUri,
+                        colors = colors,
+                        onSelect = onSavedLocationSelected,
+                        onRemove = onSavedLocationRemoved,
+                        onAdd = onFolderRowClick
                     )
+                } else {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp)
+                            .alpha(0.4f)
+                            .padding(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(androidx.compose.material.icons.Icons.Filled.Folder, contentDescription = null, tint = colors.iconTint, modifier = Modifier.size(20.dp))
+                        Text(
+                            DEFAULT_DOWNLOAD_PATH, color = colors.onSurface, fontSize = 14.sp, fontFamily = FontFamily.Monospace,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp)
+                        )
+                    }
                 }
                 Text(storageInfoText, color = colors.secondaryText, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
             }
@@ -276,18 +297,6 @@ fun DownloadSettingsScreen(
                 summary = stringResource(if (state.dialogUi == DownloadSettingsKeys.DIALOG_UI_COMPACT) R.string.download_dialog_ui_compact else R.string.download_dialog_ui_standard),
                 colors = colors,
                 onClick = { state.openDialog = DownloadSettingsDialog.DIALOG_UI }
-            )
-        }
-
-        SettingsSectionLabel(stringResource(R.string.download_section_notifications))
-        SettingsSection(colors.cardBackground) {
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.Notifications,
-                title = stringResource(R.string.download_push_notifications_title),
-                summary = stringResource(R.string.download_push_notifications_summary),
-                colors = colors,
-                onClick = onPushNotificationsClick,
-                trailing = { ClintSwitch(checked = state.pushNotifications) }
             )
         }
 
@@ -520,6 +529,72 @@ fun DownloadSettingsScreen(
                 )
             }
         }
+
+        SettingsSectionLabel(stringResource(R.string.download_section_manager))
+        SettingsSection(colors.cardBackground) {
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Apps,
+                title = stringResource(R.string.download_manager_title),
+                summary = downloadManagerSummary,
+                colors = colors,
+                onClick = { state.openDialog = DownloadSettingsDialog.DOWNLOAD_MANAGER }
+            )
+        }
+    }
+}
+
+@Composable
+private fun SavedLocationsList(
+    title: String,
+    locations: List<android.net.Uri>,
+    selected: android.net.Uri?,
+    colors: ClintColors,
+    onSelect: (android.net.Uri) -> Unit,
+    onRemove: (android.net.Uri) -> Unit,
+    onAdd: () -> Unit
+) {
+    Text(
+        title, color = colors.secondaryText, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+        modifier = Modifier.padding(top = 14.dp, bottom = 4.dp, start = 4.dp)
+    )
+    locations.forEach { uri ->
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { onSelect(uri) }
+                .padding(start = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ClintRadioButton(selected = uri == selected)
+            Text(
+                uriToDisplayPath(uri), color = colors.onSurface, fontSize = 14.sp, fontFamily = FontFamily.Monospace,
+                maxLines = 1, overflow = TextOverflow.MiddleEllipsis, modifier = Modifier.weight(1f).padding(start = 8.dp)
+            )
+            IconButton(onClick = { onRemove(uri) }) {
+                Icon(
+                    androidx.compose.material.icons.Icons.Filled.Delete,
+                    contentDescription = stringResource(R.string.download_location_remove),
+                    tint = colors.iconTint,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onAdd)
+            .padding(horizontal = 4.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(androidx.compose.material.icons.Icons.Filled.CreateNewFolder, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
+        Text(
+            stringResource(R.string.download_location_add_new), color = colors.primary, fontSize = 14.sp,
+            fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 12.dp)
+        )
     }
 }
 

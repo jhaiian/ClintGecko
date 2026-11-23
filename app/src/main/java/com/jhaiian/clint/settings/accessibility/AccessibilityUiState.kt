@@ -8,9 +8,11 @@ import androidx.compose.runtime.setValue
 class AccessibilityUiState(
     initialAutoFontSize: Boolean,
     initialFontSizePercent: Int,
-    initialForceZoom: Boolean
+    initialForceZoom: Boolean,
+    initialColorFilter: String
 ) {
     var autoFontSize by mutableStateOf(initialAutoFontSize)
     var fontSizePercent by mutableIntStateOf(initialFontSizePercent)
     var forceZoom by mutableStateOf(initialForceZoom)
+    var colorFilter by mutableStateOf(initialColorFilter)
 }

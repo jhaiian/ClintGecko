@@ -68,6 +68,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -80,10 +81,12 @@ import com.jhaiian.clint.browser.sheets.LongPressContentMaxWidth
 import com.jhaiian.clint.settings.common.dialogSectionBackground
 import com.jhaiian.clint.settings.sitepermissions.SitePermissionDatabase
 import com.jhaiian.clint.ui.ClintDialogStatusBarEffect
+import com.jhaiian.clint.ui.ClintSheetWindowInsets
 import com.jhaiian.clint.ui.ClintSwitch
 import com.jhaiian.clint.ui.listscreen.ListMenuItem
 import com.jhaiian.clint.ui.listscreen.PopupShape
 import com.jhaiian.clint.ui.rememberClintFavicon
+import com.jhaiian.clint.ui.rememberSheetFlingConnection
 import com.jhaiian.clint.ui.theme.LocalClintColors
 import java.text.DateFormat
 import java.util.Date
@@ -136,6 +139,7 @@ internal fun SiteInfoSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        contentWindowInsets = { ClintSheetWindowInsets },
         containerColor = colors.popupBackground,
         dragHandle = { BottomSheetDefaults.DragHandle(color = colors.divider) }
     ) {
@@ -146,6 +150,7 @@ internal fun SiteInfoSheet(
                     .fillMaxWidth()
                     .widthIn(max = LongPressContentMaxWidth)
                     .heightIn(max = maxSheetHeight)
+                    .nestedScroll(rememberSheetFlingConnection(sheetState, consumeFling = false))
                     .verticalScroll(rememberScrollState())
                     .navigationBarsPadding()
                     .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)

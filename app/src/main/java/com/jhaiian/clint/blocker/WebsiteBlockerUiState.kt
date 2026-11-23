@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.jhaiian.clint.parental.ParentalGateRequest
 import com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig
 import com.jhaiian.clint.ui.listscreen.ListSortKey
 import com.jhaiian.clint.ui.listscreen.ListSortOrder
@@ -58,6 +59,7 @@ class WebsiteBlockerUiState {
     var compileResult by mutableStateOf<WebsiteBlockerCompileResultUi?>(null)
     var bannerText by mutableStateOf<String?>(null)
     var confirmDialog by mutableStateOf<ConfirmDialogConfig?>(null)
+    var guardRequest by mutableStateOf<ParentalGateRequest?>(null)
 
     var compiledEnabledIds by mutableStateOf(emptySet<String>())
     var compiledAdditionalCount by mutableStateOf(0)

@@ -46,6 +46,7 @@ import com.jhaiian.clint.crash.CrashUiState
 import com.jhaiian.clint.crash.MAX_CRASH_CLIP_CHARS
 import com.jhaiian.clint.downloads.ClintDownloadManager
 import com.jhaiian.clint.downloads.DEFAULT_SPEED_LIMIT_UNIT
+import com.jhaiian.clint.downloads.DownloadSavedLocations
 import com.jhaiian.clint.downloads.DownloadScheduleMonitor
 import com.jhaiian.clint.history.HistoryActivity
 import com.jhaiian.clint.settings.about.AboutScreen
@@ -157,12 +158,15 @@ fun LookAndFeelPane(activity: SettingsActivity) {
             initialHideStatusBar = prefs.getBoolean("hide_status_bar", false),
             initialHideSystemNavigation = prefs.getBoolean("hide_system_navigation", false),
             initialShowHomeButton = prefs.getBoolean("show_home_button", true),
+            initialStripUrlScheme = prefs.getBoolean(com.jhaiian.clint.util.PREF_STRIP_URL_SCHEME, true),
             initialShowTabStrip = com.jhaiian.clint.tabs.TabStripPrefs.isEnabled(activity, prefs),
             initialTabStripPosition = com.jhaiian.clint.tabs.TabBarPlacement.normalize(prefs.getString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_STRIP_POSITION, null)),
             initialTabGroupsEnabled = com.jhaiian.clint.tabs.TabGroupPrefs.isEnabled(prefs),
             initialTabGroupBarPosition = com.jhaiian.clint.tabs.TabBarPlacement.normalize(prefs.getString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_GROUP_BAR_POSITION, null)),
             initialExitConfirmation = prefs.getString("exit_confirmation", "toast") ?: "toast",
-            initialPopupAlertStyle = prefs.getString("popup_alert_style", "dialog") ?: "dialog"
+            initialBackCloseTab = prefs.getString("back_close_tab", "opener") ?: "opener",
+            initialPopupAlertStyle = prefs.getString("popup_alert_style", "dialog") ?: "dialog",
+            initialPopupExtensionsFirst = prefs.getBoolean("popup_extensions_first", true)
         )
     }
     var confirmDialog by remember { mutableStateOf<ConfirmDialogConfig?>(null) }
@@ -174,12 +178,15 @@ fun LookAndFeelPane(activity: SettingsActivity) {
         uiState.hideStatusBar = prefs.getBoolean("hide_status_bar", false)
         uiState.hideSystemNavigation = prefs.getBoolean("hide_system_navigation", false)
         uiState.showHomeButton = prefs.getBoolean("show_home_button", true)
+        uiState.stripUrlScheme = prefs.getBoolean(com.jhaiian.clint.util.PREF_STRIP_URL_SCHEME, true)
         uiState.showTabStrip = com.jhaiian.clint.tabs.TabStripPrefs.isEnabled(activity, prefs)
         uiState.tabStripPosition = com.jhaiian.clint.tabs.TabBarPlacement.normalize(prefs.getString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_STRIP_POSITION, null))
         uiState.tabGroupsEnabled = com.jhaiian.clint.tabs.TabGroupPrefs.isEnabled(prefs)
         uiState.tabGroupBarPosition = com.jhaiian.clint.tabs.TabBarPlacement.normalize(prefs.getString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_GROUP_BAR_POSITION, null))
         uiState.exitConfirmation = prefs.getString("exit_confirmation", "toast") ?: "toast"
+        uiState.backCloseTab = prefs.getString("back_close_tab", "opener") ?: "opener"
         uiState.popupAlertStyle = prefs.getString("popup_alert_style", "dialog") ?: "dialog"
+        uiState.popupExtensionsFirst = prefs.getBoolean("popup_extensions_first", true)
         uiState.language = prefs.getString(LocaleHelper.PREF_APP_LANGUAGE, LocaleHelper.LANGUAGE_SYSTEM) ?: LocaleHelper.LANGUAGE_SYSTEM
     }
 
@@ -244,6 +251,12 @@ fun LookAndFeelPane(activity: SettingsActivity) {
         val newValue = !uiState.showHomeButton
         prefs.edit().putBoolean("show_home_button", newValue).apply()
         uiState.showHomeButton = newValue
+    }
+
+    fun onStripUrlSchemeRowClicked() {
+        val newValue = !uiState.stripUrlScheme
+        prefs.edit().putBoolean(com.jhaiian.clint.util.PREF_STRIP_URL_SCHEME, newValue).apply()
+        uiState.stripUrlScheme = newValue
     }
 
     fun onShowTabStripRowClicked() {
@@ -335,6 +348,7 @@ fun LookAndFeelPane(activity: SettingsActivity) {
         onHideStatusBarRowClicked = ::onHideStatusBarRowClicked,
         onHideSystemNavigationRowClicked = ::onHideSystemNavigationRowClicked,
         onShowHomeButtonRowClicked = ::onShowHomeButtonRowClicked,
+        onStripUrlSchemeRowClicked = ::onStripUrlSchemeRowClicked,
         onShowTabStripRowClicked = ::onShowTabStripRowClicked,
         onTabStripPositionSelected = { value ->
             prefs.edit().putString(com.jhaiian.clint.tabs.TabBarPlacement.PREF_TAB_STRIP_POSITION, value).apply()
@@ -350,48 +364,43 @@ fun LookAndFeelPane(activity: SettingsActivity) {
         onCustomizeMenuRowClicked = {
             activity.startActivity(Intent(activity, com.jhaiian.clint.settings.menucustomization.MenuCustomizationActivity::class.java))
         },
+        onCustomizeToolbarRowClicked = {
+            activity.startActivity(Intent(activity, com.jhaiian.clint.settings.toolbarcustomization.ToolbarCustomizationActivity::class.java))
+        },
         onExitConfirmationConfirmed = { value ->
             prefs.edit().putString("exit_confirmation", value).apply()
             uiState.exitConfirmation = value
+            uiState.openDialog = null
+        },
+        onBackCloseTabSelected = { value ->
+            prefs.edit().putString("back_close_tab", value).apply()
+            uiState.backCloseTab = value
             uiState.openDialog = null
         },
         onPopupAlertStyleSelected = { value ->
             prefs.edit().putString("popup_alert_style", value).apply()
             uiState.popupAlertStyle = value
             uiState.openDialog = null
+        },
+        onPopupExtensionsFirstRowClicked = {
+            val value = !uiState.popupExtensionsFirst
+            prefs.edit().putBoolean("popup_extensions_first", value).apply()
+            uiState.popupExtensionsFirst = value
         }
     )
     ConfirmDialogHost(confirmDialog, uiState.hideStatusBar, uiState.hideSystemNavigation) { confirmDialog = null }
 }
 
 @Composable
-fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> Unit) {
-    val prefs = remember { PreferenceManager.getDefaultSharedPreferences(activity) }
+fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> Unit, onFindInPageClick: () -> Unit, onHomepageClick: () -> Unit, onSuggestionsClick: () -> Unit, onVideoPlayerClick: () -> Unit) {
+    val prefs = remember { PreferenceManager.getDefaultSharedPreferences(activity).also { com.jhaiian.clint.browser.migrateLegacyCustomEngines(it) } }
     val uiState = remember {
         BrowserSettingsUiState(
-            initialHomepage = prefs.getString(PREF_HOMEPAGE, HOMEPAGE_CLINT) ?: HOMEPAGE_CLINT,
-            initialHomepageCustomUrl = prefs.getString(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_CUSTOM_URL, "") ?: "",
-            initialHomepageDesign = readHomepageDesign(activity, prefs),
-            initialHomepageShowFavorites = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_FAVORITES, true),
-            initialHomepageShowQuickActions = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_QUICK_ACTIONS, true),
-            initialHomepageShowRecent = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_RECENT, true),
-            initialHomepageCenterContent = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_CENTER_CONTENT, true),
-            initialHomepageImageFullBrightness = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_IMAGE_FULL_BRIGHTNESS, false),
             initialDeleteInactiveTabs = com.jhaiian.clint.tabs.InactiveTabsPolicy.normalize(prefs.getString(com.jhaiian.clint.tabs.InactiveTabsPolicy.PREF_DELETE_INACTIVE_TABS, null)),
             initialSearchEngine = prefs.getString("search_engine", "duckduckgo") ?: "duckduckgo",
-            initialCustomSearchEngineName = com.jhaiian.clint.browser.customSearchEngineName(prefs),
-            initialCustomSearchEngineUrl = com.jhaiian.clint.browser.customSearchEngineUrlTemplate(prefs),
             initialSearchSuggestionsApi = prefs.getString("search_suggestions_api", "duckduckgo") ?: "duckduckgo",
-            initialCustomSearchSuggestionsApiName = com.jhaiian.clint.browser.customSearchSuggestionsApiName(prefs),
-            initialCustomSearchSuggestionsApiUrl = com.jhaiian.clint.browser.customSearchSuggestionsApiUrlTemplate(prefs),
             initialIncognitoSearchEngine = com.jhaiian.clint.browser.incognitoSearchEngineSetting(prefs),
-            initialIncognitoCustomSearchEngineName = com.jhaiian.clint.browser.incognitoCustomSearchEngineName(prefs),
-            initialIncognitoCustomSearchEngineUrl = com.jhaiian.clint.browser.incognitoCustomSearchEngineUrlTemplate(prefs),
             initialIncognitoSearchSuggestionsApi = com.jhaiian.clint.browser.incognitoSearchSuggestionsApiSetting(prefs),
-            initialIncognitoCustomSearchSuggestionsApiName = com.jhaiian.clint.browser.incognitoCustomSearchSuggestionsApiName(prefs),
-            initialIncognitoCustomSearchSuggestionsApiUrl = com.jhaiian.clint.browser.incognitoCustomSearchSuggestionsApiUrlTemplate(prefs),
-            initialSuggestionsShowHistory = prefs.getBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_HISTORY, true),
-            initialSuggestionsShowBookmarks = prefs.getBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_BOOKMARKS, true),
             initialJavascriptEnabled = prefs.getBoolean("javascript_enabled", true),
             initialHideStatusBar = prefs.getBoolean("hide_status_bar", false),
             initialHideSystemNavigation = prefs.getBoolean("hide_system_navigation", false),
@@ -404,28 +413,10 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
     var confirmDialog by remember { mutableStateOf<ConfirmDialogConfig?>(null) }
 
     OnResume {
-        uiState.homepage = prefs.getString(PREF_HOMEPAGE, HOMEPAGE_CLINT) ?: HOMEPAGE_CLINT
-        uiState.homepageCustomUrl = prefs.getString(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_CUSTOM_URL, "") ?: ""
-        uiState.homepageDesign = readHomepageDesign(activity, prefs)
-        uiState.homepageShowFavorites = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_FAVORITES, true)
-        uiState.homepageShowQuickActions = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_QUICK_ACTIONS, true)
-        uiState.homepageShowRecent = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_RECENT, true)
-        uiState.homepageCenterContent = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_CENTER_CONTENT, true)
-        uiState.homepageImageFullBrightness = prefs.getBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_IMAGE_FULL_BRIGHTNESS, false)
         uiState.searchEngine = prefs.getString("search_engine", "duckduckgo") ?: "duckduckgo"
-        uiState.customSearchEngineName = com.jhaiian.clint.browser.customSearchEngineName(prefs)
-        uiState.customSearchEngineUrl = com.jhaiian.clint.browser.customSearchEngineUrlTemplate(prefs)
         uiState.searchSuggestionsApi = prefs.getString("search_suggestions_api", "duckduckgo") ?: "duckduckgo"
-        uiState.customSearchSuggestionsApiName = com.jhaiian.clint.browser.customSearchSuggestionsApiName(prefs)
-        uiState.customSearchSuggestionsApiUrl = com.jhaiian.clint.browser.customSearchSuggestionsApiUrlTemplate(prefs)
         uiState.incognitoSearchEngine = com.jhaiian.clint.browser.incognitoSearchEngineSetting(prefs)
-        uiState.incognitoCustomSearchEngineName = com.jhaiian.clint.browser.incognitoCustomSearchEngineName(prefs)
-        uiState.incognitoCustomSearchEngineUrl = com.jhaiian.clint.browser.incognitoCustomSearchEngineUrlTemplate(prefs)
         uiState.incognitoSearchSuggestionsApi = com.jhaiian.clint.browser.incognitoSearchSuggestionsApiSetting(prefs)
-        uiState.incognitoCustomSearchSuggestionsApiName = com.jhaiian.clint.browser.incognitoCustomSearchSuggestionsApiName(prefs)
-        uiState.incognitoCustomSearchSuggestionsApiUrl = com.jhaiian.clint.browser.incognitoCustomSearchSuggestionsApiUrlTemplate(prefs)
-        uiState.suggestionsShowHistory = prefs.getBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_HISTORY, true)
-        uiState.suggestionsShowBookmarks = prefs.getBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_BOOKMARKS, true)
         uiState.javascriptEnabled = prefs.getBoolean("javascript_enabled", true)
         uiState.hideStatusBar = prefs.getBoolean("hide_status_bar", false)
         uiState.hideSystemNavigation = prefs.getBoolean("hide_system_navigation", false)
@@ -435,86 +426,10 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
         uiState.aboutConfigEnabled = prefs.getBoolean("about_config_enabled", false)
     }
 
-    fun onHomepageConfirmed(selected: String, customUrl: String) {
-        prefs.edit()
-            .putString(PREF_HOMEPAGE, selected)
-            .putString(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_CUSTOM_URL, customUrl)
-            .apply()
-        uiState.homepage = selected
-        uiState.homepageCustomUrl = customUrl
-        uiState.homepageDialogOpen = false
-    }
-
     fun onDeleteInactiveTabsConfirmed(selected: String) {
         prefs.edit().putString(com.jhaiian.clint.tabs.InactiveTabsPolicy.PREF_DELETE_INACTIVE_TABS, selected).apply()
         uiState.deleteInactiveTabs = selected
         uiState.deleteInactiveTabsDialogOpen = false
-    }
-
-    val scope = rememberCoroutineScope()
-    val homepageImagePicker = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) {
-            scope.launch {
-                val saved = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { saveHomepageBackground(activity, uri) }
-                if (saved) {
-                    prefs.edit()
-                        .putString(PREF_HOMEPAGE_DESIGN, HOMEPAGE_DESIGN_IMAGE)
-                        .putLong(PREF_HOMEPAGE_IMAGE_VERSION, System.currentTimeMillis())
-                        .apply()
-                    uiState.homepageDesign = HOMEPAGE_DESIGN_IMAGE
-                } else {
-                    android.widget.Toast.makeText(activity, R.string.homepage_image_error, android.widget.Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
-    }
-
-    fun launchHomepageImagePicker() {
-        homepageImagePicker.launch(
-            androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly)
-        )
-    }
-
-    fun onHomepageDesignConfirmed(selected: String) {
-        uiState.homepageDesignDialogOpen = false
-        if (selected == HOMEPAGE_DESIGN_IMAGE && !homepageImageFile(activity).exists()) {
-            launchHomepageImagePicker()
-            return
-        }
-        prefs.edit().putString(PREF_HOMEPAGE_DESIGN, selected).apply()
-        uiState.homepageDesign = selected
-    }
-
-    fun onHomepageShowFavoritesClicked() {
-        val newValue = !uiState.homepageShowFavorites
-        prefs.edit().putBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_FAVORITES, newValue).apply()
-        uiState.homepageShowFavorites = newValue
-    }
-
-    fun onHomepageShowQuickActionsClicked() {
-        val newValue = !uiState.homepageShowQuickActions
-        prefs.edit().putBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_QUICK_ACTIONS, newValue).apply()
-        uiState.homepageShowQuickActions = newValue
-    }
-
-    fun onHomepageShowRecentClicked() {
-        val newValue = !uiState.homepageShowRecent
-        prefs.edit().putBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_SHOW_RECENT, newValue).apply()
-        uiState.homepageShowRecent = newValue
-    }
-
-    fun onHomepageCenterContentClicked() {
-        val newValue = !uiState.homepageCenterContent
-        prefs.edit().putBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_CENTER_CONTENT, newValue).apply()
-        uiState.homepageCenterContent = newValue
-    }
-
-    fun onHomepageImageFullBrightnessClicked() {
-        val newValue = !uiState.homepageImageFullBrightness
-        prefs.edit().putBoolean(com.jhaiian.clint.browser.home.PREF_HOMEPAGE_IMAGE_FULL_BRIGHTNESS, newValue).apply()
-        uiState.homepageImageFullBrightness = newValue
     }
 
     fun confirmEngine(engine: String) {
@@ -536,24 +451,6 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
         } else {
             confirmEngine(selected)
         }
-    }
-
-    fun onCustomSearchEngineSaved(name: String, url: String) {
-        prefs.edit()
-            .putString(com.jhaiian.clint.browser.CustomSearchEngineNameKey, name)
-            .putString(com.jhaiian.clint.browser.CustomSearchEngineUrlKey, url)
-            .apply()
-        uiState.customSearchEngineName = name
-        uiState.customSearchEngineUrl = url
-    }
-
-    fun onCustomSearchSuggestionsApiSaved(name: String, url: String) {
-        prefs.edit()
-            .putString(com.jhaiian.clint.browser.CustomSearchSuggestionsApiNameKey, name)
-            .putString(com.jhaiian.clint.browser.CustomSearchSuggestionsApiUrlKey, url)
-            .apply()
-        uiState.customSearchSuggestionsApiName = name
-        uiState.customSearchSuggestionsApiUrl = url
     }
 
     fun confirmSuggestionsApi(api: String) {
@@ -598,15 +495,6 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
         }
     }
 
-    fun onIncognitoCustomSearchEngineSaved(name: String, url: String) {
-        prefs.edit()
-            .putString(com.jhaiian.clint.browser.IncognitoCustomSearchEngineNameKey, name)
-            .putString(com.jhaiian.clint.browser.IncognitoCustomSearchEngineUrlKey, url)
-            .apply()
-        uiState.incognitoCustomSearchEngineName = name
-        uiState.incognitoCustomSearchEngineUrl = url
-    }
-
     fun confirmIncognitoSuggestionsApi(api: String) {
         prefs.edit().putString(com.jhaiian.clint.browser.IncognitoSearchSuggestionsApiKey, api).apply()
         uiState.incognitoSearchSuggestionsApi = api
@@ -626,15 +514,6 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
         } else {
             confirmIncognitoSuggestionsApi(selected)
         }
-    }
-
-    fun onIncognitoCustomSearchSuggestionsApiSaved(name: String, url: String) {
-        prefs.edit()
-            .putString(com.jhaiian.clint.browser.IncognitoCustomSearchSuggestionsApiNameKey, name)
-            .putString(com.jhaiian.clint.browser.IncognitoCustomSearchSuggestionsApiUrlKey, url)
-            .apply()
-        uiState.incognitoCustomSearchSuggestionsApiName = name
-        uiState.incognitoCustomSearchSuggestionsApiUrl = url
     }
 
     fun onJavascriptRowClicked() {
@@ -695,18 +574,6 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
         }
     }
 
-    fun onSuggestionsShowHistoryClicked() {
-        val newValue = !uiState.suggestionsShowHistory
-        prefs.edit().putBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_HISTORY, newValue).apply()
-        uiState.suggestionsShowHistory = newValue
-    }
-
-    fun onSuggestionsShowBookmarksClicked() {
-        val newValue = !uiState.suggestionsShowBookmarks
-        prefs.edit().putBoolean(com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_BOOKMARKS, newValue).apply()
-        uiState.suggestionsShowBookmarks = newValue
-    }
-
     fun onIncognitoSearchHistoryRowClicked() {
         val newValue = !uiState.incognitoSearchHistory
         prefs.edit().putBoolean("incognito_search_history_enabled", newValue).apply()
@@ -721,27 +588,16 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
 
     BrowserSettingsScreen(
         state = uiState,
-        onHomepageConfirmed = ::onHomepageConfirmed,
-        onHomepageDesignConfirmed = ::onHomepageDesignConfirmed,
-        onHomepageImageRowClicked = ::launchHomepageImagePicker,
-        onHomepageShowFavoritesClicked = ::onHomepageShowFavoritesClicked,
-        onHomepageShowQuickActionsClicked = ::onHomepageShowQuickActionsClicked,
-        onHomepageShowRecentClicked = ::onHomepageShowRecentClicked,
-        onHomepageCenterContentClicked = ::onHomepageCenterContentClicked,
-        onHomepageImageFullBrightnessClicked = ::onHomepageImageFullBrightnessClicked,
+        onHomepageRowClicked = onHomepageClick,
+        onSuggestionsRowClicked = onSuggestionsClick,
         onDeleteInactiveTabsConfirmed = ::onDeleteInactiveTabsConfirmed,
         onSearchEngineConfirmed = ::onSearchEngineConfirmed,
-        onCustomSearchEngineSaved = ::onCustomSearchEngineSaved,
         onSearchSuggestionsApiConfirmed = ::onSearchSuggestionsApiConfirmed,
-        onCustomSearchSuggestionsApiSaved = ::onCustomSearchSuggestionsApiSaved,
         onIncognitoSearchEngineConfirmed = ::onIncognitoSearchEngineConfirmed,
-        onIncognitoCustomSearchEngineSaved = ::onIncognitoCustomSearchEngineSaved,
         onIncognitoSearchSuggestionsApiConfirmed = ::onIncognitoSearchSuggestionsApiConfirmed,
-        onIncognitoCustomSearchSuggestionsApiSaved = ::onIncognitoCustomSearchSuggestionsApiSaved,
-        onSuggestionsShowHistoryClicked = ::onSuggestionsShowHistoryClicked,
-        onSuggestionsShowBookmarksClicked = ::onSuggestionsShowBookmarksClicked,
         onJavascriptRowClicked = ::onJavascriptRowClicked,
         onBackgroundPlaybackRowClicked = ::onBackgroundPlaybackRowClicked,
+        onVideoPlayerRowClicked = onVideoPlayerClick,
         onAboutConfigRowClicked = ::onAboutConfigRowClicked,
         onShortcutManagerRowClicked = {
             activity.startActivity(android.content.Intent(activity, com.jhaiian.clint.settings.shortcutmanager.ShortcutManagerActivity::class.java))
@@ -757,7 +613,11 @@ fun BrowserSettingsPane(activity: SettingsActivity, onTranslationsClick: () -> U
         onExtensionsRowClicked = {
             com.jhaiian.clint.extensions.ExtensionsActivity.launch(activity)
         },
-        onTranslationsRowClicked = onTranslationsClick
+        onTranslationsRowClicked = onTranslationsClick,
+        onFindInPageRowClicked = onFindInPageClick,
+        onBookmarksRowClicked = {
+            activity.startActivity(android.content.Intent(activity, com.jhaiian.clint.bookmarks.BookmarksActivity::class.java))
+        }
     )
     ConfirmDialogHost(confirmDialog, uiState.hideStatusBar, uiState.hideSystemNavigation) { confirmDialog = null }
 }
@@ -799,9 +659,22 @@ fun PrivacySettingsPane(activity: SettingsActivity) {
         )
     }
     var confirmDialog by remember { mutableStateOf<ConfirmDialogConfig?>(null) }
+    var parentalGate by remember { mutableStateOf<com.jhaiian.clint.parental.ParentalGateRequest?>(null) }
 
     androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
         uiState.autofillServiceActive = com.jhaiian.clint.browser.webview.ClintAutofill.hasService(activity)
+    }
+
+    fun gateHistoryExit(action: () -> Unit) {
+        com.jhaiian.clint.parental.ParentalControls.gate(
+            context = activity,
+            area = com.jhaiian.clint.parental.ParentalControls.AREA_HISTORY,
+            title = activity.getString(R.string.parental_history_title),
+            message = activity.getString(R.string.parental_history_exit_message),
+            positiveLabel = activity.getString(R.string.restore_action_continue),
+            show = { parentalGate = it },
+            action = action
+        )
     }
 
     fun toggle(prefKey: String, current: Boolean, apply: (Boolean) -> Unit) {
@@ -892,19 +765,25 @@ fun PrivacySettingsPane(activity: SettingsActivity) {
             toggle(com.jhaiian.clint.privacy.PrivacyPrefs.WEBRTC_PROTECTION, uiState.webRtcProtection) { uiState.webRtcProtection = it }
             com.jhaiian.clint.privacy.PrivacyPrefs.applyGeckoPrefs(activity)
         },
-        onClearOnExitClick = { toggle(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT, uiState.clearOnExit) { uiState.clearOnExit = it } },
+        onClearOnExitClick = {
+            val applyToggle = { toggle(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT, uiState.clearOnExit) { uiState.clearOnExit = it } }
+            if (!uiState.clearOnExit && uiState.clearHistory) gateHistoryExit(applyToggle) else applyToggle()
+        },
         onClearOnExitConfirmed = { history, cookies, cache, tabs ->
-            prefs.edit()
-                .putBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_HISTORY, history)
-                .putBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_COOKIES, cookies)
-                .putBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_CACHE, cache)
-                .putBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_TABS, tabs)
-                .apply()
-            uiState.clearHistory = history
-            uiState.clearCookies = cookies
-            uiState.clearCache = cache
-            uiState.clearTabs = tabs
-            uiState.clearOnExitDialogOpen = false
+            val applyChoices = {
+                prefs.edit()
+                    .putBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_HISTORY, history)
+                    .putBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_COOKIES, cookies)
+                    .putBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_CACHE, cache)
+                    .putBoolean(com.jhaiian.clint.privacy.PrivacyPrefs.CLEAR_ON_EXIT_TABS, tabs)
+                    .apply()
+                uiState.clearHistory = history
+                uiState.clearCookies = cookies
+                uiState.clearCache = cache
+                uiState.clearTabs = tabs
+                uiState.clearOnExitDialogOpen = false
+            }
+            if (history && !uiState.clearHistory && uiState.clearOnExit) gateHistoryExit(applyChoices) else applyChoices()
         },
         onAppLockClick = {
             if (!uiState.appLock && !com.jhaiian.clint.backup.BackupAuthGate.isAuthenticationAvailable(activity)) {
@@ -940,6 +819,7 @@ fun PrivacySettingsPane(activity: SettingsActivity) {
         onDeleteBrowsingDataClick = { activity.startActivity(Intent(activity, com.jhaiian.clint.privacy.DeleteBrowsingDataActivity::class.java)) }
     )
     ConfirmDialogHost(confirmDialog, uiState.hideStatusBar, uiState.hideSystemNavigation) { confirmDialog = null }
+    com.jhaiian.clint.parental.ParentalGateHost(parentalGate, uiState.hideStatusBar, uiState.hideSystemNavigation) { parentalGate = null }
 }
 
 @Composable
@@ -1070,7 +950,26 @@ fun AccessibilityPane(activity: SettingsActivity) {
         AccessibilityUiState(
             initialAutoFontSize = AccessibilityPrefs.autoFontSize(prefs),
             initialFontSizePercent = AccessibilityPrefs.fontSizePercent(prefs),
-            initialForceZoom = AccessibilityPrefs.forceZoom(prefs)
+            initialForceZoom = AccessibilityPrefs.forceZoom(prefs),
+            initialColorFilter = AccessibilityPrefs.colorFilter(prefs)
+        )
+    }
+    var showColorFilterDialog by remember { mutableStateOf(false) }
+
+    if (showColorFilterDialog) {
+        com.jhaiian.clint.settings.accessibility.WebsiteColorFilterDialog(
+            current = uiState.colorFilter,
+            hideStatusBar = prefs.getBoolean("hide_status_bar", false),
+            hideSystemNavigation = prefs.getBoolean("hide_system_navigation", false),
+            onSelect = { value ->
+                showColorFilterDialog = false
+                if (value != uiState.colorFilter) {
+                    prefs.edit().putString(AccessibilityPrefs.PREF_COLOR_FILTER, value).apply()
+                    uiState.colorFilter = value
+                    ClintGecko.applyColorFilter(activity)
+                }
+            },
+            onDismiss = { showColorFilterDialog = false }
         )
     }
 
@@ -1096,7 +995,8 @@ fun AccessibilityPane(activity: SettingsActivity) {
             prefs.edit().putBoolean(AccessibilityPrefs.PREF_FORCE_ZOOM, newValue).apply()
             uiState.forceZoom = newValue
             ClintGecko.applyForceZoom(activity)
-        }
+        },
+        onColorFilterClick = { showColorFilterDialog = true }
     )
 }
 
@@ -1348,13 +1248,15 @@ private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
 }
 
 @Composable
-fun DownloadSettingsPane(activity: SettingsActivity) {
+fun DownloadSettingsPane(activity: SettingsActivity, onCustomizeClick: () -> Unit) {
     val prefs = remember { PreferenceManager.getDefaultSharedPreferences(activity) }
     val uiState = remember {
         DownloadSettingsUiState(
             initialDownloadManagerApp = prefs.getString(DownloadSettingsKeys.PREF_DOWNLOAD_MANAGER, DownloadSettingsKeys.DEFAULT_DOWNLOAD_MANAGER) ?: DownloadSettingsKeys.DEFAULT_DOWNLOAD_MANAGER,
+            initialCustomDownloadManagerPackage = prefs.getString(DownloadSettingsKeys.PREF_CUSTOM_DOWNLOAD_MANAGER_PACKAGE, null),
             initialLocationMode = prefs.getString(DownloadSettingsKeys.PREF_DOWNLOAD_LOCATION_MODE, DownloadSettingsKeys.MODE_DEFAULT) ?: DownloadSettingsKeys.MODE_DEFAULT,
             initialCustomUri = prefs.getString(DownloadSettingsKeys.PREF_DOWNLOAD_CUSTOM_URI, null)?.let { Uri.parse(it) },
+            initialSavedLocations = DownloadSavedLocations.list(activity),
             initialCategorizeDownloads = prefs.getBoolean(DownloadSettingsKeys.PREF_CATEGORIZE_DOWNLOADS, DownloadSettingsKeys.DEFAULT_CATEGORIZE_DOWNLOADS),
             initialDialogUi = prefs.getString(DownloadSettingsKeys.PREF_DOWNLOAD_DIALOG_UI, DownloadSettingsKeys.DEFAULT_DOWNLOAD_DIALOG_UI) ?: DownloadSettingsKeys.DEFAULT_DOWNLOAD_DIALOG_UI,
             initialDuplicateHandling = prefs.getString(DownloadSettingsKeys.PREF_DUPLICATE_HANDLING, DownloadSettingsKeys.DEFAULT_DUPLICATE_HANDLING) ?: DownloadSettingsKeys.DEFAULT_DUPLICATE_HANDLING,
@@ -1378,7 +1280,6 @@ fun DownloadSettingsPane(activity: SettingsActivity) {
             initialIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(activity),
             initialShowGrantAllFilesAccessRow = showGrantAllFilesAccessRow(),
             initialAllFilesAccessGranted = isAllFilesAccessGranted(),
-            initialPushNotifications = prefs.getBoolean(DownloadSettingsKeys.PREF_PUSH_NOTIFICATIONS, DownloadSettingsKeys.DEFAULT_PUSH_NOTIFICATIONS),
             initialHistoryNormal = prefs.getBoolean(DownloadSettingsKeys.PREF_HISTORY_NORMAL, DownloadSettingsKeys.DEFAULT_HISTORY_NORMAL),
             initialHistoryIncognito = prefs.getBoolean(DownloadSettingsKeys.PREF_HISTORY_INCOGNITO, DownloadSettingsKeys.DEFAULT_HISTORY_INCOGNITO),
             initialKeepScreenOn = prefs.getBoolean(DownloadSettingsKeys.PREF_KEEP_SCREEN_ON, DownloadSettingsKeys.DEFAULT_KEEP_SCREEN_ON),
@@ -1400,8 +1301,9 @@ fun DownloadSettingsPane(activity: SettingsActivity) {
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 )
             }
-            prefs.edit().putString(DownloadSettingsKeys.PREF_DOWNLOAD_CUSTOM_URI, uri.toString()).apply()
+            DownloadSavedLocations.setDefault(activity, uri)
             uiState.customUri = uri
+            uiState.savedLocations = DownloadSavedLocations.list(activity)
         }
     }
 
@@ -1457,12 +1359,38 @@ fun DownloadSettingsPane(activity: SettingsActivity) {
             uiState.downloadManagerApp = appId
             uiState.openDialog = null
         },
+        onCustomDownloadManagerSelected = { packageName ->
+            prefs.edit()
+                .putString(DownloadSettingsKeys.PREF_CUSTOM_DOWNLOAD_MANAGER_PACKAGE, packageName)
+                .putString(DownloadSettingsKeys.PREF_DOWNLOAD_MANAGER, com.jhaiian.clint.downloads.DownloadManagerAppIds.CUSTOM)
+                .apply()
+            uiState.customDownloadManagerPackage = packageName
+            uiState.downloadManagerApp = com.jhaiian.clint.downloads.DownloadManagerAppIds.CUSTOM
+            uiState.openDialog = null
+        },
         onLocationModeSelected = { newMode ->
             prefs.edit().putString(DownloadSettingsKeys.PREF_DOWNLOAD_LOCATION_MODE, newMode).apply()
             uiState.locationMode = newMode
-            if (newMode == DownloadSettingsKeys.MODE_CUSTOM) openFolderPicker()
+            if (newMode == DownloadSettingsKeys.MODE_CUSTOM && uiState.customUri == null) {
+                val firstSaved = uiState.savedLocations.firstOrNull()
+                if (firstSaved != null) {
+                    DownloadSavedLocations.setDefault(activity, firstSaved)
+                    uiState.customUri = firstSaved
+                } else {
+                    openFolderPicker()
+                }
+            }
         },
         onFolderRowClick = { openFolderPicker() },
+        onSavedLocationSelected = { uri ->
+            DownloadSavedLocations.setDefault(activity, uri)
+            uiState.customUri = uri
+        },
+        onSavedLocationRemoved = { uri ->
+            uiState.customUri = DownloadSavedLocations.remove(activity, uri)
+            uiState.savedLocations = DownloadSavedLocations.list(activity)
+            if (uiState.savedLocations.isEmpty()) uiState.locationMode = DownloadSettingsKeys.MODE_DEFAULT
+        },
         onCategorizeDownloadsClick = {
             val newValue = !uiState.categorizeDownloads
             prefs.edit().putBoolean(DownloadSettingsKeys.PREF_CATEGORIZE_DOWNLOADS, newValue).apply()
@@ -1478,6 +1406,7 @@ fun DownloadSettingsPane(activity: SettingsActivity) {
             uiState.duplicateHandling = value
             uiState.openDialog = null
         },
+        onCustomizeClick = onCustomizeClick,
         onMeasurementSystemSelected = { decimal ->
             val value = if (decimal) MEASUREMENT_SYSTEM_DECIMAL else MEASUREMENT_SYSTEM_BINARY
             prefs.edit().putString(PREF_MEASUREMENT_SYSTEM, value).apply()
@@ -1500,8 +1429,11 @@ fun DownloadSettingsPane(activity: SettingsActivity) {
         onScheduleStartClick = { timePickerTarget = true },
         onScheduleEndClick = { timePickerTarget = false },
         onConcurrentDownloadsChange = { value ->
-            prefs.edit().putInt(DownloadSettingsKeys.PREF_CONCURRENT_DOWNLOADS, value).apply()
-            uiState.concurrentDownloads = value
+            if (value != uiState.concurrentDownloads) {
+                prefs.edit().putInt(DownloadSettingsKeys.PREF_CONCURRENT_DOWNLOADS, value).apply()
+                uiState.concurrentDownloads = value
+                ClintDownloadManager.applyConcurrentLimit(activity)
+            }
         },
         onSplitPartsChange = { value ->
             prefs.edit().putInt(DownloadSettingsKeys.PREF_SPLIT_PARTS, value).apply()
@@ -1558,11 +1490,6 @@ fun DownloadSettingsPane(activity: SettingsActivity) {
                 data = Uri.parse("package:${activity.packageName}")
             }
             activity.startActivity(intent)
-        },
-        onPushNotificationsClick = {
-            val newValue = !uiState.pushNotifications
-            prefs.edit().putBoolean(DownloadSettingsKeys.PREF_PUSH_NOTIFICATIONS, newValue).apply()
-            uiState.pushNotifications = newValue
         },
         onHistoryNormalClick = {
             val newValue = !uiState.historyNormal

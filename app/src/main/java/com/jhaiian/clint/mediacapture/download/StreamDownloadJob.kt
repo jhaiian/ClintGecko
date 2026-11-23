@@ -613,7 +613,7 @@ object StreamDownloadJob {
             }
             if (current.id in ClintDownloadManager.pauseRequested) {
                 ClintDownloadManager.pauseRequested.remove(current.id)
-                val updated = current.withClockStopped().copy(status = DownloadStatus.PAUSED)
+                val updated = current.withClockStopped().copy(status = ClintDownloadManager.stoppedStatusFor(current.id), speedBytesPerSec = 0L)
                 ClintDownloadManager.publish(updated)
                 ClintDownloadManager.persistDownload(updated)
                 ClintDownloadManager.tryDequeueNext(context)
@@ -1027,7 +1027,7 @@ object StreamDownloadJob {
             if (current.id in ClintDownloadManager.removedIds) return
             if (current.id in ClintDownloadManager.pauseRequested) {
                 ClintDownloadManager.pauseRequested.remove(current.id)
-                val updated = current.withClockStopped().copy(status = DownloadStatus.PAUSED)
+                val updated = current.withClockStopped().copy(status = ClintDownloadManager.stoppedStatusFor(current.id), speedBytesPerSec = 0L)
                 ClintDownloadManager.publish(updated)
                 ClintDownloadManager.persistDownload(updated)
                 ClintDownloadManager.tryDequeueNext(context)

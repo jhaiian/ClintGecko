@@ -25,13 +25,15 @@ fun ClintOutlinedTextField(
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     trailingIcon: @Composable (() -> Unit)? = null,
-    supportingText: @Composable (() -> Unit)? = null
+    supportingText: @Composable (() -> Unit)? = null,
+    placeholder: @Composable (() -> Unit)? = null
 ) {
     val state = rememberSyncedTextFieldState(value, onValueChange)
     OutlinedTextField(
         state = state,
         modifier = modifier,
         label = label?.let { content -> { content() } },
+        placeholder = placeholder,
         enabled = enabled,
         readOnly = readOnly,
         isError = isError,

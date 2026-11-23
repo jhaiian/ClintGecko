@@ -46,7 +46,7 @@ internal fun MainActivity.closeTabFromStrip(tabId: String) {
 
 internal fun MainActivity.closeOtherTabsFromStrip(tabId: String) {
     val keep = tabManager.tabs.firstOrNull { it.id == tabId } ?: return
-    val others = tabManager.previews().filter { it.isIncognito == keep.isIncognito && it.id != tabId }.map { it.id }
+    val others = tabManager.previews().filter { it.isIncognito == keep.isIncognito && it.id != tabId && !it.isPinned }.map { it.id }
     if (others.isEmpty()) return
     if (tabManager.activeTab?.id != tabId) focusTabById(tabId)
     closeTabsWithUndo(others, resources.getQuantityString(com.jhaiian.clint.R.plurals.tab_menu_closed_tabs, others.size, others.size))
@@ -59,6 +59,11 @@ internal fun MainActivity.addTabToNewGroup(tabId: String, name: String, color: I
 
 internal fun MainActivity.removeTabFromGroup(tabId: String) {
     tabManager.removeFromGroup(listOf(tabId))
+    onTabGroupsChanged()
+}
+
+internal fun MainActivity.setTabsPinned(ids: List<String>, pinned: Boolean) {
+    tabManager.setPinned(ids, pinned)
     onTabGroupsChanged()
 }
 

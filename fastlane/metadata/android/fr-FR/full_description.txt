@@ -1,0 +1,83 @@
+Clint Gecko est un navigateur open source basé sur Firefox, doté d'un gestionnaire de téléchargements avancé (ADM) et d'une capture de médias (Media Capture) intégrés. L'objectif de Clint Gecko est de devenir votre navigateur tout-en-un ultime, tout en restant agréable à utiliser et hautement personnalisable. À chaque mise à jour, Clint Gecko se rapproche un peu plus de cet objectif.
+
+L'écosystème Jhaiian propose jusqu'à 500 combinaisons de thèmes possibles, pour personnaliser votre navigation selon vos goûts.
+
+La confidentialité est aussi une priorité. Clint Gecko est configuré pour désactiver la télémétrie de GeckoView et de Mozilla, ce qui empêche l'envoi de données de télémétrie à Mozilla par ces services. Clint lui-même ne collecte aucune donnée personnelle, car il n'a ni backend, ni outil d'analyse, ni serveur de collecte de données. Tout est conçu pour fonctionner directement sur votre appareil.
+
+Fork officiel de Clint Browser (github.com/jhaiian/ClintBrowser). Si vous préférez une version plus légère reposant sur Android WebView, découvrez le Clint Browser d'origine.
+
+Conçu et maintenu par @jhaiian, un développeur indépendant originaire des Philippines.
+
+<b>MOTEUR GECKO</b>
+• Propulsé par GeckoView, le moteur de Firefox
+• La télémétrie de GeckoView et de Mozilla est désactivée
+
+<b>EXTENSIONS</b>
+• Installez des extensions Firefox directement dans le navigateur
+• Parcourez la boutique de modules Firefox ou ouvrez un fichier .xpi
+• Choisissez si une extension peut s'exécuter dans les onglets de navigation privée
+• Ouvrez la page d'options d'une extension depuis le gestionnaire d'extensions
+
+<b>LECTURE EN ARRIÈRE-PLAN</b>
+• Continuez d'écouter l'audio et de regarder la vidéo lorsque vous changez d'application ou verrouillez l'écran
+• Contrôlez la lecture depuis la notification multimédia
+• Peut être activée ou désactivée dans les paramètres du navigateur
+
+<b>CAPTURE DE MÉDIAS</b>
+• Détecte les flux vidéo, audio et de sous-titres sur les pages web que vous visitez
+• Prend en charge les vidéos classiques et les flux HLS/M3U8 et DASH
+• Téléchargez les médias détectés directement depuis le navigateur
+
+<b>ADM (GESTIONNAIRE DE TÉLÉCHARGEMENTS AVANCÉ)</b>
+• Téléchargements multithread et en plusieurs parties
+• Pause et reprise
+• Planificateur de téléchargements
+• Limiteur de débit
+• Emplacements de téléchargement personnalisés
+
+<b>INTERFACE ET PERSONNALISATION</b>
+Clint Gecko est conçu avec Material 3 et Jetpack Compose, avec une interface hautement personnalisable.
+• 50 couleurs d'accent
+• Thèmes clair et sombre
+• 5 intensités de surface
+• Au total, 500 combinaisons de thèmes possibles
+
+<b>CONFIDENTIALITÉ ET SÉCURITÉ</b>
+• Protection renforcée contre le pistage et protection totale contre les cookies
+• Protection contre le pistage : suppression des paramètres de pistage, protection contre l'empreinte numérique, Global Privacy Control et protection contre les fuites WebRTC
+• DNS sécurisé via HTTPS (Cloudflare, Google, Quad9 ou personnalisé)
+• Verrouillage de l'application par empreinte digitale, reconnaissance faciale ou verrouillage de l'écran
+• Blocage des captures d'écran et clavier incognito
+• Effacement automatique du presse-papiers et des données à la fermeture
+• Vérification stricte des certificats
+• Aucun backend, aucun outil d'analyse, aucune collecte de données
+
+<b>BLOQUEUR DE SITES WEB</b>
+• Bloque la pornographie, les jeux d'argent et d'autres catégories indésirables
+• Listes de filtres par catégorie (abus, publicités, crypto, drogues, fraude, jeux d'argent et plus encore)
+• Ajoutez vos propres sites web à bloquer
+
+<b>PROFILS</b>
+• Restez connecté à plusieurs comptes sur le même site web en même temps
+• Chaque profil conserve ses propres cookies, identifiants de connexion et données de sites
+• Choisissez un profil à l'ouverture d'un nouvel onglet
+• Donnez à chaque profil son propre nom et sa propre couleur
+
+<b>RACCOURCIS</b>
+• Ajoutez n'importe quel site web à votre écran d'accueil avec un nom et une icône personnalisés
+• Le mode sans cadre masque la barre de recherche et la barre inférieure pour une impression d'application
+• Gérez tous vos raccourcis au même endroit avec le gestionnaire de raccourcis intégré
+
+<b>NAVIGATEUR</b>
+• Navigation multi-onglets
+• Groupes d'onglets
+• Navigation privée
+• Mode lecture
+• Mode ordinateur
+• Protection contre les fenêtres contextuelles
+• Économiseur de données
+• Traduction des pages directement sur l'appareil
+
+Il vous suffit de télécharger l'application et de l'explorer par vous-même.
+
+Nécessite Android 8.0 (API 26) ou version ultérieure.

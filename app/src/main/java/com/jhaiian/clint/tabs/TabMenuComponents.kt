@@ -42,6 +42,13 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.PushPin
+import androidx.compose.material3.DropdownMenu
+import com.jhaiian.clint.ui.listscreen.ListMenuItem
+import com.jhaiian.clint.ui.listscreen.PopupShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -104,6 +111,7 @@ internal fun TabMenuCard(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     onToggleMute: () -> Unit = {},
+    onTogglePin: () -> Unit = {},
     mergeHighlighted: Boolean = false,
     showDragHandle: Boolean = true,
     longPressDragModifier: Modifier? = null
@@ -166,6 +174,14 @@ internal fun TabMenuCard(
                         )
                     }
                 }
+                if (preview.isPinned) {
+                    Icon(
+                        Icons.Rounded.PushPin,
+                        contentDescription = stringResource(R.string.tab_pinned),
+                        tint = accentColor,
+                        modifier = Modifier.padding(start = 6.dp).size(14.dp)
+                    )
+                }
                 Text(
                     preview.title.ifBlank { stringResource(R.string.new_tab) },
                     color = onCard,
@@ -196,6 +212,7 @@ internal fun TabMenuCard(
                                 modifier = dragHandleModifier.size(22.dp).padding(2.dp)
                             )
                         }
+                        TabPinMenuButton(preview.isPinned, onTogglePin, onCardSecondary, 26.dp, 16.dp)
                         IconButton(onClick = onClose, modifier = Modifier.size(26.dp)) {
                             Icon(
                                 Icons.Filled.Close,
@@ -289,6 +306,7 @@ internal fun TabMenuListRow(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     onToggleMute: () -> Unit = {},
+    onTogglePin: () -> Unit = {},
     mergeHighlighted: Boolean = false,
     showDragHandle: Boolean = true,
     longPressDragModifier: Modifier? = null
@@ -303,8 +321,23 @@ internal fun TabMenuListRow(
     val rowBg = if (preview.isIncognito) IncognitoCardBackground else colors.cardBackground
     val onRow = if (preview.isIncognito) IncognitoOnCard else colors.onSurface
     val onRowSecondary = if (preview.isIncognito) IncognitoOnCardSecondary else colors.secondaryText
-    val host = remember(preview.url) {
-        runCatching { android.net.Uri.parse(preview.url).host }.getOrNull()?.removePrefix("www.").orEmpty()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val stripUrlScheme = remember {
+        runCatching {
+            androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean(com.jhaiian.clint.util.PREF_STRIP_URL_SCHEME, true)
+        }.getOrDefault(true)
+    }
+    val host = remember(preview.url, stripUrlScheme) {
+        if (stripUrlScheme) {
+            if (preview.url.startsWith("http://", true) || preview.url.startsWith("https://", true)) {
+                com.jhaiian.clint.util.stripUrlForDisplay(preview.url)
+            } else {
+                runCatching { android.net.Uri.parse(preview.url).host }.getOrNull().orEmpty()
+            }
+        } else {
+            preview.url.takeUnless { com.jhaiian.clint.browser.home.isClintHomeUrl(it) }.orEmpty()
+        }
     }
     val shape = RoundedCornerShape(14.dp)
 
@@ -355,14 +388,25 @@ internal fun TabMenuListRow(
             }
         }
         Column(Modifier.weight(1f).padding(start = 12.dp, end = 4.dp)) {
-            Text(
-                preview.title.ifBlank { stringResource(R.string.new_tab) },
-                color = onRow,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (preview.isPinned) {
+                    Icon(
+                        Icons.Rounded.PushPin,
+                        contentDescription = stringResource(R.string.tab_pinned),
+                        tint = accentColor,
+                        modifier = Modifier.padding(end = 4.dp).size(14.dp)
+                    )
+                }
+                Text(
+                    preview.title.ifBlank { stringResource(R.string.new_tab) },
+                    color = onRow,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+            }
             if (host.isNotEmpty() || profile != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (profile != null) {
@@ -399,6 +443,7 @@ internal fun TabMenuListRow(
                         modifier = dragHandleModifier.size(36.dp).padding(8.dp)
                     )
                 }
+                TabPinMenuButton(preview.isPinned, onTogglePin, onRowSecondary, 36.dp, 18.dp)
                 IconButton(onClick = onClose, modifier = Modifier.size(36.dp)) {
                     Icon(
                         Icons.Filled.Close,
@@ -407,6 +452,43 @@ internal fun TabMenuListRow(
                         modifier = Modifier.size(18.dp)
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TabPinMenuButton(
+    pinned: Boolean,
+    onTogglePin: () -> Unit,
+    tint: Color,
+    buttonSize: Dp,
+    iconSize: Dp
+) {
+    val colors = LocalClintColors.current
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }, modifier = Modifier.size(buttonSize)) {
+            Icon(
+                Icons.Rounded.MoreVert,
+                contentDescription = stringResource(R.string.tab_menu_more_options),
+                tint = tint,
+                modifier = Modifier.size(iconSize)
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            shape = PopupShape,
+            containerColor = colors.popupBackground,
+            border = BorderStroke(1.dp, colors.popupStroke)
+        ) {
+            ListMenuItem(
+                if (pinned) Icons.Outlined.PushPin else Icons.Rounded.PushPin,
+                stringResource(if (pinned) R.string.tab_menu_unpin_tab else R.string.tab_menu_pin_tab),
+                checked = false
+            ) {
+                expanded = false; onTogglePin()
             }
         }
     }

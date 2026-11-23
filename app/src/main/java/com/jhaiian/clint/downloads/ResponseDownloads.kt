@@ -11,7 +11,7 @@ import org.mozilla.geckoview.WebResponse
 object ResponseDownloads {
 
     fun isInline(uri: String): Boolean =
-        uri.startsWith("data:", true) || uri.startsWith("blob:moz-extension:", true)
+        uri.startsWith("data:", true) || uri.startsWith("blob:", true)
 
     fun save(context: Context, response: WebResponse): Boolean {
         val body = response.body ?: return false

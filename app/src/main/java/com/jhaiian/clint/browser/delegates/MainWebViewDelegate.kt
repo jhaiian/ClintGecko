@@ -3,6 +3,7 @@ import com.jhaiian.clint.settings.datasaver.DataSaverBridge
 import com.jhaiian.clint.settings.datasaver.DataSaverMode
 import androidx.compose.ui.graphics.toArgb
 import com.jhaiian.clint.ui.theme.ThemeMode
+import com.jhaiian.clint.browser.find.openFind
 import com.jhaiian.clint.browser.webview.*
 import com.jhaiian.clint.browser.MainActivity
 
@@ -19,8 +20,8 @@ import com.jhaiian.clint.util.registeredDomain
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 @SuppressLint("SetJavaScriptEnabled")
-internal fun MainActivity.createClintWebView(isIncognito: Boolean, profileId: String = WebProfiles.DEFAULT_ID, deferOpen: Boolean = false): ClintWebView {
-    val webView = ClintWebView(this, isIncognito, if (isIncognito || profileId == WebProfiles.DEFAULT_ID) null else profileId, deferOpen && !isIncognito)
+internal fun MainActivity.createClintWebView(isIncognito: Boolean, profileId: String = WebProfiles.DEFAULT_ID, deferOpen: Boolean = false, adoptSession: org.mozilla.geckoview.GeckoSession? = null): ClintWebView {
+    val webView = ClintWebView(this, isIncognito, if (isIncognito || profileId == WebProfiles.DEFAULT_ID) null else profileId, deferOpen && !isIncognito && adoptSession == null, adoptSession)
     if (!isIncognito) WebProfiles.bind(webView, profileId)
     val settings = webView.settings
     settings.javaScriptEnabled = prefs.getBoolean("javascript_enabled", true)
@@ -33,10 +34,12 @@ internal fun MainActivity.createClintWebView(isIncognito: Boolean, profileId: St
     webView.addJavascriptInterface(NotificationBridge(webView), "ClintNotificationBridge")
     webView.clipboardPermissionHandler = { uri, onResult -> showWebClipboardPermission(webView, uri, onResult) }
     webView.clipboardDismissHandler = { dismissWebClipboardPermission() }
+    webView.findRequestHandler = { text -> if (tabManager.activeTab?.webView === webView) openFind(text) }
     webView.addJavascriptInterface(BlobDownloadBridge(), "BlobDownloadBridge")
     webView.addJavascriptInterface(DateTimePickerBridge(this, webView), "DateTimePickerBridge")
     webView.addJavascriptInterface(ColorPickerBridge(this, webView), "ColorPickerBridge")
     webView.addJavascriptInterface(DataSaverBridge(applicationContext), "ClintDataSaverBridge")
+    webView.addJavascriptInterface(com.jhaiian.clint.browser.video.VideoTakeoverBridge(this, webView), "ClintVideoBridge")
     webView.selectPromptHandler = { title, options, multiple, onConfirm, onCancel ->
         if (tabManager.activeTab?.webView !== webView) {
             onCancel()
@@ -91,6 +94,7 @@ internal fun MainActivity.createClintWebView(isIncognito: Boolean, profileId: St
 internal fun MainActivity.syncBaseScripts() {
     val names = listOf(
         "link_touch_tracker" to "link_touch_tracker.js",
+        "image_hit_test" to "image_hit_test.js",
         "notification_bridge" to "web_notification_bridge.js",
         "date_time_picker" to "date_time_picker.js",
         "color_picker" to "color_picker.js",
@@ -189,6 +193,7 @@ internal fun MainActivity.applyWebDarkMode(webView: ClintWebView) {
             else -> 0
         }
     )
+    ClintGecko.applyColorFilter(this)
 }
 
 internal fun MainActivity.applyWebDarkModeToAllTabs() {
@@ -295,26 +300,14 @@ internal fun MainActivity.getHomepageUrl(incognito: Boolean = tabManager.activeT
     }
 }
 
-internal fun MainActivity.getSearchEngineHomeUrl(incognito: Boolean = tabManager.activeTab?.isIncognito == true): String {
-    return when (com.jhaiian.clint.browser.searchEngineFor(prefs, incognito)) {
-        "brave" -> "https://search.brave.com"
-        "ecosia" -> "https://www.ecosia.org"
-        "google" -> "https://www.google.com"
-        "custom" -> com.jhaiian.clint.browser.customSearchEngineHomeUrl(prefs, incognito)
-        else -> "https://duckduckgo.com"
-    }
-}
+internal fun MainActivity.getSearchEngineHomeUrl(incognito: Boolean = tabManager.activeTab?.isIncognito == true): String =
+    com.jhaiian.clint.browser.searchHomeUrlFor(prefs, com.jhaiian.clint.browser.searchEngineFor(prefs, incognito))
 
-internal fun MainActivity.getSearchQueryUrl(query: String, incognito: Boolean = tabManager.activeTab?.isIncognito == true): String {
-    val encoded = android.net.Uri.encode(query)
-    return when (com.jhaiian.clint.browser.searchEngineFor(prefs, incognito)) {
-        "brave" -> "https://search.brave.com/search?q=$encoded"
-        "ecosia" -> "https://www.ecosia.org/search?q=$encoded"
-        "google" -> "https://www.google.com/search?q=$encoded"
-        "custom" -> com.jhaiian.clint.browser.customSearchEngineQueryUrl(prefs, encoded, incognito)
-        else -> "https://duckduckgo.com/?q=$encoded"
-    }
-}
+internal fun MainActivity.getSearchQueryUrl(
+    query: String,
+    incognito: Boolean = tabManager.activeTab?.isIncognito == true,
+    engine: String = com.jhaiian.clint.browser.searchEngineFor(prefs, incognito)
+): String = com.jhaiian.clint.browser.searchQueryUrlFor(prefs, engine, android.net.Uri.encode(query))
 
 internal fun isRelatedToSession(
     downloadUrl: String,
@@ -346,6 +339,7 @@ internal fun MainActivity.addBackgroundPlaybackScript() {
 
 internal fun MainActivity.syncGlobalScripts() {
     addBackgroundPlaybackScript()
+    addVideoTakeoverScript()
     addDesktopScript()
     addAutoplayScript()
     addDoNotTrackScript()

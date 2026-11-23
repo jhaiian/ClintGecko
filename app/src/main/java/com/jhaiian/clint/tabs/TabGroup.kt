@@ -14,6 +14,14 @@ data class TabGroup(
 
 fun newTabGroupId(): String = "g" + UUID.randomUUID().toString().replace("-", "").take(12)
 
+internal fun suggestGroupName(urls: List<String>): String {
+    val hosts = urls.mapNotNull { url ->
+        runCatching { android.net.Uri.parse(url).host }.getOrNull()?.removePrefix("www.")?.takeIf { it.isNotBlank() }
+    }
+    if (hosts.isEmpty() || hosts.size != urls.size || hosts.distinct().size != 1) return ""
+    return hosts.first().take(TAB_GROUP_NAME_MAX_LENGTH)
+}
+
 enum class TabGroupColor(val argb: Int, @StringRes val labelRes: Int) {
     BLUE(0xFF4A86E8.toInt(), R.string.tab_group_color_blue),
     RED(0xFFE5534B.toInt(), R.string.tab_group_color_red),

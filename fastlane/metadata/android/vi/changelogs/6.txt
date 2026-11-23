@@ -1,0 +1,11 @@
+• Tải xuống tệp và thư mục MEGA
+• Thêm lượt tải xuống ở trạng thái tạm dừng, xử lý tệp trùng lặp
+• GeckoView nhẹ và nhanh hơn, chuyển thẻ mượt hơn
+• Phát hiện luồng tốt hơn trong Media Capture
+• Công cụ tìm kiếm và gợi ý riêng cho chế độ Ẩn danh
+• Thông báo để đóng tất cả thẻ Ẩn danh
+• Cài đặt trợ năng cho cỡ chữ và thu phóng
+• Cài đặt tiện ích mở rộng chưa được Mozilla ký
+• Xóa dữ liệu duyệt web theo khoảng thời gian đã chọn
+• Sao chép, Dán và Dán & Mở trên thanh địa chỉ
+• GeckoView 159 và sửa lỗi lối tắt

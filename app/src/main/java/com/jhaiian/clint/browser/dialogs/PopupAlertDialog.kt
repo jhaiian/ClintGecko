@@ -39,7 +39,7 @@ internal fun PopupAlertDialog(request: PopupAlertRequest, hideStatusBar: Boolean
     ClintDialog(
         title = stringResource(R.string.popup_alert_title),
         hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
-        onDismiss = onDismiss,
+        onDismiss = { onDismiss(); request.onDeny() },
         footer = {
             Row(Modifier.fillMaxWidth().padding(end = 12.dp, bottom = 8.dp), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = { onDismiss(); request.onDeny() }) {

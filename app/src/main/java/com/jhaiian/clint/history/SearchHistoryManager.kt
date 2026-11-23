@@ -3,11 +3,12 @@ package com.jhaiian.clint.history
 import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import com.jhaiian.clint.profiles.ActiveProfile
 import java.net.URL
 
 object SearchHistoryManager {
 
-    private const val MAX_ENTRIES = 50
+    private const val RECENT_LIMIT = 200
 
     private val searchEngineHosts = setOf(
         "duckduckgo.com", "duck.com", "ddg.gg",
@@ -20,13 +21,14 @@ object SearchHistoryManager {
         val host = runCatching { URL(url).host?.lowercase() }.getOrNull() ?: return false
         if (searchEngineHosts.any { host == it || host.endsWith(".$it") }) return true
         val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
-        return listOf(false, true).any { incognito ->
-            val customHost = com.jhaiian.clint.browser.customSearchEngineHost(prefs, incognito)
-            customHost != null && (host == customHost || host.endsWith(".$customHost"))
-        }
+        return com.jhaiian.clint.browser.customSearchEngineHosts(prefs).any { host == it || host.endsWith(".$it") }
     }
 
     @Volatile private var db: SearchHistoryDatabase? = null
+
+    private fun pid(context: Context): String = ActiveProfile.id(context)
+
+    private const val IN_PROFILE = "${SearchHistoryDatabase.COL_PROFILE_ID} = ?"
 
     private fun db(context: Context): SearchHistoryDatabase {
         return db ?: synchronized(this) {
@@ -42,6 +44,7 @@ object SearchHistoryManager {
             put(SearchHistoryDatabase.COL_QUERY, q)
             put(SearchHistoryDatabase.COL_TITLE, title.trim())
             put(SearchHistoryDatabase.COL_TIMESTAMP, System.currentTimeMillis())
+            put(SearchHistoryDatabase.COL_PROFILE_ID, pid(context))
         }
         writable.insertWithOnConflict(
             SearchHistoryDatabase.TABLE,
@@ -49,7 +52,6 @@ object SearchHistoryManager {
             values,
             SQLiteDatabase.CONFLICT_REPLACE
         )
-        trimToMax(writable)
     }
 
     fun restore(context: Context, item: HistoryItem) {
@@ -58,6 +60,7 @@ object SearchHistoryManager {
             put(SearchHistoryDatabase.COL_QUERY, item.query)
             put(SearchHistoryDatabase.COL_TITLE, item.title)
             put(SearchHistoryDatabase.COL_TIMESTAMP, item.timestamp.takeIf { it > 0L } ?: System.currentTimeMillis())
+            put(SearchHistoryDatabase.COL_PROFILE_ID, pid(context))
         }
         writable.insertWithOnConflict(
             SearchHistoryDatabase.TABLE,
@@ -65,16 +68,19 @@ object SearchHistoryManager {
             values,
             SQLiteDatabase.CONFLICT_REPLACE
         )
-        trimToMax(writable)
     }
 
-    fun getAll(context: Context): List<HistoryItem> {
+    fun getAll(context: Context): List<HistoryItem> = query(context, null)
+
+    fun getRecent(context: Context): List<HistoryItem> = query(context, RECENT_LIMIT)
+
+    private fun query(context: Context, limit: Int?): List<HistoryItem> {
         val cursor = db(context).readableDatabase.query(
             SearchHistoryDatabase.TABLE,
             arrayOf(SearchHistoryDatabase.COL_QUERY, SearchHistoryDatabase.COL_TITLE, SearchHistoryDatabase.COL_TIMESTAMP),
-            null, null, null, null,
+            IN_PROFILE, arrayOf(pid(context)), null, null,
             "${SearchHistoryDatabase.COL_TIMESTAMP} DESC",
-            MAX_ENTRIES.toString()
+            limit?.toString()
         )
         val list = mutableListOf<HistoryItem>()
         cursor.use { while (it.moveToNext()) list.add(HistoryItem(it.getString(0), it.getString(1), it.getLong(2))) }
@@ -83,15 +89,15 @@ object SearchHistoryManager {
 
     fun search(context: Context, prefix: String): List<HistoryItem> {
         val p = prefix.trim()
-        if (p.isBlank()) return getAll(context)
+        if (p.isBlank()) return getRecent(context)
         val cursor = db(context).readableDatabase.query(
             SearchHistoryDatabase.TABLE,
             arrayOf(SearchHistoryDatabase.COL_QUERY, SearchHistoryDatabase.COL_TITLE, SearchHistoryDatabase.COL_TIMESTAMP),
-            "${SearchHistoryDatabase.COL_QUERY} LIKE ? OR ${SearchHistoryDatabase.COL_TITLE} LIKE ?",
-            arrayOf("%$p%", "%$p%"),
+            "(${SearchHistoryDatabase.COL_QUERY} LIKE ? OR ${SearchHistoryDatabase.COL_TITLE} LIKE ?) AND $IN_PROFILE",
+            arrayOf("%$p%", "%$p%", pid(context)),
             null, null,
             "${SearchHistoryDatabase.COL_TIMESTAMP} DESC",
-            MAX_ENTRIES.toString()
+            RECENT_LIMIT.toString()
         )
         val list = mutableListOf<HistoryItem>()
         cursor.use { while (it.moveToNext()) list.add(HistoryItem(it.getString(0), it.getString(1), it.getLong(2))) }
@@ -101,8 +107,8 @@ object SearchHistoryManager {
     fun delete(context: Context, query: String) {
         db(context).writableDatabase.delete(
             SearchHistoryDatabase.TABLE,
-            "${SearchHistoryDatabase.COL_QUERY} = ?",
-            arrayOf(query)
+            "${SearchHistoryDatabase.COL_QUERY} = ? AND $IN_PROFILE",
+            arrayOf(query, pid(context))
         )
     }
 
@@ -110,8 +116,8 @@ object SearchHistoryManager {
         val cursor = db(context).readableDatabase.query(
             SearchHistoryDatabase.TABLE,
             arrayOf(SearchHistoryDatabase.COL_QUERY, SearchHistoryDatabase.COL_TITLE, SearchHistoryDatabase.COL_TIMESTAMP),
-            "${SearchHistoryDatabase.COL_TIMESTAMP} >= ?",
-            arrayOf(since.toString()),
+            "${SearchHistoryDatabase.COL_TIMESTAMP} >= ? AND $IN_PROFILE",
+            arrayOf(since.toString(), pid(context)),
             null, null,
             "${SearchHistoryDatabase.COL_TIMESTAMP} DESC"
         )
@@ -123,24 +129,20 @@ object SearchHistoryManager {
     fun deleteSince(context: Context, since: Long) {
         db(context).writableDatabase.delete(
             SearchHistoryDatabase.TABLE,
-            "${SearchHistoryDatabase.COL_TIMESTAMP} >= ?",
-            arrayOf(since.toString())
+            "${SearchHistoryDatabase.COL_TIMESTAMP} >= ? AND $IN_PROFILE",
+            arrayOf(since.toString(), pid(context))
         )
     }
 
     fun clear(context: Context) {
+        db(context).writableDatabase.delete(SearchHistoryDatabase.TABLE, IN_PROFILE, arrayOf(pid(context)))
+    }
+
+    fun clearAllProfiles(context: Context) {
         db(context).writableDatabase.delete(SearchHistoryDatabase.TABLE, null, null)
     }
 
-    private fun trimToMax(writable: SQLiteDatabase) {
-        writable.execSQL(
-            """DELETE FROM ${SearchHistoryDatabase.TABLE}
-               WHERE ${SearchHistoryDatabase.COL_ID} NOT IN (
-                 SELECT ${SearchHistoryDatabase.COL_ID}
-                 FROM   ${SearchHistoryDatabase.TABLE}
-                 ORDER  BY ${SearchHistoryDatabase.COL_TIMESTAMP} DESC
-                 LIMIT  $MAX_ENTRIES
-               )"""
-        )
+    fun removeProfile(context: Context, profileId: String) {
+        db(context).writableDatabase.delete(SearchHistoryDatabase.TABLE, IN_PROFILE, arrayOf(profileId))
     }
 }

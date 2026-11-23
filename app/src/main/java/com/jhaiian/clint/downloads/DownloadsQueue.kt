@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Layers
@@ -50,6 +51,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -64,6 +66,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -101,6 +104,7 @@ internal fun downloadStatusInfo(
     onRetry: (Int) -> Unit
 ): StatusInfo {
     val context = LocalContext.current
+    val appearance = LocalDownloadAppearance.current
     val pauseLabel = stringResource(R.string.downloads_action_pause)
     val resumeLabel = stringResource(R.string.downloads_action_resume)
     val retryLabel = stringResource(R.string.downloads_action_retry)
@@ -131,10 +135,27 @@ internal fun downloadStatusInfo(
     fun fraction(pct: Int): DownloadRowProgress = if (pct > 0) DownloadRowProgress.Determinate(pct / 100f) else DownloadRowProgress.Indeterminate
 
     return when (item.status) {
-        DownloadStatus.QUEUED -> info(
-            headline = listOfNotNull(context.getString(R.string.download_status_queued), sizeText).joinToString(DOT),
-            actionIcon = Icons.Filled.Pause, actionLabel = pauseLabel, action = pause
-        )
+        DownloadStatus.QUEUED -> {
+            val started = item.bytesDownloaded > 0L
+            val pct = item.progressPercent
+            val queuePosition = ClintDownloadManager.downloadsFlow.value
+                .filter { it.status == DownloadStatus.QUEUED }
+                .sortedWith(compareBy<DownloadItem>({ it.queueOrder }, { it.id }))
+                .indexOfFirst { it.id == item.id } + 1
+            info(
+                headline = context.getString(R.string.download_status_queued),
+                progress = if (started && pct >= 0) DownloadRowProgress.Determinate(pct / 100f) else DownloadRowProgress.None,
+                chips = listOfNotNull(
+                    if (queuePosition > 0) ChipSpec(context.getString(R.string.downloads_queue_position, queuePosition), Icons.Filled.FormatListNumbered) else null,
+                    if (started) ChipSpec(bytesText, Icons.Filled.Download) else sizeText?.let { ChipSpec(it, Icons.Filled.Download) },
+                    elapsedChip,
+                    if (started) resumableChip else null
+                ),
+                percent = pct.takeIf { started && it >= 0 },
+                muted = true,
+                actionIcon = Icons.Filled.Pause, actionLabel = pauseLabel, action = pause
+            )
+        }
         DownloadStatus.CONNECTING -> info(
             headline = context.getString(R.string.download_status_connecting),
             progress = DownloadRowProgress.Indeterminate,
@@ -163,8 +184,8 @@ internal fun downloadStatusInfo(
             val remaining = item.totalBytes - item.bytesDownloaded
             val etaSpeed = item.averageSpeedBytesPerSec().takeIf { it > 0L } ?: speed
             val chips = listOfNotNull(
-                if (speed > 0L) ChipSpec(context.getString(R.string.download_speed_only, formatFileSize(speed)), Icons.Filled.Bolt, emphasized = true) else null,
-                if (speed > 0L && item.totalBytes > 0L && remaining > 0L && etaSpeed > 0L)
+                if (appearance.showSpeed && speed > 0L) ChipSpec(context.getString(R.string.download_speed_only, formatFileSize(speed)), Icons.Filled.Bolt, emphasized = true) else null,
+                if (appearance.showEta && speed > 0L && item.totalBytes > 0L && remaining > 0L && etaSpeed > 0L)
                     ChipSpec(context.getString(R.string.downloads_eta_left, formatEta(context, remaining / etaSpeed)), Icons.Filled.Schedule, emphasized = true) else null,
                 streamStageLabel(context, item)?.let { ChipSpec(it, Icons.Filled.Layers) },
                 elapsedChip,
@@ -450,7 +471,9 @@ private fun PulseCard(
                 )
             }
         }
-        SpeedGraph(samples = history, color = colors.primary, modifier = Modifier.fillMaxWidth().height(56.dp))
+        if (LocalDownloadAppearance.current.showTotalGraph) {
+            SpeedGraph(samples = history, color = colors.primary, modifier = Modifier.fillMaxWidth().height(56.dp))
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             PulseStat(
                 value = pluralStringResource(R.plurals.downloads_pulse_active, workingCount, workingCount),
@@ -542,7 +565,7 @@ internal fun PillButton(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DownloadCard(
+internal fun DownloadCard(
     item: DownloadItem,
     tick: Long,
     expanded: Boolean,
@@ -560,6 +583,9 @@ private fun DownloadCard(
     onRemove: () -> Unit
 ) {
     val colors = LocalClintColors.current
+    val appearance = LocalDownloadAppearance.current
+    val density = appearance.density
+    val ring = appearance.progressStyle == DownloadProgressStyle.RING
     val info = downloadStatusInfo(item, onPause, onResume, onRetry)
     val parts = downloadPartFractions(item)
     val shape = RoundedCornerShape(22.dp)
@@ -572,7 +598,7 @@ private fun DownloadCard(
             SwipeAction(info.actionLabel, info.actionIcon ?: Icons.Filled.PlayArrow, colors.primary, colors.onPrimary, action)
         },
         endAction = SwipeAction(stringResource(R.string.action_delete), Icons.Filled.Delete, colors.colorErrorContainer, colors.colorOnErrorContainer, onRemove),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = density.outer)
     ) {
         Column(
             Modifier
@@ -581,23 +607,39 @@ private fun DownloadCard(
                 .background(if (isSelected) colors.primary.copy(alpha = 0.16f) else colors.cardBackground)
                 .then(if (isSelected) Modifier.border(1.5.dp, colors.primary, shape) else Modifier)
                 .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(density.cardPadding),
+            verticalArrangement = Arrangement.spacedBy(density.gap)
         ) {
             Row(verticalAlignment = Alignment.Top) {
-                Box(Modifier.size(60.dp), contentAlignment = Alignment.Center) {
-                    ProgressRing(progress = info.progress, color = accent, modifier = Modifier.fillMaxSize())
+                if (ring) {
+                    Box(Modifier.size(60.dp), contentAlignment = Alignment.Center) {
+                        ProgressRing(progress = info.progress, color = accent, modifier = Modifier.fillMaxSize())
+                        if (appearance.showThumbnail) {
+                            DownloadThumb(
+                                item = item,
+                                modifier = Modifier.size(42.dp),
+                                requestPx = rememberPx(42.dp),
+                                corner = 12.dp,
+                                iconSize = 22.dp,
+                                showDuration = false,
+                                selected = isSelected
+                            )
+                        } else if (info.percent != null) {
+                            Text("${info.percent}%", color = accent, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                        }
+                    }
+                } else if (appearance.showThumbnail) {
                     DownloadThumb(
                         item = item,
-                        modifier = Modifier.size(42.dp),
-                        requestPx = rememberPx(42.dp),
-                        corner = 12.dp,
-                        iconSize = 22.dp,
+                        modifier = Modifier.size(48.dp),
+                        requestPx = rememberPx(48.dp),
+                        corner = 14.dp,
+                        iconSize = 24.dp,
                         showDuration = false,
                         selected = isSelected
                     )
                 }
-                Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
+                Column(Modifier.weight(1f).padding(start = if (ring || appearance.showThumbnail) 12.dp else 0.dp, end = 8.dp)) {
                     Text(item.filename, color = colors.onSurface, fontSize = 15.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold, maxLines = 3)
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 3.dp)) {
                         if (info.percent != null) {
@@ -605,6 +647,11 @@ private fun DownloadCard(
                             Spacer(Modifier.width(8.dp))
                         }
                         Text(info.headline, color = if (info.isError) colors.colorError else colors.secondaryText, fontSize = 13.sp, lineHeight = 17.sp)
+                    }
+                    if (appearance.showSource) {
+                        sourceHost(item)?.let {
+                            Text(it, color = colors.secondaryText, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                        }
                     }
                 }
                 if (info.action != null && info.actionIcon != null) {
@@ -615,6 +662,9 @@ private fun DownloadCard(
                         Icon(info.actionIcon, contentDescription = info.actionLabel, tint = accent, modifier = Modifier.size(22.dp))
                     }
                 }
+            }
+            if (!ring) {
+                DownloadProgressBar(info.progress, accent)
             }
             if (info.detail != null) {
                 Text(
@@ -633,7 +683,7 @@ private fun DownloadCard(
                     info.chips.forEach { StatChip(it.text, it.icon, it.emphasized) }
                 }
             }
-            if (parts != null && !expanded) {
+            if (parts != null && !expanded && appearance.showParts) {
                 val strip = remember(parts) { SegmentMap.downsample(parts, SegmentMap.STRIP_BUCKETS) }
                 PartsStrip(
                     fractions = strip, color = accent, cellHeight = 8.dp,
@@ -686,7 +736,7 @@ private fun ExpandedDetails(
     val colors = LocalClintColors.current
     val context = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (history.size >= 2) {
+        if (history.size >= 2 && LocalDownloadAppearance.current.showItemGraph) {
             val nonZero = history.filter { it > 0L }
             val average = if (nonZero.isNotEmpty()) nonZero.sum() / nonZero.size else 0L
             Column(
@@ -779,6 +829,17 @@ private fun ExpandedDetails(
 }
 
 @Composable
+private fun DownloadProgressBar(progress: DownloadRowProgress, color: androidx.compose.ui.graphics.Color) {
+    val track = LocalClintColors.current.primary.copy(alpha = 0.14f)
+    val modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape)
+    when (progress) {
+        is DownloadRowProgress.Determinate -> LinearProgressIndicator(progress = { progress.fraction.coerceIn(0f, 1f) }, modifier = modifier, color = color, trackColor = track)
+        is DownloadRowProgress.Indeterminate -> LinearProgressIndicator(modifier = modifier, color = color, trackColor = track)
+        is DownloadRowProgress.None -> Unit
+    }
+}
+
+@Composable
 private fun LegendDot(color: androidx.compose.ui.graphics.Color, label: String) {
     val colors = LocalClintColors.current
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -824,8 +885,17 @@ private fun UpNextRow(
 ) {
     val colors = LocalClintColors.current
     val shape = RoundedCornerShape(18.dp)
+    val started = item.bytesDownloaded > 0L
+    val pct = item.progressPercent
+    val sizeMeta = when {
+        started && item.totalBytes > 0 -> stringResource(R.string.downloads_bytes_of, formatFileSize(item.bytesDownloaded), formatFileSize(item.totalBytes))
+        started -> formatFileSize(item.bytesDownloaded)
+        item.totalBytes > 0 -> formatFileSize(item.totalBytes)
+        else -> stringResource(R.string.downloads_size_unknown)
+    }
     val meta = listOfNotNull(
-        if (item.totalBytes > 0) formatFileSize(item.totalBytes) else null,
+        sizeMeta,
+        if (started && pct >= 0) "$pct%" else null,
         if (item.unmeteredOnly) stringResource(R.string.downloads_setting_wifi_only) else null,
         sourceHost(item)
     ).joinToString(DOT)
@@ -858,6 +928,10 @@ private fun UpNextRow(
                     listOf(stringResource(R.string.download_status_queued), meta).filter { it.isNotBlank() }.joinToString(DOT),
                     color = colors.secondaryText, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 2.dp)
                 )
+                if (started && pct >= 0) {
+                    Spacer(Modifier.height(6.dp))
+                    DownloadProgressBar(DownloadRowProgress.Determinate(pct / 100f), colors.primary.copy(alpha = 0.6f))
+                }
             }
             if (!isInSelectionMode) {
                 IconButton(onClick = onMoveUp, enabled = !isFirst) {

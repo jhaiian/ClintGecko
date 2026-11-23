@@ -43,6 +43,7 @@ internal fun MainActivity.exitFullscreen() {
     fullscreenCallback = null
     fullscreenView = null
     uiState.isFullscreen = false
+    onVideoTakeoverEnded()
     bottomBarAnimator2?.cancel()
     uiState.topBarFraction = 0f
     uiState.bottomBarFraction = 0f

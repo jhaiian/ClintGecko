@@ -33,6 +33,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -49,6 +50,7 @@ import com.jhaiian.clint.ui.theme.LocalClintColors
 
 @Composable
 internal fun CompactDownloadRequestContent(
+    batchCount: Int,
     url: String,
     onCopyLink: () -> Unit,
     filename: String,
@@ -57,10 +59,13 @@ internal fun CompactDownloadRequestContent(
     onExtensionChange: (String) -> Unit,
     filenameFocusRequester: FocusRequester,
     fileSizeText: String,
+    canPlay: Boolean,
+    onPlay: () -> Unit,
     locationMode: String,
     onLocationModeSelected: (String) -> Unit,
     customUri: Uri?,
     onPickFolder: () -> Unit,
+    onSelectFolder: (Uri) -> Unit,
     showStorageInfo: Boolean,
     storageInfoText: String,
     categorizeEnabled: Boolean,
@@ -96,49 +101,51 @@ internal fun CompactDownloadRequestContent(
     val colors = LocalClintColors.current
 
     Column(Modifier.padding(horizontal = 12.dp)) {
-        Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                Icons.Filled.Link,
-                contentDescription = stringResource(R.string.download_dialog_link_clip_label),
-                tint = colors.iconTint,
-                modifier = Modifier.size(24.dp).clickable { onCopyLink() }.padding(4.dp)
-            )
+        if (batchCount > 0) {
             Text(
-                url, color = colors.secondaryText, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                maxLines = 1, overflow = TextOverflow.MiddleEllipsis,
-                modifier = Modifier.weight(1f).padding(start = 6.dp)
+                stringResource(R.string.media_capture_selected_count, batchCount),
+                color = colors.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(start = 2.dp)
             )
-        }
+            Text(fileSizeText, color = colors.secondaryText, fontSize = 11.sp, modifier = Modifier.padding(start = 2.dp, top = 3.dp))
+        } else {
+            Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.Link,
+                    contentDescription = stringResource(R.string.download_dialog_link_clip_label),
+                    tint = colors.iconTint,
+                    modifier = Modifier.size(24.dp).clickable { onCopyLink() }.padding(4.dp)
+                )
+                Text(
+                    url, color = colors.secondaryText, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                    maxLines = 1, overflow = TextOverflow.MiddleEllipsis,
+                    modifier = Modifier.weight(1f).padding(start = 6.dp)
+                )
+            }
 
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            ClintCompactTextField(
-                value = filename, onValueChange = onFilenameChange,
-                modifier = Modifier.weight(1f).focusRequester(filenameFocusRequester),
-                placeholder = stringResource(R.string.download_dialog_filename_hint)
-            )
-            ClintCompactTextField(
-                value = extension, onValueChange = onExtensionChange,
-                modifier = Modifier.width(88.dp).padding(start = 8.dp),
-                placeholder = stringResource(R.string.download_dialog_extension_hint)
-            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                ClintCompactTextField(
+                    value = filename, onValueChange = onFilenameChange,
+                    modifier = Modifier.weight(1f).focusRequester(filenameFocusRequester),
+                    placeholder = stringResource(R.string.download_dialog_filename_hint)
+                )
+                ClintCompactTextField(
+                    value = extension, onValueChange = onExtensionChange,
+                    modifier = Modifier.width(88.dp).padding(start = 8.dp),
+                    placeholder = stringResource(R.string.download_dialog_extension_hint)
+                )
+            }
+            Row(Modifier.fillMaxWidth().padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(fileSizeText, color = colors.secondaryText, fontSize = 11.sp, modifier = Modifier.weight(1f).padding(start = 2.dp))
+                if (canPlay) DownloadPlayButton(compact = true, onClick = onPlay)
+            }
         }
-        Text(fileSizeText, color = colors.secondaryText, fontSize = 11.sp, modifier = Modifier.padding(start = 2.dp, top = 3.dp))
 
         CompactDivider()
 
         CompactLocationRow(mode = locationMode, onModeSelected = onLocationModeSelected)
         if (locationMode == DownloadSettingsKeys.MODE_CUSTOM) {
-            Row(
-                Modifier.fillMaxWidth().clickable { onPickFolder() }.padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Filled.Folder, contentDescription = null, tint = colors.iconTint, modifier = Modifier.size(16.dp))
-                Text(
-                    customUri?.let { uriToDisplayPath(it) } ?: stringResource(R.string.download_location_tap_to_choose),
-                    color = colors.onSurface, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.MiddleEllipsis,
-                    modifier = Modifier.weight(1f).padding(start = 8.dp)
-                )
-            }
+            SavedLocationFolderRow(customUri = customUri, compact = true, onSelect = onSelectFolder, onAddNew = onPickFolder)
         }
         if (showStorageInfo && storageInfoText.isNotEmpty()) {
             Text(storageInfoText, color = colors.secondaryText, fontSize = 10.sp, modifier = Modifier.padding(start = 2.dp, bottom = 2.dp))

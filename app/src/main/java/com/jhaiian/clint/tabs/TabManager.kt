@@ -1,11 +1,14 @@
 package com.jhaiian.clint.tabs
 
+enum class TabSortMode { LAST_USED, SITE, TITLE }
+
 class TabManager {
 
     val tabs = mutableListOf<BrowserTab>()
     val groups = mutableListOf<TabGroup>()
     var activeIndex = 0
     var framelessShortcutIds: Set<String> = emptySet()
+    var activeProfileId: String = com.jhaiian.clint.profiles.WebProfiles.DEFAULT_ID
 
     val activeTab: BrowserTab? get() = tabs.getOrNull(activeIndex)
     val count: Int get() = tabs.size
@@ -84,13 +87,25 @@ class TabManager {
         return null
     }
 
-    fun isGhostTab(tab: BrowserTab): Boolean {
+    fun isFramelessGhost(tab: BrowserTab): Boolean {
         val shortcutId = effectiveShortcutId(tab) ?: return false
         return shortcutId in framelessShortcutIds
     }
 
+    fun isGhostTab(tab: BrowserTab): Boolean = isFramelessGhost(tab)
+
+    fun lastActiveTabIndexIn(profileId: String): Int {
+        var best = -1
+        tabs.forEachIndexed { index, tab ->
+            if (!tab.isIncognito && tab.profileId == profileId && effectiveShortcutId(tab) == null && !tab.isRefreshLinkTab) {
+                if (best == -1 || tab.lastActiveAt > tabs[best].lastActiveAt) best = index
+            }
+        }
+        return best
+    }
+
     fun previews(): List<TabPreview> = tabs.filter { !isGhostTab(it) }.map {
-        TabPreview(it.id, it.title.ifBlank { "New Tab" }, if (com.jhaiian.clint.browser.home.isClintHomeUrl(it.url)) "" else it.url, it.isIncognito, it.profileId, it.webView.audioState, it.groupId)
+        TabPreview(it.id, it.title.ifBlank { "New Tab" }, if (com.jhaiian.clint.browser.home.isClintHomeUrl(it.url)) "" else it.url, it.isIncognito, it.profileId, it.webView.audioState, it.groupId, it.isPinned)
     }
 
     fun moveTab(fromIndex: Int, toIndex: Int) {
@@ -113,6 +128,78 @@ class TabManager {
         tabs.clear()
         tabs.addAll(result)
         if (activeTabId != null) activeIndex = tabs.indexOfFirst { it.id == activeTabId }
+        normalizeGroups(activeTabId)
+    }
+
+    fun setPinned(tabIds: List<String>, pinned: Boolean) {
+        val activeTabId = activeTab?.id
+        val ids = tabIds.toSet()
+        val targets = tabs.filter { it.id in ids && it.isPinned != pinned && !isGhostTab(it) && !it.isRefreshLinkTab }
+        if (targets.isEmpty()) return
+        val targetIds = targets.map { it.id }.toSet()
+        tabs.removeAll { it.id in targetIds }
+        targets.forEach {
+            it.isPinned = pinned
+            if (pinned) it.groupId = null
+        }
+        tabs.addAll(tabs.indexOfLast { it.isPinned } + 1, targets)
+        normalizeGroups(activeTabId)
+        pruneEmptyGroups()
+    }
+
+    fun sortTabs(mode: TabSortMode) {
+        val comparator = sortComparator(mode)
+        val visible = tabs.filter { !isGhostTab(it) }
+        val pinned = visible.filter { it.isPinned }.sortedWith(comparator)
+        val rest = visible.filter { !it.isPinned }
+        val emitted = mutableSetOf<String>()
+        val units = ArrayList<List<BrowserTab>>()
+        rest.forEach { tab ->
+            val groupId = tab.groupId
+            if (groupId == null) units.add(listOf(tab))
+            else if (emitted.add(groupId)) units.add(rest.filter { it.groupId == groupId }.sortedWith(comparator))
+        }
+        val ordered = pinned + units.sortedWith { a, b -> comparator.compare(a.first(), b.first()) }.flatten()
+        reorderTo(ordered.map { it.id })
+        normalizeGroups()
+    }
+
+    fun groupBySite(): Int {
+        val buckets = tabs
+            .filter { it.groupId == null && !it.isPinned && !isGhostTab(it) && !it.isRefreshLinkTab }
+            .groupBy { it.isIncognito to siteOf(it) }
+            .filter { it.key.second.isNotEmpty() && it.value.size >= 2 }
+        val usedColors = groups.map { it.color }.toMutableList()
+        var created = 0
+        buckets.values.forEach { members ->
+            val color = TabGroupColor.next(usedColors)
+            val group = createGroup(suggestGroupName(members.map { it.url }), color, members.map { it.id })
+            if (group != null) {
+                usedColors.add(color)
+                created++
+            }
+        }
+        return created
+    }
+
+    private fun siteOf(tab: BrowserTab): String =
+        runCatching { android.net.Uri.parse(tab.url).host }.getOrNull().orEmpty().removePrefix("www.").lowercase()
+
+    private fun sortComparator(mode: TabSortMode): Comparator<BrowserTab> {
+        val collator = java.text.Collator.getInstance()
+        return when (mode) {
+            TabSortMode.LAST_USED -> compareByDescending { it.lastActiveAt }
+            TabSortMode.TITLE -> Comparator { a, b -> collator.compare(a.title, b.title) }
+            TabSortMode.SITE -> Comparator { a, b ->
+                val hostA = siteOf(a)
+                val hostB = siteOf(b)
+                when {
+                    hostA.isEmpty() != hostB.isEmpty() -> if (hostA.isEmpty()) 1 else -1
+                    hostA != hostB -> hostA.compareTo(hostB)
+                    else -> collator.compare(a.title, b.title)
+                }
+            }
+        }
     }
 
     fun group(groupId: String?): TabGroup? = groupId?.let { id -> groups.firstOrNull { it.id == id } }
@@ -174,6 +261,7 @@ class TabManager {
             val tab = tabs.firstOrNull { it.id == tabId } ?: return@forEach
             val target = group(groupId)
             tab.groupId = if (target != null && target.isIncognito == tab.isIncognito && !isGhostTab(tab)) target.id else null
+            if (tab.groupId != null) tab.isPinned = false
         }
         reorderTo(orderedIds)
         normalizeGroups(activeTabId)
@@ -187,7 +275,7 @@ class TabManager {
     fun normalizeGroups(activeTabId: String? = activeTab?.id) {
         tabs.forEach { tab ->
             val group = group(tab.groupId)
-            if (tab.groupId != null && (group == null || group.isIncognito != tab.isIncognito || tab.isRefreshLinkTab)) tab.groupId = null
+            if (tab.groupId != null && (group == null || group.isIncognito != tab.isIncognito || tab.isRefreshLinkTab || tab.isPinned)) tab.groupId = null
         }
         val emitted = mutableSetOf<String>()
         val ordered = ArrayList<BrowserTab>(tabs.size)
@@ -197,7 +285,8 @@ class TabManager {
             else if (emitted.add(groupId)) ordered.addAll(tabs.filter { it.groupId == groupId })
         }
         tabs.clear()
-        tabs.addAll(ordered)
+        tabs.addAll(ordered.filter { it.isPinned })
+        tabs.addAll(ordered.filter { !it.isPinned })
         val groupOrder = tabs.mapNotNull { it.groupId }.distinct()
         groups.sortBy { group -> groupOrder.indexOf(group.id).let { if (it < 0) Int.MAX_VALUE else it } }
         if (activeTabId != null) {
@@ -221,7 +310,10 @@ class TabManager {
         val existing = tabs.filter { it.groupId == groupId }
         val anchor = members.minOf { tabs.indexOf(it) }
         tabs.removeAll(members.toSet())
-        members.forEach { it.groupId = groupId }
+        members.forEach {
+            it.groupId = groupId
+            it.isPinned = false
+        }
         val insertAt = existing.lastOrNull()?.let { tabs.indexOf(it) + 1 } ?: anchor.coerceAtMost(tabs.size)
         tabs.addAll(insertAt, members)
         normalizeGroups(activeTabId)

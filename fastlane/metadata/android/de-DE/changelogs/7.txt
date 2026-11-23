@@ -1,0 +1,11 @@
+• Videoplayer mit Gesten und Bild-im-Bild
+• Getrennte Profile mit schnellem Wechsel
+• Neues Menü und anpassbare Symbolleiste
+• Mehr Optionen für Startseite und Suchvorschläge
+• Auf Seite suchen
+• Tabs anheften und sortieren, zuletzt geschlossene Tabs
+• Unterstützung für Custom Tabs
+• Neue Download-Ansichten, Live-Updates, eigener Download-Manager
+• Mehrfachauswahl und Größenfilter in der Medienerfassung
+• Kindersicherung und Leistungsboost
+• GeckoView 160, neue Einrichtung und 5 neue Sprachen

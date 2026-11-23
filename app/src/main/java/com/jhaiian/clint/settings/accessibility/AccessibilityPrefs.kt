@@ -7,10 +7,26 @@ object AccessibilityPrefs {
     const val PREF_AUTO_FONT_SIZE = "accessibility_auto_font_size"
     const val PREF_FONT_SIZE_PERCENT = "accessibility_font_size_percent"
     const val PREF_FORCE_ZOOM = "accessibility_force_zoom"
+    const val PREF_COLOR_FILTER = "accessibility_color_filter"
+
+    const val COLOR_FILTER_OFF = "off"
+    const val COLOR_FILTER_GRAYSCALE = "grayscale"
+    const val COLOR_FILTER_SEPIA = "sepia"
+    const val COLOR_FILTER_BLACK_WHITE = "black_white"
+    const val COLOR_FILTER_MONOCHROME = "monochrome"
+
+    val COLOR_FILTERS = listOf(
+        COLOR_FILTER_OFF,
+        COLOR_FILTER_GRAYSCALE,
+        COLOR_FILTER_SEPIA,
+        COLOR_FILTER_BLACK_WHITE,
+        COLOR_FILTER_MONOCHROME
+    )
 
     const val DEFAULT_AUTO_FONT_SIZE = true
     const val DEFAULT_FONT_SIZE_PERCENT = 100
     const val DEFAULT_FORCE_ZOOM = false
+    const val DEFAULT_COLOR_FILTER = COLOR_FILTER_OFF
 
     const val MIN_FONT_SIZE_PERCENT = 50
     const val MAX_FONT_SIZE_PERCENT = 200
@@ -21,6 +37,9 @@ object AccessibilityPrefs {
 
     fun forceZoom(prefs: SharedPreferences): Boolean =
         prefs.getBoolean(PREF_FORCE_ZOOM, DEFAULT_FORCE_ZOOM)
+
+    fun colorFilter(prefs: SharedPreferences): String =
+        prefs.getString(PREF_COLOR_FILTER, DEFAULT_COLOR_FILTER)?.takeIf { it in COLOR_FILTERS } ?: DEFAULT_COLOR_FILTER
 
     fun fontSizePercent(prefs: SharedPreferences): Int =
         sanitizePercent(prefs.getInt(PREF_FONT_SIZE_PERCENT, DEFAULT_FONT_SIZE_PERCENT))

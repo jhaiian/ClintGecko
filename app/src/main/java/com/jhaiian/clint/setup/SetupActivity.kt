@@ -1,28 +1,38 @@
 package com.jhaiian.clint.setup
 
+import android.Manifest
+import android.app.ActivityOptions
 import android.app.role.RoleManager
-import androidx.activity.addCallback
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
 import com.jhaiian.clint.base.ClintActivity
 import com.jhaiian.clint.browser.MainActivity
+import com.jhaiian.clint.browser.webview.ClintGecko
+import com.jhaiian.clint.browser.webview.SecureDns
 import com.jhaiian.clint.crash.CrashHandler
+import com.jhaiian.clint.customtheme.isCustomAccent
+import com.jhaiian.clint.extensions.ClintExtensions
+import com.jhaiian.clint.extensions.ExtensionHost
+import com.jhaiian.clint.privacy.PrivacyPrefs
 import com.jhaiian.clint.ui.DocumentViewer
 import com.jhaiian.clint.ui.OverlayHostActivity
+import com.jhaiian.clint.ui.listscreen.ConfirmDialogHost
+import com.jhaiian.clint.ui.theme.ClintComposeTheme
 import com.jhaiian.clint.util.LocaleHelper
 
 class SetupActivity : ClintActivity(), OverlayHostActivity {
@@ -40,132 +50,107 @@ class SetupActivity : ClintActivity(), OverlayHostActivity {
     companion object {
         const val PRIVACY_POLICY_URL = "https://github.com/jhaiian/ClintGecko/blob/main/PRIVACY_POLICY.md"
         const val TERMS_URL = "https://github.com/jhaiian/ClintGecko/blob/main/TERMS_OF_SERVICE.md"
-        private const val KEY_PENDING_PAGE = "setup_pending_page"
-        private const val KEY_PENDING_SCROLL = "setup_pending_scroll"
-        private const val KEY_PENDING_CONSENT = "setup_pending_consent"
-        private const val KEY_PENDING_HIDE_STATUS_BAR = "setup_pending_hide_status_bar"
-        private const val KEY_PENDING_HIDE_SYSTEM_NAVIGATION = "setup_pending_hide_system_navigation"
+        const val PREF_NOTIFICATIONS_ASKED = "setup_notifications_asked"
+
+        fun notificationsAllowed(context: Context): Boolean =
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        onBackPressedDispatcher.addCallback(this) {
-            if (uiState.currentPage > 0) {
-                uiState.currentPage -= 1
-            } else {
-                isEnabled = false
-                onBackPressedDispatcher.onBackPressed()
-            }
-        }
-
         CrashHandler.install(this)
 
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        if (prefs.getBoolean("setup_complete", false)) { startMainActivity(); return }
-
-        var hideStatusBar = prefs.getBoolean("hide_status_bar", false)
-        var hideSystemNavigation = prefs.getBoolean("hide_system_navigation", false)
-        if (prefs.contains(KEY_PENDING_HIDE_STATUS_BAR)) {
-            hideStatusBar = prefs.getBoolean(KEY_PENDING_HIDE_STATUS_BAR, false)
-            prefs.edit().remove(KEY_PENDING_HIDE_STATUS_BAR).apply()
-        }
-        if (prefs.contains(KEY_PENDING_HIDE_SYSTEM_NAVIGATION)) {
-            hideSystemNavigation = prefs.getBoolean(KEY_PENDING_HIDE_SYSTEM_NAVIGATION, false)
-            prefs.edit().remove(KEY_PENDING_HIDE_SYSTEM_NAVIGATION).apply()
-        }
-        var consentChecked = false
-        if (prefs.contains(KEY_PENDING_CONSENT)) {
-            consentChecked = prefs.getBoolean(KEY_PENDING_CONSENT, false)
-            prefs.edit().remove(KEY_PENDING_CONSENT).apply()
-        }
+        if (prefs.getBoolean("setup_complete", false)) { startMainActivity(animated = false); return }
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        val pendingPage = prefs.getInt(KEY_PENDING_PAGE, -1)
-        val initialPage: Int
-        val initialScroll: Int
-        if (pendingPage >= 0) {
-            prefs.edit().remove(KEY_PENDING_PAGE).apply()
-            initialPage = pendingPage
-            initialScroll = prefs.getInt(KEY_PENDING_SCROLL, 0)
-            if (initialScroll > 0) prefs.edit().remove(KEY_PENDING_SCROLL).apply()
-        } else {
-            initialPage = 0
-            initialScroll = 0
+        val steps = SetupStep.entries.filter {
+            it != SetupStep.NOTIFICATIONS || Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
         }
-
-        uiState = SetupUiState(
-            initialPage = initialPage,
-            initialScrollY = initialScroll,
-            initialTheme = prefs.getString("app_theme", "system") ?: "system",
-            initialAccent = prefs.getString("accent_color", "material_you") ?: "material_you",
-            initialIntensity = prefs.getString("surface_intensity", "soft_tint") ?: "soft_tint",
-            initialLanguage = prefs.getString(LocaleHelper.PREF_APP_LANGUAGE, LocaleHelper.LANGUAGE_SYSTEM) ?: LocaleHelper.LANGUAGE_SYSTEM,
-            initialAddressBarPosition = prefs.getString("address_bar_position", "top") ?: "top",
-            initialMenuStyle = prefs.getString("menu_style", "popup") ?: "popup",
-            initialScrollHideMode = prefs.getString("scroll_hide_mode", "off") ?: "off",
-            initialHideStatusBar = hideStatusBar, initialHideSystemNavigation = hideSystemNavigation,
-            initialEngine = "duckduckgo",
-            initialCustomEngineName = "", initialCustomEngineUrl = ""
-        )
-        uiState.consentChecked = consentChecked
-        if (uiState.currentPage == 5) refreshDefaultBrowserState()
+        uiState = SetupUiState(steps, SetupUiState.initialScrollFrom(savedInstanceState, steps)).apply {
+            theme = prefs.getString("app_theme", "system") ?: "system"
+            accent = prefs.getString("accent_color", "material_you") ?: "material_you"
+            intensity = prefs.getString("surface_intensity", "soft_tint") ?: "soft_tint"
+            language = prefs.getString(LocaleHelper.PREF_APP_LANGUAGE, LocaleHelper.LANGUAGE_SYSTEM) ?: LocaleHelper.LANGUAGE_SYSTEM
+            addressBarPosition = prefs.getString("address_bar_position", "top") ?: "top"
+            menuStyle = prefs.getString("menu_style", "popup") ?: "popup"
+            scrollHideMode = sanitizeScrollHideMode(prefs.getString("scroll_hide_mode", "off") ?: "off", addressBarPosition)
+            httpsOnly = prefs.getBoolean("https_only", true)
+            doNotTrack = prefs.getBoolean("do_not_track", true)
+            etpLevel = PrivacyPrefs.etpLevel(prefs)
+            cookiePolicy = PrivacyPrefs.cookiePolicy(prefs)
+            fingerprintingProtection = prefs.getBoolean(PrivacyPrefs.FINGERPRINTING_PROTECTION, PrivacyPrefs.DEFAULT_FINGERPRINTING_PROTECTION)
+            stripTrackingParams = prefs.getBoolean(PrivacyPrefs.STRIP_TRACKING_PARAMS, PrivacyPrefs.DEFAULT_STRIP_TRACKING_PARAMS)
+            globalPrivacyControl = prefs.getBoolean(PrivacyPrefs.GLOBAL_PRIVACY_CONTROL, PrivacyPrefs.DEFAULT_GLOBAL_PRIVACY_CONTROL)
+            webRtcProtection = prefs.getBoolean(PrivacyPrefs.WEBRTC_PROTECTION, PrivacyPrefs.DEFAULT_WEBRTC_PROTECTION)
+            secureDnsMode = prefs.getString(SecureDns.PREF_MODE, SecureDns.MODE_OFF) ?: SecureDns.MODE_OFF
+            clearOnExit = prefs.getBoolean(PrivacyPrefs.CLEAR_ON_EXIT, PrivacyPrefs.DEFAULT_CLEAR_ON_EXIT)
+            screenshotBlocking = prefs.getBoolean(PrivacyPrefs.SCREENSHOT_BLOCKING, PrivacyPrefs.DEFAULT_SCREENSHOT_BLOCKING)
+            hideStatusBar = prefs.getBoolean("hide_status_bar", false)
+            hideSystemNavigation = prefs.getBoolean("hide_system_navigation", false)
+            showAllAccents = accent !in SetupCuratedAccents && !isCustomAccent(accent)
+            notificationsGranted = notificationsAllowed(this@SetupActivity)
+            notificationsAsked = prefs.getBoolean(PREF_NOTIFICATIONS_ASKED, false)
+            isDefaultBrowser = isClintDefaultBrowser()
+            animateEntrance = savedInstanceState == null
+            if (savedInstanceState != null) restoreFrom(savedInstanceState)
+        }
 
         setContent {
-          com.jhaiian.clint.ui.theme.ClintComposeTheme(theme = uiState.theme) {
-            SetupScreen(
-                activity = this,
-                state = uiState,
-                onPrivacyClick = {
-                    DocumentViewer.show(this, getString(R.string.document_viewer_privacy_policy_title), DocumentViewer.PRIVACY_POLICY_URL)
-                },
-                onTermsClick = {
-                    DocumentViewer.show(this, getString(R.string.document_viewer_terms_title), DocumentViewer.TERMS_URL)
-                },
-                onHideStatusBarToggled = { checked ->
-                    uiState.hideStatusBar = checked
-                    Toast.makeText(this, getString(R.string.setup_status_bar_applied_later), Toast.LENGTH_SHORT).show()
-                },
-                onHideSystemNavigationToggled = { checked ->
-                    uiState.hideSystemNavigation = checked
-                    Toast.makeText(this, getString(R.string.setup_status_bar_applied_later), Toast.LENGTH_SHORT).show()
-                },
-                onThemeSelected = { theme -> onSetupThemeSelected(theme) },
-                onAccentSelected = { accent -> onSetupAccentSelected(accent) },
-                onIntensitySelected = { intensity -> onSetupIntensitySelected(intensity) },
-                onLanguageSelected = { language -> onSetupLanguageSelected(language) },
-                onAddressBarPositionSelected = { position ->
-                    uiState.addressBarPosition = position
-                    uiState.scrollHideMode = sanitizeScrollHideMode(uiState.scrollHideMode, position)
-                },
-                onMenuStyleSelected = { style -> uiState.menuStyle = style },
-                onScrollHideModeSelected = { mode -> uiState.scrollHideMode = mode },
-                onEngineSelected = { engine -> uiState.engine = engine },
-                onCustomEngineSaved = { name, url ->
-                    uiState.customEngineName = name
-                    uiState.customEngineUrl = url
-                    uiState.engine = "custom"
-                },
-                onContinueFromWelcome = { uiState.currentPage = 1 },
-                onSkipRestore = { uiState.currentPage = 2 },
-                onRestoreComplete = { restartAppAfterRestore() },
-                onNextFromLayoutPage = { onNextFromLayoutPage() },
-                onNextFromEnginePage = { onNextFromEnginePage() },
-                onSetDefaultBrowser = {
-                    if (uiState.isDefaultBrowser) saveAndProceed() else openDefaultBrowserPicker()
-                },
-                onSkipDefaultBrowser = { saveAndProceed() }
-            )
-            com.jhaiian.clint.ui.listscreen.ConfirmDialogHost(uiState.confirmDialogConfig, uiState.hideStatusBar, uiState.hideSystemNavigation) { uiState.confirmDialogConfig = null }
-            overlayContent?.invoke()
-          }
+            ClintComposeTheme(theme = uiState.theme) {
+                SetupScreen(activity = this, state = uiState)
+                ExtensionHost()
+                ConfirmDialogHost(uiState.confirmDialogConfig, uiState.hideStatusBar, uiState.hideSystemNavigation) { uiState.confirmDialogConfig = null }
+                overlayContent?.invoke()
+            }
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        if (::uiState.isInitialized) uiState.saveTo(outState)
     }
 
     override fun onResume() {
         super.onResume()
-        if (::uiState.isInitialized && uiState.currentPage == 5) refreshDefaultBrowserState()
+        if (!::uiState.isInitialized) return
+        refreshDefaultBrowserState()
+        uiState.notificationsGranted = notificationsAllowed(this)
+    }
+
+    fun openPrivacyPolicy() {
+        DocumentViewer.show(this, getString(R.string.document_viewer_privacy_policy_title), DocumentViewer.PRIVACY_POLICY_URL)
+    }
+
+    fun openTerms() {
+        DocumentViewer.show(this, getString(R.string.document_viewer_terms_title), DocumentViewer.TERMS_URL)
+    }
+
+    fun selectTheme(theme: String) {
+        if (theme == uiState.theme) return
+        captureAndRecreate(theme)
+    }
+
+    fun selectAccent(accent: String) {
+        if (accent == uiState.accent) return
+        captureAndApplyAccentColor(accent)
+    }
+
+    fun selectIntensity(intensity: String) {
+        if (intensity == uiState.intensity) return
+        captureAndApplySurfaceIntensity(intensity)
+    }
+
+    fun selectLanguage(language: String) {
+        if (language == uiState.language) return
+        captureAndApplyLanguage(language)
+    }
+
+    fun markNotificationsAsked() {
+        uiState.notificationsAsked = true
+        PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean(PREF_NOTIFICATIONS_ASKED, true).apply()
     }
 
     fun restartAppAfterRestore() {
@@ -185,96 +170,76 @@ class SetupActivity : ClintActivity(), OverlayHostActivity {
         return info?.activityInfo?.packageName == packageName
     }
 
-    private fun openDefaultBrowserPicker() {
+    fun requestDefaultBrowser() {
+        uiState.defaultBrowserRequested = true
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
                 val roleManager = getSystemService(RoleManager::class.java)
-                if (!roleManager.isRoleHeld(RoleManager.ROLE_BROWSER)) {
-                    val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_BROWSER)
-                    browserRoleLauncher.launch(intent)
+                if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_BROWSER) && !roleManager.isRoleHeld(RoleManager.ROLE_BROWSER)) {
+                    browserRoleLauncher.launch(roleManager.createRequestRoleIntent(RoleManager.ROLE_BROWSER))
                     return
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            }
         }
-        startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+        runCatching { startActivity(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)) }
     }
 
-    private fun onNextFromLayoutPage() {
-        uiState.currentPage = 4
+    fun installAddon(addon: SetupAddon) {
+        uiState.addonRequests = uiState.addonRequests + addon.id
+        writeChoices(complete = false)
+        runCatching {
+            ClintGecko.init(this)
+            ClintExtensions.install(addon.downloadUrl)
+        }
     }
 
-    private fun onNextFromEnginePage() {
-        if (uiState.engine == "google") {
-            uiState.confirmDialogConfig = com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig(
-                title = getString(R.string.google_warning_title),
-                message = getString(R.string.google_warning_message),
-                positiveLabel = getString(R.string.use_google_anyway),
-                onPositive = { goToDefaultBrowserPage() },
-                negativeLabel = getString(R.string.choose_another)
-            )
+    fun finishSetup() {
+        if (isFinishing) return
+        writeChoices(complete = true)
+        if (ClintGecko.isRuntimeReady()) {
+            SecureDns.apply(this)
+            PrivacyPrefs.applyGeckoPrefs(this)
+            ClintGecko.applyTrackingProtection(this)
+            ClintGecko.setCookiePolicy(uiState.cookiePolicy)
+        }
+        startMainActivity(animated = true)
+    }
+
+    private fun writeChoices(complete: Boolean) {
+        val state = uiState
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        PrivacyPrefs.setCookiePolicy(prefs, state.cookiePolicy)
+        prefs.edit()
+            .putString("search_engine", state.engine)
+            .putString(com.jhaiian.clint.browser.CustomSearchEngineNameKey, state.customEngineName)
+            .putString(com.jhaiian.clint.browser.CustomSearchEngineUrlKey, state.customEngineUrl)
+            .putString("address_bar_position", state.addressBarPosition)
+            .putString("menu_style", state.menuStyle)
+            .putString("scroll_hide_mode", sanitizeScrollHideMode(state.scrollHideMode, state.addressBarPosition))
+            .putBoolean("https_only", state.httpsOnly)
+            .putBoolean("do_not_track", state.doNotTrack)
+            .putString(PrivacyPrefs.ETP_LEVEL, state.etpLevel)
+            .putBoolean(PrivacyPrefs.FINGERPRINTING_PROTECTION, state.fingerprintingProtection)
+            .putBoolean(PrivacyPrefs.STRIP_TRACKING_PARAMS, state.stripTrackingParams)
+            .putBoolean(PrivacyPrefs.GLOBAL_PRIVACY_CONTROL, state.globalPrivacyControl)
+            .putBoolean(PrivacyPrefs.WEBRTC_PROTECTION, state.webRtcProtection)
+            .putString(SecureDns.PREF_MODE, state.secureDnsMode)
+            .putBoolean(PrivacyPrefs.CLEAR_ON_EXIT, state.clearOnExit)
+            .putBoolean(PrivacyPrefs.SCREENSHOT_BLOCKING, state.screenshotBlocking)
+            .putBoolean(PREF_NOTIFICATIONS_ASKED, state.notificationsAsked || !state.steps.contains(SetupStep.NOTIFICATIONS))
+            .putBoolean("setup_complete", complete)
+            .commit()
+    }
+
+    private fun startMainActivity(animated: Boolean) {
+        val intent = Intent(this, MainActivity::class.java)
+        if (animated) {
+            val options = ActivityOptions.makeCustomAnimation(this, android.R.anim.fade_in, android.R.anim.fade_out)
+            startActivity(intent, options.toBundle())
         } else {
-            goToDefaultBrowserPage()
+            startActivity(intent)
         }
-    }
-
-    private fun goToDefaultBrowserPage() {
-        uiState.currentPage = 5
-        refreshDefaultBrowserState()
-    }
-
-    private fun onSetupThemeSelected(theme: String) {
-        if (theme == uiState.theme) { uiState.currentPage = 3; return }
-        savePendingNavigationState()
-        captureAndRecreate(theme)
-    }
-
-    private fun onSetupAccentSelected(accent: String) {
-        if (accent == uiState.accent) return
-        savePendingNavigationState()
-        captureAndApplyAccentColor(accent)
-    }
-
-    private fun onSetupIntensitySelected(intensity: String) {
-        if (intensity == uiState.intensity) return
-        savePendingNavigationState()
-        captureAndApplySurfaceIntensity(intensity)
-    }
-
-    private fun onSetupLanguageSelected(language: String) {
-        if (language == uiState.language) return
-        savePendingNavigationState(0)
-        captureAndApplyLanguage(language)
-    }
-
-    private fun savePendingNavigationState(page: Int = 2) {
-        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        prefs.edit()
-            .putInt(KEY_PENDING_PAGE, page)
-            .putInt(KEY_PENDING_SCROLL, if (page == 2) uiState.themePageScrollState.value else 0)
-            .putBoolean(KEY_PENDING_CONSENT, uiState.consentChecked)
-            .putBoolean(KEY_PENDING_HIDE_STATUS_BAR, uiState.hideStatusBar)
-            .putBoolean(KEY_PENDING_HIDE_SYSTEM_NAVIGATION, uiState.hideSystemNavigation)
-            .apply()
-    }
-
-    private fun saveAndProceed() {
-        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        prefs.edit()
-            .putString("search_engine", uiState.engine)
-            .putString(com.jhaiian.clint.browser.CustomSearchEngineNameKey, uiState.customEngineName)
-            .putString(com.jhaiian.clint.browser.CustomSearchEngineUrlKey, uiState.customEngineUrl)
-            .putString("address_bar_position", uiState.addressBarPosition)
-            .putString("menu_style", uiState.menuStyle)
-            .putString("scroll_hide_mode", uiState.scrollHideMode)
-            .putBoolean("hide_status_bar", uiState.hideStatusBar)
-            .putBoolean("hide_system_navigation", uiState.hideSystemNavigation)
-            .putBoolean("setup_complete", true)
-            .apply()
-        startMainActivity()
-    }
-
-    private fun startMainActivity() {
-        startActivity(Intent(this, MainActivity::class.java))
         finish()
     }
 }

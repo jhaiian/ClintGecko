@@ -28,6 +28,7 @@ class WebsiteBlockerActivity : ClintActivity() {
 
     companion object {
         const val PREF_ENABLED = "website_blocker_enabled"
+        const val EXTRA_REQUEST_DISABLE = "website_blocker_request_disable"
     }
 
     internal lateinit var categoryDb: WebsiteBlockerCategoryDatabase
@@ -102,7 +103,20 @@ class WebsiteBlockerActivity : ClintActivity() {
         }
     }
 
+    internal fun setMasterEnabled(enabled: Boolean) {
+        uiState.masterEnabled = enabled
+        PreferenceManager.getDefaultSharedPreferences(this).edit().putBoolean(PREF_ENABLED, enabled).apply()
+    }
+
     internal fun handleToggle(category: WebsiteBlockerCategory, enabled: Boolean) {
+        if (!enabled && category.id in uiState.compiledEnabledIds) {
+            confirmCategoryDisable(category)
+            return
+        }
+        applyToggle(category, enabled)
+    }
+
+    internal fun applyToggle(category: WebsiteBlockerCategory, enabled: Boolean) {
         setPendingEnabled(category.id, enabled)
         if (enabled && !category.isDownloaded) {
             downloadCategories(listOf(category), force = false)
@@ -139,6 +153,9 @@ class WebsiteBlockerActivity : ClintActivity() {
         uiState = WebsiteBlockerUiState()
         uiState.masterEnabled = prefs.getBoolean(PREF_ENABLED, false)
         reload()
+        if (savedInstanceState == null && intent.getBooleanExtra(EXTRA_REQUEST_DISABLE, false)) {
+            confirmMasterDisable()
+        }
 
         setContent {
             ClintComposeTheme(theme = theme) {
@@ -149,10 +166,8 @@ class WebsiteBlockerActivity : ClintActivity() {
                         maxContentWidth = maxContentWidth,
                         onExit = { handleBackNavigation() },
                         onMasterToggle = { enabled ->
-                            uiState.masterEnabled = enabled
-                            prefs.edit().putBoolean(PREF_ENABLED, enabled).apply()
-                        },
-                        onAdditionalWebsitesClick = {
+                            if (enabled) setMasterEnabled(true) else confirmMasterDisable()
+                        },                        onAdditionalWebsitesClick = {
                             startActivity(android.content.Intent(this@WebsiteBlockerActivity, AdditionalWebsitesActivity::class.java))
                         },
                         onItemToggle = { category, enabled -> handleToggle(category, enabled) },
@@ -179,6 +194,7 @@ class WebsiteBlockerActivity : ClintActivity() {
                     )
 
                     ConfirmDialogHost(uiState.confirmDialog, hideStatusBar, hideSystemNavigation) { uiState.confirmDialog = null }
+                    WebsiteBlockerGuardHost(uiState.guardRequest, hideStatusBar, hideSystemNavigation) { uiState.guardRequest = null }
                     val downloadingCategoryName = uiState.downloadProgress?.let { stringResourceCategoryTitle(it.categoryId) }
                     WebsiteBlockerDownloadProgressDialog(uiState.downloadProgress, downloadingCategoryName, hideStatusBar, hideSystemNavigation) { activeJob?.cancel() }
                     WebsiteBlockerCompileProgressDialog(uiState.compileProgress, hideStatusBar, hideSystemNavigation)

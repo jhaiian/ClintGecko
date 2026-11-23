@@ -1,0 +1,11 @@
+• Built-in video player with gestures and PiP
+• Separate profiles you can switch between
+• Redesigned menu and a customizable toolbar
+• More homepage and search suggestion options
+• Find in page
+• Pinned tabs, tab sorting and recently closed tabs
+• Custom Tabs support
+• New download views, live updates, any download manager
+• Media Capture multi-select and size filter
+• Parental controls and Performance boost
+• GeckoView 160, new setup and 5 new languages

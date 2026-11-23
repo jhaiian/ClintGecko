@@ -313,34 +313,3 @@ fun ScrollHidePreview(
         if (navDotsVisible) NavDotsRow(onSurface, translationFraction = dotsFraction)
     }
 }
-
-@Composable
-fun AccentDot(
-    color: Color,
-    selected: Boolean,
-    ringColor: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val scale by animateFloatAsState(targetValue = if (selected) 1.1f else 1f, label = "accentDotScale")
-    val checkTint = if (color.luminance() > 0.5f) Color.Black else Color.White
-    Box(
-        modifier
-            .size(40.dp)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(CircleShape)
-            .background(color)
-            .then(if (selected) Modifier.border(2.5.dp, ringColor, CircleShape) else Modifier)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        if (selected) {
-            Icon(
-                imageVector = androidx.compose.material.icons.Icons.Filled.Check,
-                contentDescription = null,
-                tint = checkTint,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-    }
-}

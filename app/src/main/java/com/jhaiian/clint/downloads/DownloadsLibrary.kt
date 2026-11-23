@@ -1,11 +1,14 @@
 package com.jhaiian.clint.downloads
 
+import android.content.SharedPreferences
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.stopScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -34,26 +37,38 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
 import com.jhaiian.clint.ui.AdaptiveWidthContainer
 import com.jhaiian.clint.ui.theme.LocalClintColors
 import com.jhaiian.clint.util.formatFileSize
-import com.jhaiian.clint.util.formatRelativeTimestamp
+import kotlinx.coroutines.launch
 import java.util.Calendar
+import kotlin.math.roundToInt
 
 private enum class LibraryBucket { TODAY, YESTERDAY, THIS_WEEK, THIS_MONTH, OLDER }
+
+private class LibrarySectionStats(val bucket: LibraryBucket?, val count: Int, val bytes: Long)
 
 private fun bucketFor(timestamp: Long, todayStart: Long): LibraryBucket {
     val day = 24L * 60L * 60L * 1000L
@@ -66,13 +81,7 @@ private fun bucketFor(timestamp: Long, todayStart: Long): LibraryBucket {
     }
 }
 
-private fun libraryTimestamp(item: DownloadItem): Long = item.completedAt.takeIf { it > 0L } ?: item.startedAt
-
-private fun isGalleryKind(item: DownloadItem): Boolean {
-    val kind = downloadFileKind(item.filename)
-    return (kind == DownloadFileKind.IMAGE || kind == DownloadFileKind.VIDEO) &&
-        item.filename.substringAfterLast('.', "").lowercase() !in DownloadThumbnailLoader.SUBTITLE_EXTENSIONS
-}
+internal fun libraryTimestamp(item: DownloadItem): Long = item.completedAt.takeIf { it > 0L } ?: item.startedAt
 
 @Composable
 internal fun DownloadsLibraryContent(
@@ -80,14 +89,18 @@ internal fun DownloadsLibraryContent(
     items: List<DownloadItem>,
     gridState: LazyGridState,
     maxContentWidth: Dp?,
+    hideStatusBar: Boolean,
+    hideSystemNavigation: Boolean,
     onItemClick: (DownloadItem) -> Unit,
     onItemLongClick: (DownloadItem) -> Unit,
     onShowSheet: (DownloadItem) -> Unit,
     onShare: (DownloadItem) -> Unit,
     onRemove: (DownloadItem) -> Unit
 ) {
-    val colors = LocalClintColors.current
     val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
+    val scope = rememberCoroutineScope()
+    val morph = remember(scope) { ViewModeMorphState(scope) }
     val kindCounts = remember(items) { items.groupingBy { downloadFileKind(it.filename) }.eachCount() }
     val kind = state.libraryKind
     val visible = remember(items, kind) { if (kind == null) items else items.filter { downloadFileKind(it.filename) == kind } }
@@ -108,14 +121,9 @@ internal fun DownloadsLibraryContent(
                 kindCounts = kindCounts,
                 total = items.size,
                 selected = kind,
-                grid = state.libraryGrid,
+                viewMode = state.libraryViewMode,
                 onSelect = { state.libraryKind = it },
-                onToggleGrid = {
-                    val grid = !state.libraryGrid
-                    state.libraryGrid = grid
-                    androidx.preference.PreferenceManager.getDefaultSharedPreferences(context).edit()
-                        .putBoolean(com.jhaiian.clint.settings.downloads.DownloadSettingsKeys.PREF_LIBRARY_GRID, grid).apply()
-                }
+                onOpenViewModes = { state.libraryViewModeDialogOpen = true }
             )
         }
         if (visible.isEmpty()) {
@@ -128,57 +136,221 @@ internal fun DownloadsLibraryContent(
             return@Column
         }
         AdaptiveWidthContainer(maxContentWidth) {
+            LibraryMorphList(
+                state = state,
+                morph = morph,
+                prefs = prefs,
+                grouped = grouped,
+                gridState = gridState,
+                onItemClick = onItemClick,
+                onItemLongClick = onItemLongClick,
+                onShowSheet = onShowSheet,
+                onShare = onShare,
+                onRemove = onRemove
+            )
+        }
+    }
+
+    if (state.libraryViewModeDialogOpen) {
+        LibraryViewModeDialog(
+            current = state.libraryViewMode,
+            hideStatusBar = hideStatusBar,
+            hideSystemNavigation = hideSystemNavigation,
+            onDismiss = { state.libraryViewModeDialogOpen = false },
+            onSelect = { mode ->
+                state.libraryViewModeDialogOpen = false
+                if (!morph.morphTo(mode)) {
+                    state.libraryViewMode = mode
+                    LibraryViewModeStore.save(prefs, mode)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun LibraryMorphList(
+    state: DownloadsUiState,
+    morph: ViewModeMorphState,
+    prefs: SharedPreferences,
+    grouped: List<Pair<LibraryBucket?, List<DownloadItem>>>,
+    gridState: LazyGridState,
+    onItemClick: (DownloadItem) -> Unit,
+    onItemLongClick: (DownloadItem) -> Unit,
+    onShowSheet: (DownloadItem) -> Unit,
+    onShare: (DownloadItem) -> Unit,
+    onRemove: (DownloadItem) -> Unit
+) {
+    val colors = LocalClintColors.current
+    val density = LocalDensity.current
+    val haptics = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    val tiles = remember(grouped) { grouped.flatMap { it.second } }
+    val stats = remember(grouped) { grouped.map { (bucket, list) -> LibrarySectionStats(bucket, list.size, list.sumOf { it.bytesDownloaded }) } }
+    val sectionCounts = remember(stats) { stats.map { it.count } }
+    val hasHeaders = stats.firstOrNull()?.bucket != null
+    val totalBytes = remember(stats) { stats.sumOf { it.bytes } }
+    val mode = state.libraryViewMode
+    val bottomPx = with(density) { LibraryBottomPadding.roundToPx() }
+
+    BoxWithConstraints(Modifier.fillMaxSize().viewModePinch(morph)) {
+        val viewportWidth = constraints.maxWidth
+        val viewportHeight = constraints.maxHeight
+        val geometries = remember(viewportWidth, viewportHeight, bottomPx, sectionCounts, hasHeaders, density) {
+            LibraryViewMode.entries.associateWith { entry ->
+                computeModeGeometry(entry, viewportWidth, viewportHeight, bottomPx, sectionCounts, hasHeaders, density)
+            }
+        }
+        val geometry = geometries.getValue(mode)
+        val style = geometry.style
+        val staticFrame = remember(style) { TileFrame(style, 0, 0) }
+        val sidePadding = with(density) { geometry.horizontalPadding.toDp() }
+
+        SideEffect {
+            morph.pinchEnabled = !state.libraryViewModeDialogOpen
+            morph.currentMode = { state.libraryViewMode }
+            morph.onStep = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
+            morph.captureSession = capture@{
+                if (tiles.isEmpty()) return@capture null
+                val current = geometries.getValue(state.libraryViewMode)
+                val scroll = current.scrollFromLazy(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
+                scope.launch { gridState.stopScroll() }
+                val anchor = current.anchorAt(scroll)
+                MorphSession(
+                    tiles = tiles,
+                    anchorIndex = anchor,
+                    anchorViewportY = (current.contentTopOf(anchor) - scroll).toFloat()
+                )
+            }
+            morph.commit = { target ->
+                val targetGeometry = geometries.getValue(target)
+                val session = morph.session
+                val scroll = if (session != null) targetGeometry.scrollFor(session).roundToInt() else 0
+                val (index, offset) = targetGeometry.lazyPosition(scroll)
+                gridState.requestScrollToItem(index, offset)
+                state.libraryViewMode = target
+                LibraryViewModeStore.save(prefs, target)
+            }
+        }
+
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = if (morph.session != null) 0f else 1f }) {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 108.dp),
+                columns = GridCells.Fixed(geometry.columns),
                 state = gridState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 112.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                contentPadding = PaddingValues(start = sidePadding, end = sidePadding, bottom = LibraryBottomPadding),
+                horizontalArrangement = Arrangement.spacedBy(style.gridSpacing),
+                verticalArrangement = Arrangement.spacedBy(style.gridSpacing)
             ) {
                 item(key = "summary", span = { GridItemSpan(maxLineSpan) }) {
-                    Text(
-                        pluralStringResource(R.plurals.downloads_library_summary, visible.size, visible.size, formatFileSize(visible.sumOf { it.bytesDownloaded })),
-                        color = colors.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, top = 2.dp)
-                    )
+                    LibrarySummaryRow(tiles.size, totalBytes, LibraryHeaderInset - sidePadding)
                 }
-                grouped.forEach { (bucket, groupItems) ->
-                    if (bucket != null) {
-                        item(key = "h_${bucket.name}", span = { GridItemSpan(maxLineSpan) }) {
-                            Row(Modifier.fillMaxWidth().padding(start = 4.dp, top = 14.dp, bottom = 2.dp), verticalAlignment = Alignment.Bottom) {
-                                Text(bucketLabel(bucket), color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                                Text(
-                                    pluralStringResource(R.plurals.downloads_library_summary, groupItems.size, groupItems.size, formatFileSize(groupItems.sumOf { it.bytesDownloaded })),
-                                    color = colors.secondaryText, fontSize = 12.sp
-                                )
-                            }
+                stats.forEachIndexed { section, sectionStats ->
+                    val groupItems = grouped[section].second
+                    if (sectionStats.bucket != null) {
+                        item(key = "h_${sectionStats.bucket.name}", span = { GridItemSpan(maxLineSpan) }) {
+                            LibrarySectionHeaderRow(sectionStats.bucket, sectionStats.count, sectionStats.bytes, LibraryHeaderInset - sidePadding)
                         }
                     }
-                    val tiles = if (state.libraryGrid) groupItems.filter(::isGalleryKind) else emptyList()
-                    val rows = if (state.libraryGrid) groupItems.filterNot(::isGalleryKind) else groupItems
-                    items(tiles, key = { it.id }) { item ->
-                        LibraryTile(
-                            item = item,
-                            isSelected = item.id in state.selectedIds,
-                            onClick = { onItemClick(item) },
-                            onLongClick = { onItemLongClick(item) }
-                        )
-                    }
-                    items(rows, key = { it.id }, span = { GridItemSpan(maxLineSpan) }) { item ->
-                        LibraryRow(
-                            item = item,
-                            isSelected = item.id in state.selectedIds,
-                            isInSelectionMode = state.isInSelectionMode,
-                            onClick = { onItemClick(item) },
-                            onLongClick = { onItemLongClick(item) },
-                            onMore = { onShowSheet(item) },
-                            onShare = { onShare(item) },
-                            onRemove = { onRemove(item) }
-                        )
+                    items(groupItems, key = { it.id }) { item ->
+                        val isSelected = item.id in state.selectedIds
+                        if (geometry.isGrid) {
+                            LibraryTileView(
+                                item = item,
+                                selected = isSelected,
+                                from = staticFrame,
+                                to = null,
+                                fraction = StaticFraction,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(style.artCorner))
+                                    .combinedClickable(onClick = { onItemClick(item) }, onLongClick = { onItemLongClick(item) })
+                            )
+                        } else {
+                            SwipeActionsBox(
+                                enabled = !state.isInSelectionMode,
+                                shape = RectangleShape,
+                                startAction = SwipeAction(stringResource(R.string.download_menu_share), Icons.Filled.Share, colors.primary, colors.onPrimary) { onShare(item) },
+                                endAction = SwipeAction(stringResource(R.string.action_delete), Icons.Filled.Delete, colors.colorErrorContainer, colors.colorOnErrorContainer) { onRemove(item) },
+                                modifier = Modifier.exactSize(geometry.rowWidth, geometry.rowHeight)
+                            ) {
+                                Box(Modifier.fillMaxSize()) {
+                                    LibraryTileView(
+                                        item = item,
+                                        selected = isSelected,
+                                        from = staticFrame,
+                                        to = null,
+                                        fraction = StaticFraction,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .combinedClickable(onClick = { onItemClick(item) }, onLongClick = { onItemLongClick(item) })
+                                    )
+                                    if (!state.isInSelectionMode) {
+                                        val moreSize = with(density) { minOf(style.trailingReserve, geometry.rowHeight.toDp()) }
+                                        IconButton(
+                                            onClick = { onShowSheet(item) },
+                                            modifier = Modifier.align(Alignment.CenterEnd).size(moreSize)
+                                        ) {
+                                            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.download_more_desc), tint = colors.iconTint)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
+
+        morph.session?.let { session ->
+            ViewModeMorphOverlay(
+                morph = morph,
+                session = session,
+                geometries = geometries,
+                selectedIds = state.selectedIds,
+                sectionCount = if (hasHeaders) stats.size else 0,
+                summary = { LibrarySummaryRow(tiles.size, totalBytes, LibraryHeaderInset) },
+                sectionHeader = { section ->
+                    val sectionStats = stats[section]
+                    LibrarySectionHeaderRow(sectionStats.bucket!!, sectionStats.count, sectionStats.bytes, LibraryHeaderInset)
+                }
+            )
+        }
+    }
+}
+
+private fun Modifier.exactSize(width: Int, height: Int): Modifier = layout { measurable, _ ->
+    val placeable = measurable.measure(Constraints.fixed(width, height))
+    layout(width, height) { placeable.place(0, 0) }
+}
+
+@Composable
+private fun LibrarySummaryRow(count: Int, bytes: Long, inset: Dp) {
+    val colors = LocalClintColors.current
+    Box(
+        Modifier.fillMaxWidth().height(LibrarySummaryHeight).padding(horizontal = inset),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Text(
+            pluralStringResource(R.plurals.downloads_library_summary, count, count, formatFileSize(bytes)),
+            color = colors.secondaryText, fontSize = 12.sp
+        )
+    }
+}
+
+@Composable
+private fun LibrarySectionHeaderRow(bucket: LibraryBucket, count: Int, bytes: Long, inset: Dp) {
+    val colors = LocalClintColors.current
+    Row(
+        Modifier.fillMaxWidth().height(LibrarySectionHeaderHeight).padding(start = inset, end = inset, bottom = 4.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        Text(bucketLabel(bucket), color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Text(
+            pluralStringResource(R.plurals.downloads_library_summary, count, count, formatFileSize(bytes)),
+            color = colors.secondaryText, fontSize = 12.sp
+        )
     }
 }
 
@@ -211,9 +383,9 @@ private fun LibraryFilterRow(
     kindCounts: Map<DownloadFileKind, Int>,
     total: Int,
     selected: DownloadFileKind?,
-    grid: Boolean,
+    viewMode: LibraryViewMode,
     onSelect: (DownloadFileKind?) -> Unit,
-    onToggleGrid: () -> Unit
+    onOpenViewModes: () -> Unit
 ) {
     val colors = LocalClintColors.current
     val kinds = DownloadFileKind.values().filter { (kindCounts[it] ?: 0) > 0 || it == selected }
@@ -234,10 +406,10 @@ private fun LibraryFilterRow(
                 }
             }
         }
-        IconButton(onClick = onToggleGrid, modifier = Modifier.padding(end = 6.dp)) {
+        IconButton(onClick = onOpenViewModes, modifier = Modifier.padding(end = 6.dp)) {
             Icon(
-                if (grid) Icons.AutoMirrored.Filled.ViewList else Icons.Filled.GridView,
-                contentDescription = stringResource(if (grid) R.string.downloads_view_list else R.string.downloads_view_gallery),
+                if (viewMode.isGrid) Icons.Filled.GridView else Icons.AutoMirrored.Filled.ViewList,
+                contentDescription = stringResource(R.string.downloads_view_mode),
                 tint = colors.iconTint
             )
         }
@@ -272,32 +444,6 @@ internal fun FilterChipPill(label: String, count: Int?, icon: ImageVector?, sele
 }
 
 @Composable
-private fun LibraryTile(item: DownloadItem, isSelected: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
-    val colors = LocalClintColors.current
-    Column(
-        Modifier.clip(RoundedCornerShape(16.dp)).combinedClickable(onClick = onClick, onLongClick = onLongClick)
-    ) {
-        DownloadThumb(
-            item = item,
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .then(if (isSelected) Modifier.border(2.dp, colors.primary, RoundedCornerShape(16.dp)) else Modifier),
-            requestPx = rememberPx(160.dp),
-            corner = 16.dp,
-            iconSize = 30.dp,
-            selected = isSelected
-        )
-        Text(
-            item.filename,
-            color = colors.onSurface, fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium,
-            maxLines = 1, softWrap = false, overflow = TextOverflow.MiddleEllipsis,
-            modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 5.dp, bottom = 2.dp)
-        )
-    }
-}
-
-@Composable
 internal fun libraryMetaParts(item: DownloadItem, thumbnail: DownloadThumbnail?, includeSize: Boolean = true): List<String> {
     val kind = downloadFileKind(item.filename)
     val details = mutableListOf<String>()
@@ -318,69 +464,4 @@ internal fun libraryMetaParts(item: DownloadItem, thumbnail: DownloadThumbnail?,
         }
     }
     return details
-}
-
-@Composable
-private fun LibraryRow(
-    item: DownloadItem,
-    isSelected: Boolean,
-    isInSelectionMode: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    onMore: () -> Unit,
-    onShare: () -> Unit,
-    onRemove: () -> Unit
-) {
-    val colors = LocalClintColors.current
-    val shape = RoundedCornerShape(18.dp)
-    val requestPx = rememberPx(56.dp)
-    val thumbnail = rememberDownloadThumbnail(item, requestPx)
-    val title = thumbnail?.appLabel ?: thumbnail?.title?.takeIf { downloadFileKind(item.filename) == DownloadFileKind.AUDIO }
-    val meta = (libraryMetaParts(item, thumbnail) + listOfNotNull(
-        sourceHost(item),
-        libraryTimestamp(item).takeIf { it > 0L }?.let { formatRelativeTimestamp(it) }
-    )).joinToString("  •  ")
-    SwipeActionsBox(
-        enabled = !isInSelectionMode,
-        shape = shape,
-        startAction = SwipeAction(stringResource(R.string.download_menu_share), Icons.Filled.Share, colors.primary, colors.onPrimary, onShare),
-        endAction = SwipeAction(stringResource(R.string.action_delete), Icons.Filled.Delete, colors.colorErrorContainer, colors.colorOnErrorContainer, onRemove),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(if (isSelected) colors.primary.copy(alpha = 0.16f) else colors.cardBackground)
-                .then(if (isSelected) Modifier.border(1.5.dp, colors.primary, shape) else Modifier)
-                .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-                .padding(start = 10.dp, top = 10.dp, bottom = 10.dp, end = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            DownloadThumb(
-                item = item,
-                modifier = Modifier.size(56.dp),
-                requestPx = requestPx,
-                corner = 14.dp,
-                iconSize = 26.dp,
-                showDuration = false,
-                selected = isSelected,
-                thumbnail = thumbnail
-            )
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                if (title != null) {
-                    Text(title, color = colors.onSurface, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.Bold, maxLines = 2)
-                    Text(item.filename, color = colors.secondaryText, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 2)
-                } else {
-                    Text(item.filename, color = colors.onSurface, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 3)
-                }
-                Text(meta, color = colors.secondaryText, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 3.dp))
-            }
-            if (!isInSelectionMode) {
-                IconButton(onClick = onMore) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.download_more_desc), tint = colors.iconTint)
-                }
-            }
-        }
-    }
 }

@@ -28,6 +28,7 @@ internal object DownloadAutoTuner {
     private const val PREFS_NAME = "clint_download_auto"
     private const val KIND_CONNECTIONS = "c"
     private const val KIND_SEGMENTS = "s"
+    private const val KIND_MANUAL_CONNECTIONS = "m"
     private const val MAX_REMEMBERED = 100
 
     private enum class Condition { NORMAL, METERED, CONSTRAINED }
@@ -67,6 +68,12 @@ internal object DownloadAutoTuner {
 
     fun startingConnections(context: Context?, host: String, ceiling: Int): Int =
         (learned(context, KIND_CONNECTIONS, host) ?: START_CONNECTIONS).coerceIn(1, ceiling.coerceAtLeast(1))
+
+    fun manualConnections(context: Context?, host: String, manual: Int): Int =
+        (learned(context, KIND_MANUAL_CONNECTIONS, host) ?: manual).coerceIn(1, manual.coerceAtLeast(1))
+
+    fun rememberManualConnections(context: Context?, host: String, value: Int) =
+        remember(context, KIND_MANUAL_CONNECTIONS, host, value)
 
     fun startingSegments(context: Context?, host: String, ceiling: Int): Int =
         (learned(context, KIND_SEGMENTS, host) ?: START_SEGMENTS).coerceIn(1, ceiling.coerceAtLeast(1))

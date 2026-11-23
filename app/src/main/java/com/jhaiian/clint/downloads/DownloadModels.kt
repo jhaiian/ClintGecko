@@ -122,6 +122,7 @@ data class DownloadItem(
     val streamSegBytes: Long = 0L,
     val mega: MegaSource? = null,
     val isIncognito: Boolean = false,
+    val profileId: String = "default",
     @Transient val generation: Long = 0L,
     @Transient val restarts: Int = 0,
     @Transient val activeConnections: Int = 0

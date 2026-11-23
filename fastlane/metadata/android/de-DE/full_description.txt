@@ -1,0 +1,83 @@
+Clint Gecko ist ein Open-Source-Browser auf Firefox-Basis mit integriertem ADM (Advanced Download Manager) und Medienerfassung (Media Capture). Das Ziel von Clint Gecko ist es, dein ultimativer All-in-One-Browser zu sein, der dabei angenehm zu bedienen und stark anpassbar bleibt. Mit jedem Update kommt Clint Gecko diesem Ziel ein Stück näher.
+
+Das Jhaiian-Ökosystem bietet bis zu 500 mögliche Designkombinationen, mit denen du dein Surferlebnis nach deinem Geschmack gestalten kannst.
+
+Datenschutz ist ebenfalls eine Priorität. Clint Gecko ist so konfiguriert, dass die Telemetrie von GeckoView und Mozilla deaktiviert ist, sodass über diese Dienste keine Telemetriedaten an Mozilla gesendet werden. Clint selbst erfasst keine persönlichen Daten, da es weder Backend noch Analyse- oder Datenerfassungsserver gibt. Alles ist darauf ausgelegt, direkt auf deinem Gerät zu funktionieren.
+
+Offizieller Fork von Clint Browser (github.com/jhaiian/ClintBrowser). Wenn du eine schlankere Version auf Basis von Android WebView möchtest, wirf einen Blick auf den originalen Clint Browser.
+
+Entwickelt und gepflegt von @jhaiian, einem Einzelentwickler von den Philippinen.
+
+<b>GECKO-ENGINE</b>
+• Basiert auf GeckoView, der Firefox-Engine
+• Die Telemetrie von GeckoView und Mozilla ist deaktiviert
+
+<b>ERWEITERUNGEN</b>
+• Firefox-Erweiterungen direkt im Browser installieren
+• Den Firefox-Add-on-Store durchstöbern oder eine .xpi-Datei öffnen
+• Festlegen, ob eine Erweiterung in Inkognito-Tabs laufen darf
+• Die Optionsseite einer Erweiterung über die Erweiterungsverwaltung öffnen
+
+<b>WIEDERGABE IM HINTERGRUND</b>
+• Audio und Video weiter abspielen, wenn du die App wechselst oder den Bildschirm sperrst
+• Wiedergabe über die Medienbenachrichtigung steuern
+• In den Browsereinstellungen ein- oder ausschaltbar
+
+<b>MEDIENERFASSUNG</b>
+• Erkennt Video-, Audio- und Untertitel-Streams auf den von dir besuchten Webseiten
+• Unterstützt normale Videos sowie HLS/M3U8- und DASH-Streams
+• Erkannte Medien direkt aus dem Browser herunterladen
+
+<b>ADM (ADVANCED DOWNLOAD MANAGER)</b>
+• Multithread- und Mehrteil-Downloads
+• Pausieren und Fortsetzen
+• Download-Planer
+• Geschwindigkeitsbegrenzung
+• Eigene Download-Speicherorte
+
+<b>OBERFLÄCHE UND ANPASSUNG</b>
+Clint Gecko basiert auf Material 3 und Jetpack Compose und bietet eine stark anpassbare Oberfläche.
+• 50 Akzentfarben
+• Helles und dunkles Design
+• 5 Flächenintensitäten
+• Insgesamt 500 mögliche Designkombinationen
+
+<b>DATENSCHUTZ UND SICHERHEIT</b>
+• Erweiterter Schutz vor Aktivitätenverfolgung und umfassender Cookie-Schutz
+• Tracking-Schutz: entfernt Tracking-Parameter, Schutz vor Fingerprinting, Global Privacy Control und Schutz vor WebRTC-Lecks
+• Sicheres DNS über HTTPS (Cloudflare, Google, Quad9 oder eigener Server)
+• App-Sperre per Fingerabdruck, Gesicht oder Displaysperre
+• Screenshots blockieren und Inkognito-Tastatur
+• Zwischenablage automatisch leeren und Daten beim Beenden löschen
+• Strenge Zertifikatsprüfung
+• Kein Backend, keine Analyse, keine Datenerfassung
+
+<b>WEBSITE-BLOCKER</b>
+• Blockiert Pornografie, Glücksspiel und andere unerwünschte Kategorien
+• Filterlisten nach Kategorien (Missbrauch, Werbung, Krypto, Drogen, Betrug, Glücksspiel und mehr)
+• Eigene Websites zum Blockieren hinzufügen
+
+<b>PROFILE</b>
+• Bleibe bei mehreren Konten auf derselben Website gleichzeitig angemeldet
+• Jedes Profil behält seine eigenen Cookies, Anmeldungen und Websitedaten
+• Beim Öffnen eines neuen Tabs ein Profil auswählen
+• Jedem Profil einen eigenen Namen und eine eigene Farbe geben
+
+<b>VERKNÜPFUNGEN</b>
+• Jede Website mit eigenem Namen und Symbol zum Startbildschirm hinzufügen
+• Der rahmenlose Modus blendet Suchleiste und untere Leiste aus – für ein App-Gefühl
+• Alle Verknüpfungen an einem Ort verwalten mit der integrierten Verknüpfungsverwaltung
+
+<b>BROWSER</b>
+• Surfen in mehreren Tabs
+• Tab-Gruppen
+• Inkognito-Modus
+• Lesemodus
+• Desktop-Modus
+• Popup-Schutz
+• Datensparmodus
+• Seitenübersetzung direkt auf dem Gerät
+
+Lade die App einfach herunter und entdecke sie selbst.
+
+Erfordert Android 8.0 (API 26) oder höher.

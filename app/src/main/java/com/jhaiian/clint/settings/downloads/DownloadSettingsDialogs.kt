@@ -1,5 +1,8 @@
 package com.jhaiian.clint.settings.downloads
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.Warning
+import androidx.core.graphics.drawable.toBitmap
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -9,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Card
@@ -28,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -146,12 +151,24 @@ fun MeasurementSystemDialog(
 @Composable
 fun DownloadManagerDialog(
     current: String,
+    customPackage: String?,
     hideStatusBar: Boolean, hideSystemNavigation: Boolean,
     onSelect: (appId: String) -> Unit,
+    onSelectCustom: (packageName: String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val colors = LocalClintColors.current
     val context = androidx.compose.ui.platform.LocalContext.current
+    var pickingApp by remember { mutableStateOf(false) }
+    if (pickingApp) {
+        CustomDownloadManagerPickerDialog(
+            current = customPackage.takeIf { current == com.jhaiian.clint.downloads.DownloadManagerAppIds.CUSTOM },
+            hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
+            onSelect = onSelectCustom,
+            onDismiss = { pickingApp = false }
+        )
+        return
+    }
     data class Option(val appId: String, val titleRes: Int)
     val options = listOf(
         Option(com.jhaiian.clint.downloads.DownloadManagerAppIds.CLINT, R.string.download_manager_option_clint),
@@ -161,6 +178,24 @@ fun DownloadManagerDialog(
         Option(com.jhaiian.clint.downloads.DownloadManagerAppIds.ADM, R.string.download_manager_option_adm)
     )
     ClintDialog(title = stringResource(R.string.download_manager_dialog_title), hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation, onDismiss = onDismiss) {
+        SettingsSection(colors.dialogSectionBackground, bottomSpacing = 12.dp) {
+            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.Top) {
+                Icon(
+                    androidx.compose.material.icons.Icons.Filled.Warning, contentDescription = null, tint = colors.colorError,
+                    modifier = Modifier.padding(top = 1.dp).size(20.dp)
+                )
+                Column(Modifier.padding(start = 10.dp)) {
+                    Text(
+                        stringResource(R.string.download_manager_warning_title), color = colors.onSurface,
+                        fontSize = 14.sp, fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        stringResource(R.string.download_manager_custom_note), color = colors.secondaryText,
+                        fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
+        }
         options.forEach { option ->
             val installed = remember(option.appId) { com.jhaiian.clint.downloads.isDownloadManagerAppInstalled(context, option.appId) }
             val selected = current == option.appId
@@ -184,6 +219,105 @@ fun DownloadManagerDialog(
                         if (!installed) {
                             Text(stringResource(R.string.download_manager_not_installed), color = colors.secondaryText, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
                         }
+                    }
+                    CheckSlot(selected, colors.primary)
+                }
+            }
+        }
+        val customSelected = current == com.jhaiian.clint.downloads.DownloadManagerAppIds.CUSTOM
+        val customLabel = remember(customPackage) { customPackage?.let { com.jhaiian.clint.downloads.customDownloadManagerLabel(context, it) } }
+        val customSubtitle = when {
+            customPackage == null -> stringResource(R.string.download_manager_custom_choose)
+            customLabel == null -> stringResource(R.string.download_manager_not_installed)
+            else -> customLabel
+        }
+        Card(
+            onClick = { pickingApp = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = OptionBottomSpacing)
+                .alpha(if (customSelected) 1.0f else 0.6f),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = colors.surfaceVariant),
+            border = if (customSelected) BorderStroke(3.dp, colors.primary) else null
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(OptionContentPadding),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f).padding(start = 4.dp, end = 8.dp)) {
+                    Text(stringResource(R.string.download_manager_option_custom), color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(customSubtitle, color = colors.secondaryText, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+                }
+                CheckSlot(customSelected, colors.primary)
+            }
+        }
+    }
+}
+
+private class CustomDownloadManagerEntry(val packageName: String, val label: String, val icon: androidx.compose.ui.graphics.ImageBitmap?)
+
+@Composable
+private fun CustomDownloadManagerPickerDialog(
+    current: String?,
+    hideStatusBar: Boolean, hideSystemNavigation: Boolean,
+    onSelect: (packageName: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = LocalClintColors.current
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val iconSizePx = with(androidx.compose.ui.platform.LocalDensity.current) { 40.dp.roundToPx() }
+    val apps by androidx.compose.runtime.produceState<List<CustomDownloadManagerEntry>?>(initialValue = null) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.jhaiian.clint.downloads.queryExternalDownloadManagerApps(context).map { app ->
+                CustomDownloadManagerEntry(
+                    packageName = app.packageName,
+                    label = app.label,
+                    icon = app.icon?.let { drawable ->
+                        runCatching { drawable.toBitmap(iconSizePx, iconSizePx).asImageBitmap() }.getOrNull()
+                    }
+                )
+            }
+        }
+    }
+    ClintDialog(title = stringResource(R.string.download_manager_custom_picker_title), hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation, onDismiss = onDismiss) {
+        val list = apps
+        when {
+            list == null -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.CircularProgressIndicator(color = colors.primary, modifier = Modifier.size(28.dp))
+            }
+            list.isEmpty() -> Text(
+                stringResource(R.string.download_manager_custom_empty), color = colors.secondaryText, fontSize = 14.sp,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp, horizontal = 4.dp)
+            )
+            else -> list.forEach { app ->
+                val selected = app.packageName == current
+                SelectableCard(
+                    selected = selected, onClick = { onSelect(app.packageName) },
+                    cardBackground = colors.surfaceVariant, primary = colors.primary,
+                    contentPadding = OptionContentPadding, bottomSpacing = OptionBottomSpacing
+                ) {
+                    if (app.icon != null) {
+                        androidx.compose.foundation.Image(
+                            bitmap = app.icon, contentDescription = null,
+                            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp))
+                        )
+                    } else {
+                        Icon(
+                            androidx.compose.material.icons.Icons.Filled.Apps, contentDescription = null, tint = colors.iconTint,
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+                    Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
+                        Text(
+                            app.label, color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                        Text(
+                            app.packageName, color = colors.secondaryText, fontSize = 12.sp,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
                     }
                     CheckSlot(selected, colors.primary)
                 }

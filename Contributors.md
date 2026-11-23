@@ -5,6 +5,8 @@
 - [@jhaiian](https://github.com/jhaiian)
 - [@vonjooo](https://github.com/vonjooo)
 - [@Ahmedal2022](https://github.com/Ahmedal2022)
+- [@NielSync](https://github.com/NielSync)
+- [@Linyesantan](https://github.com/Linyesantan)
 
 ## Testers
 
@@ -14,6 +16,7 @@
 
 - [mirr1184-ctrl](https://github.com/mirr1184-ctrl)
 - [@snashyturner](https://github.com/snashyturner)
+- [@Linyesantan](https://github.com/Linyesantan)
 
 ## Issues
 > People who open issues to report bugs and suggestions
@@ -46,6 +49,14 @@
 - [@Zarif321](https://github.com/Zarif321)
 - [@frauplatin](https://github.com/frauplatin)
 - [@CaptechOmar](https://github.com/CaptechOmar)
+- [@meishah](https://github.com/meishah)
+- [@gigisforza70](https://github.com/gigisforza70)
+- [@wibucter](https://github.com/wibucter)
+- [@rayfonz](https://github.com/rayfonz)
+- [@Iconicspectre99](https://github.com/Iconicspectre99)
+- [@pal246](https://github.com/pal246)
+- [@cabinz3q](https://github.com/cabinz3q)
+- [@anurag565](https://github.com/anurag565)
 - [u/Interesting-Stick641](https://www.reddit.com/user/Interesting-Stick641)
 - [u/ManFromUrth](https://www.reddit.com/user/ManFromUrth)
-- Daniel Rioja
+- UnbeatenPlayzYT (Discord)

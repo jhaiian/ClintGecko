@@ -3,6 +3,8 @@ package com.jhaiian.clint.tabs
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -118,6 +120,7 @@ internal fun TabStrip(
     onRemoveFromGroup: (String) -> Unit,
     onToggleGroup: (String) -> Unit,
     onOpenGroup: (String) -> Unit,
+    onTogglePinTab: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = LocalClintColors.current
@@ -167,6 +170,7 @@ internal fun TabStrip(
                                 onNewTabInGroup = { item.group?.let { onNewTabInGroup(it.id) } },
                                 onAddToNewGroup = { onAddToNewGroup(item.preview.id) },
                                 onRemoveFromGroup = { onRemoveFromGroup(item.preview.id) },
+                                onTogglePin = { onTogglePinTab(item.preview.id) },
                                 canGroup = state.groupsEnabled,
                                 canCloseOthers = state.tabs.size > 1,
                                 profileColor = state.profileColors[item.preview.profileId]
@@ -238,6 +242,7 @@ private fun TabStripTab(
     onNewTabInGroup: () -> Unit,
     onAddToNewGroup: () -> Unit,
     onRemoveFromGroup: () -> Unit,
+    onTogglePin: () -> Unit,
     canGroup: Boolean,
     canCloseOthers: Boolean,
     profileColor: Int?
@@ -247,7 +252,7 @@ private fun TabStripTab(
     var menuExpanded by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(10.dp)
     val title = preview.title.ifBlank { stringResource(R.string.new_tab) }
-    Box(Modifier.width(width).fillMaxHeight().padding(vertical = 3.dp)) {
+    Box(Modifier.width(if (preview.isPinned) 48.dp else width).fillMaxHeight().padding(vertical = 3.dp)) {
         if (showDivider) {
             Box(Modifier.align(Alignment.CenterStart).width(1.dp).height(16.dp).background(colors.divider))
         }
@@ -289,7 +294,7 @@ private fun TabStripTab(
                     )
                 }
             }
-            Text(
+            if (!preview.isPinned) Text(
                 title,
                 color = if (active) colors.onSurface else colors.secondaryText,
                 fontSize = 12.sp,
@@ -298,7 +303,9 @@ private fun TabStripTab(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(start = 8.dp)
             )
-            if (active || width >= 128.dp) {
+            if (preview.isPinned) {
+                Spacer(Modifier.width(10.dp))
+            } else if (active || width >= 128.dp) {
                 IconButton(onClick = onClose, modifier = Modifier.size(28.dp)) {
                     Icon(
                         Icons.Filled.Close,
@@ -329,6 +336,13 @@ private fun TabStripTab(
             containerColor = colors.popupBackground,
             border = BorderStroke(1.dp, colors.popupStroke)
         ) {
+            ListMenuItem(
+                if (preview.isPinned) Icons.Outlined.PushPin else Icons.Rounded.PushPin,
+                stringResource(if (preview.isPinned) R.string.tab_menu_unpin_tab else R.string.tab_menu_pin_tab),
+                checked = false
+            ) {
+                menuExpanded = false; onTogglePin()
+            }
             ListMenuItem(Icons.Filled.Close, stringResource(R.string.close_tab), checked = false) {
                 menuExpanded = false; onClose()
             }
@@ -344,7 +358,7 @@ private fun TabStripTab(
                 ListMenuItem(Icons.Filled.LinkOff, stringResource(R.string.tab_strip_remove_from_group), checked = false) {
                     menuExpanded = false; onRemoveFromGroup()
                 }
-            } else if (canGroup) {
+            } else if (canGroup && !preview.isPinned) {
                 ListMenuItem(Icons.Filled.CreateNewFolder, stringResource(R.string.tab_strip_add_to_new_group), checked = false) {
                     menuExpanded = false; onAddToNewGroup()
                 }

@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -39,7 +40,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity, ConfirmDialogHostActivity {
+open class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActivity, ConfirmDialogHostActivity {
+
+    protected open val isDownloadReceiver: Boolean get() = false
 
     override var overlayContent by mutableStateOf<(@Composable () -> Unit)?>(null)
 
@@ -105,11 +108,21 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
     }
 
     private fun submitManualDownload(submission: ManualDownloadSubmission, onDismiss: () -> Unit, onRename: () -> Unit) {
-        val ua = com.jhaiian.clint.browser.webview.ClintGecko.defaultUserAgent()
+        val ua = submission.userAgent.ifBlank { com.jhaiian.clint.browser.webview.ClintGecko.defaultUserAgent() }
         performManualDownload(
             submission = submission,
             userAgent = ua,
             onDismiss = {
+                if (isDownloadReceiver) {
+                    Toast.makeText(
+                        this,
+                        getString(if (submission.startPaused) R.string.download_added_paused else R.string.toast_downloading, submission.filename),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    onDismiss()
+                    finish()
+                    return@performManualDownload
+                }
                 showClintSnackbar(
                     message = getString(
                         if (submission.startPaused) R.string.download_added_paused else R.string.toast_downloading,
@@ -130,7 +143,12 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
 
         uiState = DownloadsUiState()
         val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-        uiState.libraryGrid = prefs.getBoolean(DownloadSettingsKeys.PREF_LIBRARY_GRID, DownloadSettingsKeys.DEFAULT_LIBRARY_GRID)
+        uiState.libraryViewMode = LibraryViewModeStore.load(prefs)
+        DownloadAppearance.read(prefs).let {
+            uiState.appearance = it
+            uiState.sortKey = it.sortKey
+            uiState.sortOrder = it.sortOrder
+        }
         handleOpenIntent(intent)
         handleDownloaderIntent(intent)
 
@@ -138,10 +156,38 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
         val hideStatusBar = prefs.getBoolean("hide_status_bar", false)
         val hideSystemNavigation = prefs.getBoolean("hide_system_navigation", false)
 
+        if (isDownloadReceiver) {
+            setContent {
+                ClintComposeTheme(theme = theme) {
+                    Box {
+                        if (uiState.manualDownloadDialogOpen) {
+                            androidx.compose.runtime.key(uiState.manualDownloadPrefillUrl, uiState.manualDownloadSession) {
+                                DownloadManualDialog(
+                                    hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
+                                    prefillUrl = uiState.manualDownloadPrefillUrl,
+                                    session = uiState.manualDownloadSession,
+                                    onDismiss = { finish() },
+                                    onSubmit = { submission, onDismiss, onRename -> submitManualDownload(submission, onDismiss, onRename) }
+                                )
+                            }
+                        }
+                        com.jhaiian.clint.ui.listscreen.ConfirmDialogHost(uiState.confirmDialogConfig, hideStatusBar, hideSystemNavigation) { uiState.confirmDialogConfig = null }
+                        uiState.conflictDialogRequest?.let { req ->
+                            DownloadConflictDialog(req, hideStatusBar, hideSystemNavigation) { uiState.conflictDialogRequest = null }
+                        }
+                        overlayContent?.invoke()
+                    }
+                }
+            }
+            return
+        }
+
         setContent {
             ClintComposeTheme(theme = theme) {
                 val maxContentWidth = rememberMaxContentWidth(this)
-                val allItems by ClintDownloadManager.downloadsFlow.collectAsState()
+                val everyItem by ClintDownloadManager.downloadsFlow.collectAsState()
+                val activeProfileId = remember { com.jhaiian.clint.profiles.ActiveProfile.id(this@DownloadsActivity) }
+                val allItems = remember(everyItem) { everyItem.filter { it.isIncognito || it.profileId == activeProfileId } }
 
                 LaunchedEffect(allItems) {
                     val keepScreenOnEnabled = prefs.getBoolean(DownloadSettingsKeys.PREF_KEEP_SCREEN_ON, DownloadSettingsKeys.DEFAULT_KEEP_SCREEN_ON)
@@ -162,6 +208,7 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
                 }
 
                 Box {
+                    CompositionLocalProvider(LocalDownloadAppearance provides uiState.appearance) {
                     DownloadsScreen(
                         state = uiState,
                         allItems = allItems,
@@ -174,7 +221,7 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
                             startActivity(Intent(this@DownloadsActivity, com.jhaiian.clint.settings.SettingsActivity::class.java)
                                 .putExtra(com.jhaiian.clint.settings.SettingsActivity.EXTRA_OPEN_FRAGMENT, "download_settings"))
                         },
-                        onPause = { id -> ClintDownloadManager.pause(this@DownloadsActivity, id) },
+                        onPause = { id -> ClintDownloadManager.pauseByUser(this@DownloadsActivity, id) },
                         onResume = { id -> ClintDownloadManager.resume(this@DownloadsActivity, id) },
                         onRetry = { id -> ClintDownloadManager.retryFailed(this@DownloadsActivity, id) },
                         itemActions = DownloadItemActions(
@@ -202,6 +249,7 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
                         onMultiCopyPath = { items -> multiCopyToClipboard(items.joinToString("\n") { pathFor(it) }, getString(R.string.download_menu_path_copied)) },
                         onSubmitManualDownload = { submission, onDismiss, onRename -> submitManualDownload(submission, onDismiss, onRename) }
                     )
+                    }
                     com.jhaiian.clint.ui.listscreen.ConfirmDialogHost(uiState.confirmDialogConfig, hideStatusBar, hideSystemNavigation) { uiState.confirmDialogConfig = null }
                     uiState.conflictDialogRequest?.let { req ->
                         DownloadConflictDialog(req, hideStatusBar, hideSystemNavigation) { uiState.conflictDialogRequest = null }
@@ -222,6 +270,7 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
 
     override fun onResume() {
         super.onResume()
+        uiState.appearance = DownloadAppearance.read(PreferenceManager.getDefaultSharedPreferences(this))
         ClintDownloadManager.resumeTimeoutPaused(this)
     }
 
@@ -258,10 +307,9 @@ class DownloadsActivity : ClintActivity(), OverlayHostActivity, SnackbarHostActi
     }
 
     private fun handleDownloaderIntent(intent: Intent?) {
-        if (intent?.action != Intent.ACTION_SEND) return
-        val sharedUrl = intent.getStringExtra(Intent.EXTRA_TEXT)?.trim() ?: return
-        if (sharedUrl.isEmpty()) return
-        uiState.manualDownloadPrefillUrl = sharedUrl
+        val incoming = parseIncomingDownload(intent) ?: return
+        uiState.manualDownloadPrefillUrl = incoming.url
+        uiState.manualDownloadSession = incoming.session
         uiState.manualDownloadDialogOpen = true
     }
 

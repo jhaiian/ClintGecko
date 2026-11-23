@@ -17,6 +17,7 @@ import com.jhaiian.clint.downloads.checkStorageAvailable
 import com.jhaiian.clint.downloads.resolveSpeedLimitBytesPerSec
 import com.jhaiian.clint.downloads.ClintDownloadManager
 import com.jhaiian.clint.downloads.DownloadsActivity
+import com.jhaiian.clint.mediacapture.VideoPreviewActivity
 import com.jhaiian.clint.settings.downloads.DownloadSettingsKeys
 import com.jhaiian.clint.ui.showClintSnackbar
 import com.jhaiian.clint.ui.theme.ClintComposeTheme
@@ -59,6 +60,7 @@ internal fun MainActivity.showDownloadDialog(
         initialMultithreadingParts = prefs.getInt(DownloadSettingsKeys.PREF_MULTITHREADING_PARTS, DownloadSettingsKeys.DEFAULT_MULTITHREADING_PARTS),
         initialSpeedLimitAmount = prefs.getInt(DownloadSettingsKeys.PREF_SPEED_LIMIT_AMOUNT, DownloadSettingsKeys.DEFAULT_SPEED_LIMIT_AMOUNT),
         initialSpeedLimitUnit = prefs.getString(DownloadSettingsKeys.PREF_SPEED_LIMIT_UNIT, DEFAULT_SPEED_LIMIT_UNIT) ?: DEFAULT_SPEED_LIMIT_UNIT,
+        onPlay = { name -> VideoPreviewActivity.startDirect(this, url, name, userAgent, referer, cookies) },
         onSubmit = { submission, dismiss, onRename ->
             initiateDownload(
                 url, submission.filename, userAgent, referer, cookies,
@@ -169,6 +171,9 @@ internal fun MainActivity.mountDownloadRequestDialog(
     initialSpeedLimitAmount: Int = 0,
     initialSpeedLimitUnit: String = DEFAULT_SPEED_LIMIT_UNIT,
     showAddButton: Boolean = true,
+    batchCount: Int = 0,
+    largestFileBytes: Long = -1L,
+    onPlay: ((filename: String) -> Unit)? = null,
     onSubmit: (DownloadRequestSubmission, dismiss: () -> Unit, onRename: () -> Unit) -> Unit
 ) {
     val prefs = PreferenceManager.getDefaultSharedPreferences(this)
@@ -180,7 +185,7 @@ internal fun MainActivity.mountDownloadRequestDialog(
 
     fun mountFull() { overlayContent = {
         ClintComposeTheme(theme = theme) {
-            DownloadRequestDialog(
+            androidx.compose.runtime.key(url, initialFilename) { DownloadRequestDialog(
                 hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
                 url = url,
                 onCopyLink = onCopyLink,
@@ -204,6 +209,9 @@ internal fun MainActivity.mountDownloadRequestDialog(
                 initialSpeedLimitAmount = initialSpeedLimitAmount,
                 initialSpeedLimitUnit = initialSpeedLimitUnit,
                 showAddButton = showAddButton,
+                batchCount = batchCount,
+                largestFileBytes = largestFileBytes,
+                onPlay = onPlay,
                 fragmentManager = supportFragmentManager,
                 onLaunchFolderPicker = { onPicked ->
                     downloadDialogFolderPickerCallback = { uri ->
@@ -217,13 +225,13 @@ internal fun MainActivity.mountDownloadRequestDialog(
                 },
                 onDismiss = dismiss,
                 onSubmit = { submission, onDismissFromSubmit, onRename -> onSubmit(submission, onDismissFromSubmit, onRename) }
-            )
+            ) }
         }
     } }
 
     if (forceQuick || (allowQuick && prefs.getBoolean(DownloadSettingsKeys.PREF_QUICK_DOWNLOAD, DownloadSettingsKeys.DEFAULT_QUICK_DOWNLOAD))) {
         val storageError = checkStorageAvailable(this, contentLengthBytes, initialLocationMode, initialCustomUri)
-        val fat32Error = checkFat32FileSizeLimit(this, contentLengthBytes, initialLocationMode, initialCustomUri)
+        val fat32Error = checkFat32FileSizeLimit(this, largestFileBytes.takeIf { it > 0L } ?: contentLengthBytes, initialLocationMode, initialCustomUri)
         if (storageError == null && fat32Error == null) {
             val submission = DownloadRequestSubmission(
                 filename = initialFilename,

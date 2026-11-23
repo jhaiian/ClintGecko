@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.compose.runtime.getValue
@@ -17,10 +18,13 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import com.jhaiian.clint.R
 import com.jhaiian.clint.app.ClintApplication
+import com.jhaiian.clint.parental.ParentalControls
+import com.jhaiian.clint.parental.ParentalGateRequest
 import com.jhaiian.clint.browser.MainActivity
 import com.jhaiian.clint.browser.dialogs.JsDialogRequest
 import com.jhaiian.clint.browser.dialogs.JsDialogType
 import com.jhaiian.clint.browser.webview.ClintGecko
+import com.jhaiian.clint.browser.webview.ClintWebView
 import com.jhaiian.clint.browser.webview.UploadCache
 import com.jhaiian.clint.downloads.ResponseDownloads
 import org.mozilla.geckoview.AllowOrDeny
@@ -40,6 +44,9 @@ object ClintExtensions {
     const val STORE_URL = "https://addons.mozilla.org/android/"
     private const val UNSIGNED_PREFS = "clint_unsigned_extensions"
     private const val MAX_UNSIGNED_BYTES = 256L * 1024L * 1024L
+    private const val PINNED_PREF = "pinned_extensions"
+    private const val BUTTON_PINNED_PREF = "extensions_button_pinned"
+    private const val POPUP_APPROVAL_MS = 5000L
 
     private lateinit var appContext: Context
     private var controller: WebExtensionController? = null
@@ -50,6 +57,10 @@ object ClintExtensions {
     val actionIcons = mutableStateMapOf<String, ImageBitmap>()
 
     var loaded by mutableStateOf(false)
+        private set
+    var pinnedIds by mutableStateOf<Set<String>>(emptySet())
+        private set
+    var buttonPinned by mutableStateOf(false)
         private set
     var checkingAll by mutableStateOf(false)
         private set
@@ -66,9 +77,14 @@ object ClintExtensions {
     var unsignedRequest by mutableStateOf<UnsignedInstallRequest?>(null)
         private set
     private var actionVersion by mutableIntStateOf(0)
-    private var installsInFlight = 0
+    var installsInFlight by mutableIntStateOf(0)
+        private set
     private var unsignedPromptAt = 0L
     private var unsignedRestored = false
+
+    var parentalGate by mutableStateOf<ParentalGateRequest?>(null)
+    private val popupApprovals = HashMap<String, Long>()
+    private val approvedPages = WeakHashMap<Any, String>()
 
     @Volatile var tabOpener: ((String, Boolean) -> GeckoSession?)? = null
     @Volatile var tabOpenerOwner: Any? = null
@@ -88,6 +104,9 @@ object ClintExtensions {
     fun init(context: Context, runtime: GeckoRuntime) {
         if (controller != null) return
         appContext = context.applicationContext
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(appContext)
+        pinnedIds = prefs.getStringSet(PINNED_PREF, null)?.toSet().orEmpty()
+        buttonPinned = prefs.getBoolean(BUTTON_PINNED_PREF, false)
         val c = runtime.webExtensionController
         controller = c
         c.setPromptDelegate(promptDelegate)
@@ -115,6 +134,31 @@ object ClintExtensions {
     fun unregisterHost(token: Any) {
         hosts.remove(token)
         activeHost = hosts.lastOrNull()
+    }
+
+    fun pinnedLimit(screenWidthDp: Int): Int = when {
+        screenWidthDp >= 840 -> 6
+        screenWidthDp >= 600 -> 4
+        else -> 2
+    }
+
+    fun setPinned(id: String, pinned: Boolean, limit: Int = Int.MAX_VALUE) {
+        if (pinned && id !in pinnedIds && pinnedIds.size >= limit) {
+            toastOnce("pin_limit", R.string.ext_pin_limit_reached, limit)
+            return
+        }
+        val next = if (pinned) pinnedIds + id else pinnedIds - id
+        if (next == pinnedIds) return
+        pinnedIds = next
+        androidx.preference.PreferenceManager.getDefaultSharedPreferences(appContext)
+            .edit().putStringSet(PINNED_PREF, next).apply()
+    }
+
+    fun setExtensionsButtonPinned(pinned: Boolean) {
+        if (buttonPinned == pinned) return
+        buttonPinned = pinned
+        androidx.preference.PreferenceManager.getDefaultSharedPreferences(appContext)
+            .edit().putBoolean(BUTTON_PINNED_PREF, pinned).apply()
     }
 
     private fun isBuiltIn(ext: WebExtension) = ext.isBuiltIn || ext.id == BUILT_IN_ID
@@ -166,6 +210,10 @@ object ClintExtensions {
             }
         }
         loaded = true
+        if (!profileApplied) {
+            profileApplied = true
+            applyProfile(activeProfileId())
+        }
     }
 
     private fun loadIcon(image: Image?, size: Int, onDone: (ImageBitmap) -> Unit) {
@@ -191,6 +239,26 @@ object ClintExtensions {
         if (controller == null) return
         extensions.forEach { info ->
             runCatching { session.webExtensionController.setActionDelegate(info.raw, sessionActionDelegate) }
+        }
+    }
+
+    fun hasRequestBlocker(isPrivate: Boolean): Boolean =
+        extensions.toList().any { info ->
+            info.status == ExtensionStatus.ON &&
+                (!isPrivate || info.allowedInPrivate) &&
+                "webRequestBlocking" in info.permissions
+        }
+
+    fun watchTabClose(session: GeckoSession, onClose: () -> Unit) {
+        if (controller == null) return
+        val delegate = object : WebExtension.SessionTabDelegate {
+            override fun onCloseTab(source: WebExtension?, session: GeckoSession): GeckoResult<AllowOrDeny> {
+                onClose()
+                return GeckoResult.allow()
+            }
+        }
+        extensions.toList().forEach { info ->
+            runCatching { session.webExtensionController.setTabDelegate(info.raw, delegate) }
         }
     }
 
@@ -238,10 +306,65 @@ object ClintExtensions {
 
     fun hasAction(id: String): Boolean = actionFor(id) != null
 
+    fun parentalControlsActive(): Boolean =
+        ::appContext.isInitialized && ParentalControls.isProtected(appContext, ParentalControls.AREA_EXTENSIONS)
+
+    private fun requireParentalApproval(title: String, message: String, positiveLabel: String, action: () -> Unit) {
+        if (!parentalControlsActive()) {
+            action()
+            return
+        }
+        if (activeHost == null) return
+        parentalGate = ParentalGateRequest(title, message, positiveLabel, action)
+    }
+
+    private fun consumePopupApproval(id: String): Boolean {
+        val until = popupApprovals.remove(id) ?: return false
+        return SystemClock.uptimeMillis() <= until
+    }
+
+    fun isExtensionPageUrl(uri: Uri): Boolean {
+        val scheme = uri.scheme?.lowercase() ?: return false
+        if (scheme == "moz-extension") return true
+        if (scheme != "about") return false
+        val target = uri.schemeSpecificPart.orEmpty().substringBefore('?').substringBefore('#').lowercase()
+        return target == "addons" || target == "debugging" || target.startsWith("debugging/")
+    }
+
+    private fun pageKey(uri: Uri): String = (uri.host ?: uri.schemeSpecificPart.orEmpty()).lowercase()
+
+    fun isPageApproved(owner: Any, uri: Uri): Boolean = approvedPages[owner] == pageKey(uri)
+
+    fun clearPageApproval(owner: Any) {
+        approvedPages.remove(owner)
+    }
+
+    fun requestPageAccess(view: ClintWebView, uri: Uri) {
+        view.restoreUrlAfterDeniedLoad()
+        val url = uri.toString()
+        val key = pageKey(uri)
+        requireParentalApproval(
+            appContext.getString(R.string.parental_ext_page_title),
+            appContext.getString(R.string.parental_ext_page_message),
+            appContext.getString(R.string.parental_ext_open_action)
+        ) {
+            approvedPages[view] = key
+            view.loadUrl(url)
+        }
+    }
+
     fun clickAction(id: String) {
         val action = actionFor(id) ?: return
         if (action.enabled == false) return
-        runCatching { action.click() }
+        val name = extensions.firstOrNull { it.id == id }?.name ?: id
+        requireParentalApproval(
+            appContext.getString(R.string.parental_ext_open_title),
+            appContext.getString(R.string.parental_ext_open_message, name),
+            appContext.getString(R.string.parental_ext_open_action)
+        ) {
+            popupApprovals[id] = SystemClock.uptimeMillis() + POPUP_APPROVAL_MS
+            actionFor(id)?.let { runCatching { it.click() } }
+        }
     }
 
     private fun toast(res: Int, vararg args: Any) {
@@ -269,6 +392,7 @@ object ClintExtensions {
                 installsInFlight = (installsInFlight - 1).coerceAtLeast(0)
                 if (ext != null) {
                     register(ext)
+                    ProfileExtensions.set(appContext, activeProfileId(), ext.id, true, liveEnabledIds())
                     toastOnce("installed:${ext.id}", R.string.ext_toast_installed, ext.metaData.name ?: ext.id)
                 }
                 refresh()
@@ -440,6 +564,14 @@ object ClintExtensions {
     }
 
     fun uninstall(info: ExtensionInfo) {
+        requireParentalApproval(
+            appContext.getString(R.string.parental_ext_uninstall_title, info.name),
+            appContext.getString(R.string.parental_ext_uninstall_message),
+            appContext.getString(R.string.parental_password_remove_action)
+        ) { performUninstall(info) }
+    }
+
+    private fun performUninstall(info: ExtensionInfo) {
         val c = controller ?: return
         setBusy(info.id, true)
         c.uninstall(info.raw).accept(
@@ -447,6 +579,7 @@ object ClintExtensions {
                 setBusy(info.id, false)
                 defaultActions.remove(info.id)
                 forgetUnsigned(info.id)
+                ProfileExtensions.forgetExtension(appContext, info.id)
                 toastOnce("removed:${info.id}", R.string.ext_toast_removed, info.name)
                 refresh()
             },
@@ -458,7 +591,59 @@ object ClintExtensions {
     }
 
     fun setEnabled(info: ExtensionInfo, enabled: Boolean) {
+        if (enabled) {
+            performSetEnabled(info, true)
+            return
+        }
+        requireParentalApproval(
+            appContext.getString(R.string.parental_ext_disable_title, info.name),
+            appContext.getString(R.string.parental_ext_disable_message),
+            appContext.getString(R.string.website_blocker_guard_turn_off_action)
+        ) { performSetEnabled(info, false) }
+    }
+
+    private fun activeProfileId(): String = com.jhaiian.clint.profiles.ActiveProfile.id(appContext)
+
+    private fun liveEnabledIds(): Set<String> = extensions.filter { it.enabled }.map { it.id }.toSet()
+
+    private var profileApplied = false
+
+    fun applyProfile(profileId: String) {
         val c = controller ?: return
+        if (parentalControlsActive()) return
+        c.list().accept(
+            { list ->
+                val users = list.orEmpty().filter { !isBuiltIn(it) }
+                val live = users.filter { it.metaData.enabled }.map { it.id }.toSet()
+                ProfileExtensions.snapshotDefault(appContext, live)
+                val target = ProfileExtensions.read(appContext, profileId) ?: emptySet()
+                var changed = false
+                users.forEach { ext ->
+                    val info = runCatching { ExtensionInfo.from(ext) }.getOrNull() ?: return@forEach
+                    if (info.status != ExtensionStatus.ON && info.status != ExtensionStatus.OFF) return@forEach
+                    val want = ext.id in target
+                    if (want != info.enabled) {
+                        changed = true
+                        val result = if (want) {
+                            c.enable(ext, WebExtensionController.EnableSource.USER)
+                        } else {
+                            c.disable(ext, WebExtensionController.EnableSource.USER)
+                        }
+                        result.accept(
+                            { updated -> updated?.let { register(it) }; refresh() },
+                            { refresh() }
+                        )
+                    }
+                }
+                if (!changed) refresh()
+            },
+            { }
+        )
+    }
+
+    private fun performSetEnabled(info: ExtensionInfo, enabled: Boolean) {
+        val c = controller ?: return
+        ProfileExtensions.set(appContext, activeProfileId(), info.id, enabled, liveEnabledIds())
         setBusy(info.id, true)
         val result = if (enabled) {
             c.enable(info.raw, WebExtensionController.EnableSource.USER)
@@ -478,7 +663,20 @@ object ClintExtensions {
         )
     }
 
+    private fun requireAccessApproval(info: ExtensionInfo, action: () -> Unit) {
+        requireParentalApproval(
+            appContext.getString(R.string.parental_ext_access_title),
+            appContext.getString(R.string.parental_ext_access_message, info.name),
+            appContext.getString(R.string.restore_action_continue),
+            action
+        )
+    }
+
     fun setAllowedInPrivate(info: ExtensionInfo, allowed: Boolean) {
+        if (allowed) performSetAllowedInPrivate(info, true) else requireAccessApproval(info) { performSetAllowedInPrivate(info, false) }
+    }
+
+    private fun performSetAllowedInPrivate(info: ExtensionInfo, allowed: Boolean) {
         val c = controller ?: return
         setBusy(info.id, true)
         c.setAllowedInPrivateBrowsing(info.raw, allowed).accept(
@@ -495,6 +693,14 @@ object ClintExtensions {
     }
 
     fun setOptionalAccess(info: ExtensionInfo, permission: String?, origin: String?, granted: Boolean) {
+        if (granted) {
+            performSetOptionalAccess(info, permission, origin, true)
+        } else {
+            requireAccessApproval(info) { performSetOptionalAccess(info, permission, origin, false) }
+        }
+    }
+
+    private fun performSetOptionalAccess(info: ExtensionInfo, permission: String?, origin: String?, granted: Boolean) {
         val c = controller ?: return
         val perms = if (permission != null) arrayOf(permission) else emptyArray<String>()
         val origins = if (origin != null) arrayOf(origin) else emptyArray<String>()
@@ -684,6 +890,7 @@ object ClintExtensions {
         override fun onUninstalled(extension: WebExtension) {
             if (isBuiltIn(extension)) return
             defaultActions.remove(extension.id)
+            setPinned(extension.id, false)
             refresh()
         }
 
@@ -724,10 +931,15 @@ object ClintExtensions {
         }
 
         override fun onTogglePopup(extension: WebExtension, action: WebExtension.Action): GeckoResult<GeckoSession>? =
-            openSession(extension, false)
+            openApprovedPopup(extension)
 
         override fun onOpenPopup(extension: WebExtension, action: WebExtension.Action): GeckoResult<GeckoSession>? =
-            openSession(extension, false)
+            openApprovedPopup(extension)
+    }
+
+    private fun openApprovedPopup(extension: WebExtension): GeckoResult<GeckoSession>? {
+        if (parentalControlsActive() && !consumePopupApproval(extension.id)) return null
+        return openSession(extension, false)
     }
 
     private val sessionActionDelegate = object : WebExtension.ActionDelegate {
@@ -751,8 +963,14 @@ object ClintExtensions {
 
     fun showOptions(extension: WebExtension) {
         val url = extension.metaData.optionsPageUrl?.takeIf { it.isNotBlank() } ?: return
-        val result = openSession(extension, true)
-        result.accept({ session -> session?.loadUri(url) }, { })
+        requireParentalApproval(
+            appContext.getString(R.string.parental_ext_open_title),
+            appContext.getString(R.string.parental_ext_open_message, extension.metaData.name ?: extension.id),
+            appContext.getString(R.string.parental_ext_open_action)
+        ) {
+            val result = openSession(extension, true)
+            result.accept({ session -> session?.loadUri(url) }, { })
+        }
     }
 
     fun showOptions(info: ExtensionInfo) = showOptions(info.raw)

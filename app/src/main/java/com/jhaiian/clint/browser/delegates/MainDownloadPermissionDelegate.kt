@@ -39,13 +39,14 @@ internal fun MainActivity.initiateDownload(
     onRename: () -> Unit = {},
     onStarted: () -> Unit = {},
     pageUrl: String = "",
-    startPaused: Boolean = false
+    startPaused: Boolean = false,
+    skipMeteredPrompt: Boolean = false
 ) {
     if (startPaused) {
         doEnqueueDownload(url, filename, userAgent, referer, cookies, retryEnabled, unmeteredOnly, splitParts, multithreadingParts, speedLimitBytesPerSec, locationMode, customLocationUri, categorizeEnabled, 0L, onDismiss, onRename, onStarted, pageUrl, startPaused)
         return
     }
-    if (unmeteredOnly && isNetworkMetered()) {
+    if (unmeteredOnly && !skipMeteredPrompt && isNetworkMetered()) {
         uiState.confirmDialogConfig = com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig(
             title = getString(R.string.download_metered_warning_title),
             message = getString(R.string.download_metered_warning_message),

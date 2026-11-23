@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -277,7 +278,7 @@ private fun Modifier.animatePlacement(enabled: Boolean): Modifier = composed {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HomeTileCell(
+internal fun HomeTileCell(
     tile: HomeTile,
     desktop: Boolean,
     iconVersion: Int,
@@ -292,12 +293,14 @@ private fun HomeTileCell(
         is HomeSiteTile -> tile.label()
         is HomeFolderTile -> tile.name.ifBlank { stringResource(R.string.home_folder_default_name) }
     }
+    val style = LocalHomeTileStyle.current
     val scale by animateFloatAsState(if (highlighted) 1.12f else 1f, label = "tileHighlight")
     val iconModifier = Modifier.graphicsLayer {
         scaleX = scale
         scaleY = scale
     }
     if (desktop) {
+        val size = 52.dp * style.scale
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
@@ -308,21 +311,24 @@ private fun HomeTileCell(
                 .padding(horizontal = 8.dp, vertical = 16.dp)
         ) {
             Box {
-                HomeTileVisual(tile, 52.dp, 16.dp, colors.surfaceVariant, iconVersion, highlighted, iconModifier)
+                HomeTileVisual(tile, size, homeTileCorner(style.shape, size), colors.surfaceVariant, iconVersion, highlighted, iconModifier)
                 menuSlot()
             }
-            Text(
-                text = label,
-                color = colors.onSurface,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 10.dp)
-            )
+            if (style.showLabels) {
+                Text(
+                    text = label,
+                    color = colors.onSurface,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 10.dp)
+                )
+            }
         }
     } else {
+        val size = 56.dp * style.scale
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
@@ -332,18 +338,20 @@ private fun HomeTileCell(
                 .padding(vertical = 8.dp)
         ) {
             Box {
-                HomeTileVisual(tile, 56.dp, 18.dp, colors.cardBackground.copy(alpha = cardAlpha), iconVersion, highlighted, iconModifier)
+                HomeTileVisual(tile, size, homeTileCorner(style.shape, size), colors.cardBackground.copy(alpha = cardAlpha), iconVersion, highlighted, iconModifier)
                 menuSlot()
             }
-            Text(
-                text = label,
-                color = colors.onSurface,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 6.dp, start = 4.dp, end = 4.dp)
-            )
+            if (style.showLabels) {
+                Text(
+                    text = label,
+                    color = colors.onSurface,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 6.dp, start = 4.dp, end = 4.dp)
+                )
+            }
         }
     }
 }
@@ -375,7 +383,14 @@ internal fun HomeTileVisual(
     ) {
         when (tile) {
             is HomeSiteTile -> HomeSiteIcon(tile, size, iconVersion)
-            is HomeFolderTile -> {
+            is HomeFolderTile -> if (LocalHomeTileStyle.current.folderPlain) {
+                Icon(
+                    imageVector = Icons.Filled.Folder,
+                    contentDescription = null,
+                    tint = colors.primary,
+                    modifier = Modifier.size(size * 0.55f)
+                )
+            } else {
                 val inner = (size - 12.dp) / 2
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     tile.sites.take(4).chunked(2).forEach { row ->
@@ -431,8 +446,9 @@ private fun HomeSiteIcon(site: HomeSiteTile, size: Dp, iconVersion: Int) {
 private fun HomeAddCell(desktop: Boolean, onClick: () -> Unit) {
     val colors = LocalClintColors.current
     val cardAlpha = LocalHomeCardAlpha.current
-    val iconSize = if (desktop) 52.dp else 56.dp
-    val shape = RoundedCornerShape(if (desktop) 16.dp else 18.dp)
+    val style = LocalHomeTileStyle.current
+    val iconSize = (if (desktop) 52.dp else 56.dp) * style.scale
+    val shape = RoundedCornerShape(homeTileCorner(style.shape, iconSize))
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
@@ -456,14 +472,16 @@ private fun HomeAddCell(desktop: Boolean, onClick: () -> Unit) {
                 modifier = Modifier.size(26.dp)
             )
         }
-        Text(
-            text = stringResource(R.string.action_add),
-            color = colors.secondaryText,
-            fontSize = if (desktop) 13.sp else 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(top = if (desktop) 10.dp else 6.dp)
-        )
+        if (style.showLabels) {
+            Text(
+                text = stringResource(R.string.action_add),
+                color = colors.secondaryText,
+                fontSize = if (desktop) 13.sp else 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = if (desktop) 10.dp else 6.dp)
+            )
+        }
     }
 }

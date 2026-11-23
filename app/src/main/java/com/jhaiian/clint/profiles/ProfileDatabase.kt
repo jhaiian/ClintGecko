@@ -13,20 +13,26 @@ internal class ProfileDatabase(context: Context) :
                 $COL_POSITION INTEGER PRIMARY KEY AUTOINCREMENT,
                 $COL_ID       TEXT    NOT NULL UNIQUE,
                 $COL_NAME     TEXT    NOT NULL,
-                $COL_COLOR    INTEGER NOT NULL
+                $COL_COLOR    INTEGER NOT NULL,
+                $COL_TEMPORARY INTEGER NOT NULL DEFAULT 0
             )"""
         )
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_TEMPORARY INTEGER NOT NULL DEFAULT 0")
+        }
+    }
 
     companion object {
         const val DB_NAME      = "clint_profiles.db"
-        const val DB_VERSION   = 1
+        const val DB_VERSION   = 2
         const val TABLE        = "profiles"
         const val COL_POSITION = "position"
         const val COL_ID       = "id"
         const val COL_NAME     = "name"
         const val COL_COLOR    = "color"
+        const val COL_TEMPORARY = "temporary"
     }
 }

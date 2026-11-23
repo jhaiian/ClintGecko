@@ -15,6 +15,9 @@ import com.jhaiian.clint.base.ClintActivity
 import com.jhaiian.clint.ui.ClintSnackbarHost
 import com.jhaiian.clint.ui.SnackbarHostActivity
 import com.jhaiian.clint.ui.UNDO_SNACKBAR_TIMEOUT_MS
+import com.jhaiian.clint.parental.ParentalControls
+import com.jhaiian.clint.parental.ParentalGateHost
+import com.jhaiian.clint.parental.ParentalGateRequest
 import com.jhaiian.clint.ui.showClintSnackbar
 import com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig
 import com.jhaiian.clint.ui.listscreen.ConfirmDialogHost
@@ -70,6 +73,7 @@ class HistoryActivity : ClintActivity(), SnackbarHostActivity {
 
                 ConfirmDialogHost(uiState.deleteConfirm, hideStatusBar, hideSystemNavigation) { uiState.deleteConfirm = null }
                 ConfirmDialogHost(uiState.clearAllConfirm, hideStatusBar, hideSystemNavigation) { uiState.clearAllConfirm = null }
+                ParentalGateHost(uiState.parentalGate, hideStatusBar, hideSystemNavigation) { uiState.parentalGate = null }
                 ClintSnackbarHost(hostState = snackbarHostState)
             }
         }
@@ -92,14 +96,7 @@ class HistoryActivity : ClintActivity(), SnackbarHostActivity {
         val url = if (item.query.startsWith("http")) {
             item.query
         } else {
-            val encoded = Uri.encode(item.query)
-            when (prefs.getString("search_engine", "duckduckgo")) {
-                "brave" -> "https://search.brave.com/search?q=$encoded"
-                "ecosia" -> "https://www.ecosia.org/search?q=$encoded"
-                "google" -> "https://www.google.com/search?q=$encoded"
-                "custom" -> com.jhaiian.clint.browser.customSearchEngineQueryUrl(prefs, encoded)
-                else -> "https://duckduckgo.com/?q=$encoded"
-            }
+            com.jhaiian.clint.browser.searchQueryUrlFor(prefs, com.jhaiian.clint.browser.searchEngineFor(prefs), Uri.encode(item.query))
         }
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
         intent.setPackage(packageName)
@@ -107,7 +104,26 @@ class HistoryActivity : ClintActivity(), SnackbarHostActivity {
         finish()
     }
 
+    private fun historyProtected(): Boolean = ParentalControls.isProtected(this, ParentalControls.AREA_HISTORY)
+
+    private fun showHistoryGate(positiveLabel: String, action: () -> Unit) {
+        uiState.parentalGate = ParentalGateRequest(
+            title = getString(R.string.parental_history_title),
+            message = getString(R.string.parental_history_message),
+            positiveLabel = positiveLabel,
+            onConfirm = action
+        )
+    }
+
     private fun deleteItem(item: HistoryItem) {
+        if (historyProtected()) {
+            showHistoryGate(getString(R.string.history_delete_selected)) { performDeleteItem(item) }
+            return
+        }
+        performDeleteItem(item)
+    }
+
+    private fun performDeleteItem(item: HistoryItem) {
         uiState.items = uiState.items.filterNot { it.query == item.query }
         lifecycleScope.launch {
             withContext(Dispatchers.IO) { SearchHistoryManager.delete(this@HistoryActivity, item.query) }
@@ -131,6 +147,10 @@ class HistoryActivity : ClintActivity(), SnackbarHostActivity {
     private fun showDeleteConfirm() {
         val count = uiState.selectedCount
         if (count == 0) return
+        if (historyProtected()) {
+            showHistoryGate(getString(R.string.history_delete_selected)) { deleteSelected() }
+            return
+        }
         uiState.deleteConfirm = ConfirmDialogConfig(
             title = getString(R.string.history_delete_confirm_title),
             message = getString(R.string.history_delete_confirm_message, count),
@@ -154,6 +174,10 @@ class HistoryActivity : ClintActivity(), SnackbarHostActivity {
 
     private fun showClearAllConfirm() {
         if (uiState.items.isEmpty()) return
+        if (historyProtected()) {
+            showHistoryGate(getString(R.string.history_clear_all)) { clearAllHistory() }
+            return
+        }
         uiState.clearAllConfirm = ConfirmDialogConfig(
             title = getString(R.string.history_clear_all),
             message = getString(R.string.history_clear_all_confirm_message),

@@ -1,0 +1,11 @@
+• Player de vídeo com gestos e PiP
+• Perfis separados e fáceis de alternar
+• Menu redesenhado e barra de ferramentas personalizável
+• Mais opções de página inicial e sugestões
+• Localizar na página
+• Fixar, ordenar e reabrir abas fechadas
+• Suporte a Custom Tabs
+• Novas visualizações de downloads, atualizações ao vivo e gerenciador à escolha
+• Seleção múltipla e filtro de tamanho na Captura de mídia
+• Controle dos pais e Aumento de desempenho
+• GeckoView 160 e 5 novos idiomas

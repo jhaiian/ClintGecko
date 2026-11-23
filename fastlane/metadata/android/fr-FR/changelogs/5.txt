@@ -1,0 +1,12 @@
+• Moteur de téléchargement reconstruit, plus rapide et plus fiable
+• Mode Auto pour les connexions et les segments
+• Traduction des pages directement sur l'appareil
+• Protection renforcée contre le pistage
+• Protection totale contre les cookies activée par défaut
+• Informations sur le site depuis le cadenas de la barre d'adresse
+• Nouvel écran Supprimer les données de navigation
+• Paramètres, historique et suggestions repensés
+• Nouvelle page d'erreur avec un jeu hors connexion
+• Hindi, indonésien et portugais du Brésil
+• Isolation des sites web
+• Corrections du clavier, du plein écran et des téléchargements

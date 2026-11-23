@@ -1,0 +1,11 @@
+• Reproductor de vídeo con gestos y PiP
+• Perfiles separados y fáciles de cambiar
+• Nuevo menú y barra de herramientas personalizable
+• Más opciones de página de inicio y sugerencias
+• Buscar en la página
+• Fijar, ordenar y reabrir pestañas cerradas
+• Compatibilidad con Custom Tabs
+• Vistas de descargas, actualizaciones en vivo y gestor a elegir
+• Selección múltiple y filtro de tamaño en Captura de medios
+• Control parental y Mejora de rendimiento
+• GeckoView 160 y 5 idiomas nuevos

@@ -1,4 +1,5 @@
 package com.jhaiian.clint.settings.accessibility
+import androidx.compose.material.icons.filled.FilterBAndW
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.ZoomIn
@@ -52,7 +53,8 @@ fun AccessibilityScreen(
     onAutoFontSizeClick: () -> Unit,
     onFontSizeChange: (Int) -> Unit,
     onFontSizeChangeFinished: () -> Unit,
-    onForceZoomClick: () -> Unit
+    onForceZoomClick: () -> Unit,
+    onColorFilterClick: () -> Unit
 ) {
     val colors = LocalClintColors.current
 
@@ -88,6 +90,16 @@ fun AccessibilityScreen(
                 trailing = {
                     ClintSwitch(checked = state.forceZoom)
                 }
+            )
+        }
+        SettingsSectionLabel(stringResource(R.string.accessibility_section_colors))
+        SettingsSection(colors.cardBackground) {
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.FilterBAndW,
+                title = stringResource(R.string.accessibility_color_filter_title),
+                summary = stringResource(colorFilterLabelRes(state.colorFilter)),
+                colors = colors,
+                onClick = onColorFilterClick
             )
         }
     }

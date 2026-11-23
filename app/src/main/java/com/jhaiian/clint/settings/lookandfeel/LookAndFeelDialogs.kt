@@ -513,6 +513,46 @@ fun ExitConfirmationDialog(
 }
 
 @Composable
+fun BackCloseTabDialog(
+    current: String,
+    hideStatusBar: Boolean, hideSystemNavigation: Boolean,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = LocalClintColors.current
+    val scrollState = rememberScrollState()
+
+    ClintDialog(
+        title = stringResource(R.string.back_close_tab_title),
+        hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
+        onDismiss = onDismiss,
+        scrollState = scrollState
+    ) {
+        data class BackOption(val key: String, val titleRes: Int, val descRes: Int, val showDefault: Boolean)
+        listOf(
+            BackOption("opener", R.string.back_close_tab_opener, R.string.back_close_tab_opener_desc, true),
+            BackOption("any", R.string.back_close_tab_any, R.string.back_close_tab_any_desc, false),
+            BackOption("never", R.string.back_close_tab_never, R.string.back_close_tab_never_desc, false)
+        ).forEach { option ->
+            val sel = current == option.key
+            SelectableCard(
+                selected = sel, onClick = { onSelect(option.key) },
+                cardBackground = colors.surfaceVariant, primary = colors.primary,
+                contentPadding = OptionContentPadding, bottomSpacing = OptionBottomSpacing,
+                modifier = Modifier.scrollToSelection(scrollState, sel)
+            ) {
+                ClintRadioButton(selected = sel)
+                Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
+                    Text(stringResource(option.titleRes), color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(option.descRes), color = colors.secondaryText, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
+                }
+                if (option.showDefault) DefaultChip(stringResource(R.string.default_label), colors.primary)
+            }
+        }
+    }
+}
+
+@Composable
 fun PopupAlertStyleDialog(
     current: String,
     hideStatusBar: Boolean, hideSystemNavigation: Boolean,

@@ -68,13 +68,20 @@ internal const val DEST_LOOK_AND_FEEL = "look_and_feel"
 internal const val DEST_BROWSER = "browser"
 internal const val DEST_PRIVACY = "privacy"
 internal const val DEST_SITE_SETTINGS = "site_settings"
+internal const val DEST_PARENTAL_CONTROLS = "parental_controls"
 internal const val DEST_DATA_SAVER = "data_saver"
+internal const val DEST_PERFORMANCE = "performance"
 internal const val DEST_ACCESSIBILITY = "accessibility"
 internal const val DEST_DOWNLOADS = "downloads"
+internal const val DEST_DOWNLOAD_APPEARANCE = "download_appearance"
 internal const val DEST_BACKUP_RESTORE = "backup_restore"
 internal const val DEST_UPDATES = "updates"
 internal const val DEST_MISC = "misc"
 internal const val DEST_TRANSLATIONS = "translations"
+internal const val DEST_FIND_IN_PAGE = "find_in_page"
+internal const val DEST_HOMEPAGE = "homepage"
+internal const val DEST_SUGGESTIONS = "suggestions"
+internal const val DEST_VIDEO_PLAYER = "video_player"
 internal const val DEST_DEBUG = "debug"
 internal const val DEST_ABOUT = "about"
 internal const val DEST_SUPPORT_CLINT = "support_clint"
@@ -292,10 +299,12 @@ private fun SettingsListPane(
                     onBrowserClick = { onNavigate(DEST_BROWSER, null) },
                     onPrivacyClick = { onNavigate(DEST_PRIVACY, null) },
                     onSiteSettingsClick = { onNavigate(DEST_SITE_SETTINGS, null) },
+                    onParentalControlsClick = { onNavigate(DEST_PARENTAL_CONTROLS, null) },
                     onDataSaverClick = { onNavigate(DEST_DATA_SAVER, null) },
                     onDownloadsClick = { onNavigate(DEST_DOWNLOADS, null) },
                     onBackupRestoreClick = { onNavigate(DEST_BACKUP_RESTORE, null) },
                     onUpdatesClick = { onNavigate(DEST_UPDATES, null) },
+                    onPerformanceClick = { onNavigate(DEST_PERFORMANCE, null) },
                     onMiscClick = { onNavigate(DEST_MISC, null) },
                     onDebugClick = { onNavigate(DEST_DEBUG, null) },
                     onAboutClick = { onNavigate(DEST_ABOUT, null) },
@@ -325,15 +334,22 @@ private fun SettingsDetailPane(
                 when (destination) {
                     DEST_LOOK_AND_FEEL -> LookAndFeelPane(activity)
                     DEST_ACCESSIBILITY -> AccessibilityPane(activity)
-                    DEST_BROWSER -> BrowserSettingsPane(activity, onTranslationsClick = { onNavigate(DEST_TRANSLATIONS) })
+                    DEST_BROWSER -> BrowserSettingsPane(activity, onTranslationsClick = { onNavigate(DEST_TRANSLATIONS) }, onFindInPageClick = { onNavigate(DEST_FIND_IN_PAGE) }, onHomepageClick = { onNavigate(DEST_HOMEPAGE) }, onSuggestionsClick = { onNavigate(DEST_SUGGESTIONS) }, onVideoPlayerClick = { onNavigate(DEST_VIDEO_PLAYER) })
                     DEST_PRIVACY -> PrivacySettingsPane(activity)
                     DEST_SITE_SETTINGS -> SiteSettingsPane(activity)
+                    DEST_PARENTAL_CONTROLS -> com.jhaiian.clint.settings.parental.ParentalControlsPane(activity)
                     DEST_DATA_SAVER -> DataSaverPane(activity)
-                    DEST_DOWNLOADS -> DownloadSettingsPane(activity)
+                    DEST_DOWNLOADS -> DownloadSettingsPane(activity, onCustomizeClick = { onNavigate(DEST_DOWNLOAD_APPEARANCE) })
+                    DEST_DOWNLOAD_APPEARANCE -> com.jhaiian.clint.settings.downloads.DownloadAppearancePane(activity)
                     DEST_BACKUP_RESTORE -> BackupRestorePane(activity)
                     DEST_UPDATES -> UpdateSettingsPane(activity)
+                    DEST_PERFORMANCE -> com.jhaiian.clint.settings.performance.PerformanceBoostPane(activity)
                     DEST_MISC -> MiscPane(activity)
                     DEST_TRANSLATIONS -> com.jhaiian.clint.settings.translations.TranslationsSettingsPane(activity)
+                    DEST_FIND_IN_PAGE -> com.jhaiian.clint.settings.find.FindSettingsPane(activity)
+                    DEST_HOMEPAGE -> com.jhaiian.clint.settings.browser.HomepageSettingsPane(activity)
+                    DEST_SUGGESTIONS -> com.jhaiian.clint.settings.browser.SuggestionsSettingsPane(activity)
+                    DEST_VIDEO_PLAYER -> com.jhaiian.clint.settings.browser.VideoPlayerSettingsPane(activity)
                     DEST_DEBUG -> DebugPane(activity)
                     DEST_ABOUT -> AboutPane(activity)
                 }
@@ -348,19 +364,23 @@ private fun mainEntryFor(destination: String): MainSettingsEntry? = when (destin
     DEST_BROWSER -> MainSettingsEntry.BROWSER
     DEST_PRIVACY -> MainSettingsEntry.PRIVACY
     DEST_SITE_SETTINGS -> MainSettingsEntry.SITE_SETTINGS
+    DEST_PARENTAL_CONTROLS -> MainSettingsEntry.PARENTAL_CONTROLS
     DEST_DATA_SAVER -> MainSettingsEntry.DATA_SAVER
-    DEST_DOWNLOADS -> MainSettingsEntry.DOWNLOADS
+    DEST_DOWNLOADS, DEST_DOWNLOAD_APPEARANCE -> MainSettingsEntry.DOWNLOADS
     DEST_BACKUP_RESTORE -> MainSettingsEntry.BACKUP_RESTORE
     DEST_UPDATES -> MainSettingsEntry.UPDATES
+    DEST_PERFORMANCE -> MainSettingsEntry.PERFORMANCE
     DEST_MISC -> MainSettingsEntry.MISC
     DEST_TRANSLATIONS -> MainSettingsEntry.BROWSER
+    DEST_FIND_IN_PAGE, DEST_HOMEPAGE, DEST_SUGGESTIONS, DEST_VIDEO_PLAYER -> MainSettingsEntry.BROWSER
     DEST_DEBUG -> MainSettingsEntry.DEBUG
     DEST_ABOUT -> MainSettingsEntry.ABOUT
     else -> null
 }
 
 private fun parentDestination(destination: String): String? = when (destination) {
-    DEST_TRANSLATIONS -> DEST_BROWSER
+    DEST_TRANSLATIONS, DEST_FIND_IN_PAGE, DEST_HOMEPAGE, DEST_SUGGESTIONS, DEST_VIDEO_PLAYER -> DEST_BROWSER
+    DEST_DOWNLOAD_APPEARANCE -> DEST_DOWNLOADS
     else -> null
 }
 
@@ -370,12 +390,19 @@ private fun destinationTitleRes(destination: String): Int = when (destination) {
     DEST_BROWSER -> R.string.browser_settings
     DEST_PRIVACY -> R.string.privacy_settings
     DEST_SITE_SETTINGS -> R.string.site_settings
+    DEST_PARENTAL_CONTROLS -> R.string.parental_controls_title
     DEST_DATA_SAVER -> R.string.data_saver_title
     DEST_DOWNLOADS -> R.string.download_settings_title
+    DEST_DOWNLOAD_APPEARANCE -> R.string.download_appearance_title
     DEST_BACKUP_RESTORE -> R.string.backup_restore_title
     DEST_UPDATES -> R.string.pref_updates_title
+    DEST_PERFORMANCE -> R.string.perf_boost_title
     DEST_MISC -> R.string.pref_misc_title
     DEST_TRANSLATIONS -> R.string.translation_settings_title
+    DEST_FIND_IN_PAGE -> R.string.find_settings_title
+    DEST_HOMEPAGE -> R.string.homepage_title
+    DEST_SUGGESTIONS -> R.string.pref_category_suggestions
+    DEST_VIDEO_PLAYER -> R.string.video_player_title
     DEST_DEBUG -> R.string.debug_title
     DEST_ABOUT -> R.string.about
     else -> R.string.settings

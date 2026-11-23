@@ -1,0 +1,11 @@
+• Pemutar video bawaan dengan gestur dan PiP
+• Profil terpisah yang mudah dialihkan
+• Menu baru dan toolbar yang bisa disesuaikan
+• Lebih banyak opsi beranda dan saran pencarian
+• Cari di halaman
+• Sematkan dan urutkan tab, plus tab yang baru ditutup
+• Dukungan Custom Tabs
+• Tampilan download baru, pembaruan live, download manager apa pun
+• Pilih banyak dan filter ukuran di Perekam Media
+• Kontrol orang tua dan Peningkat Performa
+• GeckoView 160, setup baru, dan 5 bahasa baru

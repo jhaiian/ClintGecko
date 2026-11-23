@@ -16,6 +16,7 @@ data class BrowserTab(
     var pendingUrl: String? = null,
     val profileId: String = WebProfiles.DEFAULT_ID,
     var groupId: String? = null,
+    var isPinned: Boolean = false,
     val webView: ClintWebView
 ) {
     var lastActiveAt: Long = System.currentTimeMillis()

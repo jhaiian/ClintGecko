@@ -6,6 +6,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Image
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
@@ -38,22 +40,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
 import com.jhaiian.clint.browser.MainActivity
+import com.jhaiian.clint.ui.ClintSheetWindowInsets
 import com.jhaiian.clint.ui.FaviconCache
+import com.jhaiian.clint.ui.rememberSheetFlingConnection
 import com.jhaiian.clint.ui.theme.LocalClintColors
 
-data class LinkLongPressRequest(val url: String, val linkText: String)
+data class LinkLongPressRequest(val url: String, val linkText: String, val imageUrl: String = "", val imageAlt: String = "")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,6 +63,7 @@ internal fun LinkLongPressSheet(request: LinkLongPressRequest, activity: MainAct
     val colors = LocalClintColors.current
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val flingBoundaryConnection = rememberSheetFlingConnection(sheetState)
     var favicon by remember(request.url) { mutableStateOf<Bitmap?>(null) }
     val hideStatusBar = remember { PreferenceManager.getDefaultSharedPreferences(activity).getBoolean("hide_status_bar", false) }
     val hideSystemNavigation = remember { PreferenceManager.getDefaultSharedPreferences(activity).getBoolean("hide_system_navigation", false) }
@@ -77,11 +80,6 @@ internal fun LinkLongPressSheet(request: LinkLongPressRequest, activity: MainAct
 
     val hasLinkText = request.linkText.isNotEmpty() && request.linkText != request.url
     val listState = rememberLazyListState()
-    val flingBoundaryConnection = remember {
-        object : NestedScrollConnection {
-            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity = available
-        }
-    }
     val configuration = LocalConfiguration.current
 
     val isPortrait = configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
@@ -94,6 +92,7 @@ internal fun LinkLongPressSheet(request: LinkLongPressRequest, activity: MainAct
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        contentWindowInsets = { ClintSheetWindowInsets },
         containerColor = colors.popupBackground,
         dragHandle = { BottomSheetDefaults.DragHandle(color = colors.divider) }
     ) {
@@ -139,6 +138,24 @@ internal fun LinkLongPressSheet(request: LinkLongPressRequest, activity: MainAct
             }
             LongPressActionRow(androidx.compose.material.icons.Icons.Filled.Share, stringResource(R.string.link_share)) {
                 dismissAnd { activity.onLinkShare(request.url) }
+            }
+            if (request.imageUrl.isNotEmpty()) {
+                LongPressSheetDivider()
+                LongPressActionRow(androidx.compose.material.icons.Icons.Filled.Download, stringResource(R.string.image_download)) {
+                    dismissAnd { activity.onImageDownload(request.imageUrl, request.imageAlt) }
+                }
+                LongPressActionRow(androidx.compose.material.icons.Icons.Filled.Image, stringResource(R.string.image_preview)) {
+                    dismissAnd { activity.onImagePreview(request.imageUrl) }
+                }
+                LongPressActionRow(androidx.compose.material.icons.Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.image_open_in_new_tab)) {
+                    dismissAnd { activity.onImageOpenInNewTab(request.imageUrl) }
+                }
+                LongPressActionRow(androidx.compose.material.icons.Icons.Filled.ContentCopy, stringResource(R.string.image_copy)) {
+                    dismissAnd { activity.onImageCopy(request.imageUrl) }
+                }
+                LongPressActionRow(androidx.compose.material.icons.Icons.Filled.Share, stringResource(R.string.image_share)) {
+                    dismissAnd { activity.onImageShare(request.imageUrl) }
+                }
             }
         }
         }

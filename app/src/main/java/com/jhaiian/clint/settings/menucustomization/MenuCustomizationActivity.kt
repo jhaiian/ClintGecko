@@ -12,7 +12,6 @@ import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
 import com.jhaiian.clint.base.ClintActivity
 import com.jhaiian.clint.browser.menu.BrowserMenuCustomizationStore
-import com.jhaiian.clint.browser.menu.CustomizableMenuItem
 import com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig
 import com.jhaiian.clint.ui.listscreen.ConfirmDialogHost
 import com.jhaiian.clint.ui.rememberMaxContentWidth
@@ -22,15 +21,16 @@ class MenuCustomizationActivity : ClintActivity() {
 
     private lateinit var uiState: MenuCustomizationUiState
 
-    private fun buildEntries(prefs: android.content.SharedPreferences): List<MenuCustomizationEntry> {
-        val order = BrowserMenuCustomizationStore.readOrder(prefs)
-        val hidden = BrowserMenuCustomizationStore.readHidden(prefs)
-        return order.map { MenuCustomizationEntry(it, it !in hidden) }
-    }
-
-    private fun persistHidden(prefs: android.content.SharedPreferences) {
-        val hidden = uiState.entries.filter { !it.visible }.map { it.item }.toSet()
-        BrowserMenuCustomizationStore.writeHidden(prefs, hidden)
+    private fun persist(prefs: android.content.SharedPreferences) {
+        val (order, sections) = uiState.arrangement()
+        BrowserMenuCustomizationStore.writeArrangement(prefs, order, sections)
+        BrowserMenuCustomizationStore.writeGridColumns(prefs, uiState.gridColumns)
+        BrowserMenuCustomizationStore.writeCompact(prefs, uiState.compact)
+        BrowserMenuCustomizationStore.writeShowHeader(prefs, uiState.showHeader)
+        BrowserMenuCustomizationStore.writeGridLabels(prefs, uiState.gridLabels)
+        BrowserMenuCustomizationStore.writeNavSlots(prefs, uiState.navSlots.toList())
+        BrowserMenuCustomizationStore.writeShowNavBar(prefs, uiState.showNavBar)
+        prefs.edit().putString("menu_style", uiState.menuStyle).apply()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,7 +42,10 @@ class MenuCustomizationActivity : ClintActivity() {
         val hideStatusBar = prefs.getBoolean("hide_status_bar", false)
         val hideSystemNavigation = prefs.getBoolean("hide_system_navigation", false)
 
-        uiState = MenuCustomizationUiState(buildEntries(prefs))
+        uiState = MenuCustomizationUiState(
+            BrowserMenuCustomizationStore.readLayout(prefs),
+            prefs.getString("menu_style", "popup") ?: "popup"
+        )
 
         setContent {
             ClintComposeTheme(theme = theme) {
@@ -54,15 +57,7 @@ class MenuCustomizationActivity : ClintActivity() {
                         state = uiState,
                         maxContentWidth = maxContentWidth,
                         onExit = { finish() },
-                        onToggleVisible = { id ->
-                            val entry = uiState.entries.find { it.item.id == id }
-                            entry?.let { it.visible = !it.visible }
-                            persistHidden(prefs)
-                        },
-                        onCommitReorder = { orderedIds ->
-                            val items = orderedIds.mapNotNull { CustomizableMenuItem.fromId(it) }
-                            BrowserMenuCustomizationStore.writeOrder(prefs, items)
-                        },
+                        onChanged = { persist(prefs) },
                         onResetClick = {
                             resetConfirm = ConfirmDialogConfig(
                                 title = getString(R.string.menu_customization_reset_confirm_title),
@@ -71,7 +66,7 @@ class MenuCustomizationActivity : ClintActivity() {
                                 positiveLabel = getString(R.string.menu_customization_reset_action),
                                 onPositive = {
                                     BrowserMenuCustomizationStore.resetToDefault(prefs)
-                                    uiState.replaceAll(buildEntries(prefs))
+                                    uiState.load(BrowserMenuCustomizationStore.readLayout(prefs))
                                 }
                             )
                         }

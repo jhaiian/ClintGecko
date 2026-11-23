@@ -1,0 +1,12 @@
+• Neu entwickelte Download-Engine, schneller und zuverlässiger
+• Automatikmodus für Verbindungen und Segmente
+• Seitenübersetzung direkt auf dem Gerät
+• Erweiterter Schutz vor Aktivitätenverfolgung
+• Umfassender Cookie-Schutz standardmäßig aktiv
+• Website-Informationen über das Schloss in der Adressleiste
+• Neuer Bildschirm „Browserdaten löschen“
+• Überarbeitete Einstellungen, Verlauf und Vorschläge
+• Neue Fehlerseite mit Offline-Spiel
+• Hindi, Indonesisch und brasilianisches Portugiesisch
+• Website-Isolierung
+• Korrekturen für Tastatur, Vollbild und Downloads

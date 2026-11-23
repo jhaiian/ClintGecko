@@ -3,6 +3,7 @@ package com.jhaiian.clint.settings.downloads
 object DownloadSettingsKeys {
     const val PREF_DOWNLOAD_LOCATION_MODE  = "download_location_mode"
     const val PREF_DOWNLOAD_CUSTOM_URI     = "download_custom_uri"
+    const val PREF_DOWNLOAD_SAVED_LOCATIONS = "download_saved_locations"
     const val MODE_DEFAULT                 = "default"
     const val MODE_CUSTOM                  = "custom"
     const val PREF_UNMETERED_ONLY          = "download_unmetered_only"
@@ -49,11 +50,13 @@ object DownloadSettingsKeys {
     const val DEFAULT_DETECT_MEGA_LINKS    = true
     const val PREF_LIBRARY_GRID            = "download_library_grid"
     const val DEFAULT_LIBRARY_GRID         = true
+    const val PREF_LIBRARY_VIEW_MODE       = "download_library_view_mode"
     const val PREF_DOWNLOAD_LOG            = "download_log_enabled"
     const val DEFAULT_DOWNLOAD_LOG         = false
     const val PREF_KEEP_SCREEN_ON          = "download_keep_screen_on"
     const val DEFAULT_KEEP_SCREEN_ON       = false
     const val PREF_DOWNLOAD_MANAGER        = "download_manager_app"
+    const val PREF_CUSTOM_DOWNLOAD_MANAGER_PACKAGE = "download_manager_custom_package"
     const val DEFAULT_DOWNLOAD_MANAGER     = com.jhaiian.clint.downloads.DownloadManagerAppIds.CLINT
     const val PREF_CATEGORIZE_DOWNLOADS    = "download_categorize_downloads"
     const val DEFAULT_CATEGORIZE_DOWNLOADS = false

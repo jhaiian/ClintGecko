@@ -16,6 +16,8 @@ class ClintWebChromeClient(
     private val onFullscreenHide: () -> Unit = {},
     private val onFileChooser: (ValueCallback<Array<Uri>>, FileChooserParams) -> Boolean = { _, _ -> false },
     private val onNewWindowRequest: (String) -> Unit = {},
+    private val onPopupWindowRequest: ((ClintPopupWindow) -> Unit)? = null,
+    private val onCloseWindowRequest: () -> Unit = {},
     private val isFullscreenActive: () -> Boolean = { false },
     private val onWebPermissionRequest: (ClintPermissionRequest) -> Unit = { it.deny() },
     private val onGeolocationRequest: (String, GeolocationCallback) -> Unit = { _, cb -> cb.invoke("", false, false) },
@@ -77,12 +79,34 @@ class ClintWebChromeClient(
         )
     }
 
-    fun onNewWindow(uri: String): Boolean {
+    fun acceptsNewWindow(uri: String): Boolean {
         val hijackedFullscreenExit = SystemClock.elapsedRealtime() - fullscreenExitedAtMs < FULLSCREEN_EXIT_POPUP_GUARD_MS
         if (isFullscreenActive() || hijackedFullscreenExit) return false
-        if (uri.isBlank() || uri == "about:blank") return false
+        return !(uri.isBlank() || uri == "about:blank")
+    }
+
+    fun onNewWindow(uri: String): Boolean {
+        if (!acceptsNewWindow(uri)) return false
         onNewWindowRequest(uri)
         return true
+    }
+
+    fun onCloseWindow() {
+        onCloseWindowRequest()
+    }
+
+    fun onPopupWindow(popup: ClintPopupWindow) {
+        if (!acceptsNewWindow(popup.url)) {
+            popup.decline()
+            return
+        }
+        val handler = onPopupWindowRequest
+        if (handler != null) {
+            handler(popup)
+        } else {
+            popup.decline()
+            onNewWindowRequest(popup.url)
+        }
     }
 
     companion object {

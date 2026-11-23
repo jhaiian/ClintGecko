@@ -15,6 +15,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,13 +37,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -77,6 +82,10 @@ import com.jhaiian.clint.browser.delegates.copyCurrentPageLink
 import com.jhaiian.clint.browser.delegates.pasteAndGo
 import com.jhaiian.clint.browser.delegates.pasteIntoSearch
 import com.jhaiian.clint.browser.delegates.openTranslatePage
+import com.jhaiian.clint.extensions.ClintExtensions
+import com.jhaiian.clint.extensions.ExtensionIconTile
+import com.jhaiian.clint.extensions.ExtensionInfo
+import com.jhaiian.clint.extensions.ExtensionStatus
 import com.jhaiian.clint.ui.theme.LocalClintColors
 
 @Composable
@@ -94,6 +103,7 @@ internal fun AddressBarRow(
     onSwipeTabChange: (Int) -> Boolean,
     onSiteInfoClick: () -> Unit = {},
     showHomeButton: Boolean = false,
+    stripUrlScheme: Boolean = false,
     onHomeClick: () -> Unit = {},
     openTabsSwipeDirection: Int = 0,
     isBottomBar: Boolean = false,
@@ -137,7 +147,7 @@ internal fun AddressBarRow(
         }
     }
     Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = if (activity.uiState.toolbarLayout.compact) 3.dp else 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (isIncognito) {
@@ -167,10 +177,10 @@ internal fun AddressBarRow(
         }
         Surface(
             color = colors.addressBarColor,
-            shape = RoundedCornerShape(24.dp),
+            shape = com.jhaiian.clint.browser.toolbar.searchBarShape(activity.uiState.toolbarLayout.searchShape),
             modifier = Modifier
                 .weight(1f)
-                .height(48.dp)
+                .height(if (activity.uiState.toolbarLayout.compact) 40.dp else 48.dp)
                 .combinedClickable(
                     onClick = onAddressBarClick,
                     onLongClick = {
@@ -283,7 +293,7 @@ internal fun AddressBarRow(
                     modifier = Modifier.padding(start = 4.dp).weight(1f)
                 ) { text ->
                     Text(
-                        text = text.ifEmpty { addressBarHint },
+                        text = if (text.isEmpty()) addressBarHint else if (stripUrlScheme) com.jhaiian.clint.util.stripUrlForDisplay(text) else text,
                         color = if (text.isEmpty()) colors.secondaryText else colors.onSurface,
                         fontSize = 16.sp,
                         maxLines = 1,
@@ -320,88 +330,181 @@ internal fun AddressBarRow(
                 }
             }
         }
-        if (isMediaCaptureEnabled) {
-            Box(
-                modifier = Modifier
-                    .padding(start = 10.dp)
-                    .size(34.dp)
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .matchParentSize()
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(onClick = onMediaCaptureClick)
-                ) {
-                    Icon(
-                        imageVector = androidx.compose.material.icons.Icons.Filled.VideoLibrary,
-                        contentDescription = stringResource(R.string.menu_media_capture),
-                        tint = colors.iconTint,
-                        modifier = Modifier.size(20.dp)
-                    )
+        activity.uiState.toolbarLayout.visibleButtons.forEach { button ->
+            when (button) {
+                com.jhaiian.clint.browser.toolbar.ToolbarButton.EXTENSIONS -> {
+                    val pinnedLimit = ClintExtensions.pinnedLimit(LocalConfiguration.current.screenWidthDp)
+                    val pinnedExtensions = visiblePinnedExtensions(isIncognito)
+                    val overflowIds = pinnedExtensions.drop(pinnedLimit).map { it.id }.toSet()
+                    PinnedExtensionButtons(activity, pinnedExtensions.take(pinnedLimit))
+                    if (ClintExtensions.buttonPinned || overflowIds.isNotEmpty()) {
+                        com.jhaiian.clint.browser.menu.ExtensionsSearchBarButton(activity, overflowIds)
+                    }
                 }
-                if (mediaCaptureCount > 0) {
+                com.jhaiian.clint.browser.toolbar.ToolbarButton.MEDIA_CAPTURE -> {
+                    if (isMediaCaptureEnabled) {
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 10.dp)
+                                .size(34.dp)
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(onClick = onMediaCaptureClick)
+                            ) {
+                                Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Filled.VideoLibrary,
+                                    contentDescription = stringResource(R.string.menu_media_capture),
+                                    tint = colors.iconTint,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            if (mediaCaptureCount > 0) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .offset(x = 2.dp, y = (-2).dp)
+                                        .defaultMinSize(minWidth = 13.dp)
+                                        .height(13.dp)
+                                        .clip(RoundedCornerShape(6.5.dp))
+                                        .background(colors.primary)
+                                        .padding(horizontal = 3.dp)
+                                ) {
+                                    Text(
+                                        text = com.jhaiian.clint.ui.status.formatCompactCount(mediaCaptureCount.toLong()),
+                                        color = colors.onPrimary,
+                                        fontSize = 9.sp,
+                                        lineHeight = 9.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                com.jhaiian.clint.browser.toolbar.ToolbarButton.PROFILE -> {
+                    if (!isIncognito) com.jhaiian.clint.profiles.ProfileToolbarButton(activity)
+                }
+                com.jhaiian.clint.browser.toolbar.ToolbarButton.TAB_COUNT -> {
                     Box(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .offset(x = 2.dp, y = (-2).dp)
-                            .defaultMinSize(minWidth = 13.dp)
-                            .height(13.dp)
-                            .clip(RoundedCornerShape(6.5.dp))
-                            .background(colors.primary)
-                            .padding(horizontal = 3.dp)
+                            .padding(start = 10.dp)
+                            .defaultMinSize(minWidth = 34.dp, minHeight = 26.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                            .border(2.dp, colors.primary, RoundedCornerShape(5.dp))
+                            .combinedClickable(
+                                onClick = onTabCountClick,
+                                onLongClickLabel = stringResource(if (isIncognito) R.string.new_incognito_tab else R.string.new_tab),
+                                onLongClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    if (isIncognito) activity.onNewIncognitoTab() else activity.onNewTab()
+                                }
+                            )
+                            .padding(horizontal = 5.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = com.jhaiian.clint.ui.status.formatCompactCount(mediaCaptureCount.toLong()),
-                            color = colors.onPrimary,
-                            fontSize = 9.sp,
-                            lineHeight = 9.sp,
+                            text = tabCountText,
+                            color = colors.primary,
+                            fontSize = 12.sp,
+                            lineHeight = 12.sp,
+                            letterSpacing = 0.sp,
                             fontWeight = FontWeight.Medium,
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            softWrap = false,
+                            style = LocalTextStyle.current.copy(
+                                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                                lineHeightStyle = LineHeightStyle(
+                                    alignment = LineHeightStyle.Alignment.Center,
+                                    trim = LineHeightStyle.Trim.Both
+                                )
+                            )
                         )
+                    }
+                }
+                com.jhaiian.clint.browser.toolbar.ToolbarButton.MENU -> {
+                    Box(modifier = Modifier.padding(start = 4.dp).size(40.dp), contentAlignment = Alignment.Center) {
+                        com.jhaiian.clint.browser.menu.MenuTriggerButton(activity)
                     }
                 }
             }
         }
+    }
+}
+
+private fun visiblePinnedExtensions(isIncognito: Boolean): List<ExtensionInfo> {
+    val pinnedIds = ClintExtensions.pinnedIds
+    if (pinnedIds.isEmpty()) return emptyList()
+    return ClintExtensions.extensions.filter {
+        it.id in pinnedIds && it.status == ExtensionStatus.ON && (!isIncognito || it.allowedInPrivate)
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PinnedExtensionButtons(activity: MainActivity, pinned: List<ExtensionInfo>) {
+    val colors = LocalClintColors.current
+    pinned.forEach { info ->
+        val action = ClintExtensions.actionFor(info.id)
+        val actionable = action != null && action.enabled != false
+        val badge = action?.badgeText?.takeIf { it.isNotBlank() }
+        val bitmap = ClintExtensions.actionIcons[info.id] ?: ClintExtensions.icons[info.id]
         Box(
-            contentAlignment = Alignment.Center,
             modifier = Modifier
                 .padding(start = 10.dp)
-                .defaultMinSize(minWidth = 34.dp, minHeight = 26.dp)
-                .clip(RoundedCornerShape(5.dp))
-                .border(2.dp, colors.primary, RoundedCornerShape(5.dp))
-                .combinedClickable(
-                    onClick = onTabCountClick,
-                    onLongClickLabel = stringResource(if (isIncognito) R.string.new_incognito_tab else R.string.new_tab),
-                    onLongClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        if (isIncognito) activity.onNewIncognitoTab() else activity.onNewTab()
-                    }
-                )
-                .padding(horizontal = 5.dp, vertical = 4.dp)
+                .size(34.dp)
         ) {
-            Text(
-                text = tabCountText,
-                color = colors.primary,
-                fontSize = 12.sp,
-                lineHeight = 12.sp,
-                letterSpacing = 0.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                softWrap = false,
-                style = LocalTextStyle.current.copy(
-                    platformStyle = PlatformTextStyle(includeFontPadding = false),
-                    lineHeightStyle = LineHeightStyle(
-                        alignment = LineHeightStyle.Alignment.Center,
-                        trim = LineHeightStyle.Trim.Both
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(RoundedCornerShape(8.dp))
+                    .combinedClickable(
+                        onClickLabel = info.name,
+                        onClick = { activity.onMenuExtensionClick(info.id, actionable) },
+                        onLongClick = { activity.onMenuOpenExtensionSettings(info.id) }
                     )
-                )
-            )
-        }
-        Box(modifier = Modifier.padding(start = 4.dp).size(40.dp), contentAlignment = Alignment.Center) {
-            com.jhaiian.clint.browser.menu.MenuTriggerButton(activity)
+            ) {
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap,
+                        contentDescription = info.name,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.size(22.dp).alpha(if (actionable || action == null) 1f else 0.5f)
+                    )
+                } else {
+                    ExtensionIconTile(null, info.id, info.name, 22.dp)
+                }
+            }
+            if (badge != null) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 2.dp, y = (-2).dp)
+                        .defaultMinSize(minWidth = 13.dp)
+                        .height(13.dp)
+                        .clip(RoundedCornerShape(6.5.dp))
+                        .background(colors.primary)
+                        .padding(horizontal = 3.dp)
+                ) {
+                    Text(
+                        text = badge,
+                        color = colors.onPrimary,
+                        fontSize = 9.sp,
+                        lineHeight = 9.sp,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1
+                    )
+                }
+            }
         }
     }
 }

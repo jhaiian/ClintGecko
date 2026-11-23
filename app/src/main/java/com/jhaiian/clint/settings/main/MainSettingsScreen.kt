@@ -1,6 +1,7 @@
 package com.jhaiian.clint.settings.main
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Accessibility
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.DataSaverOn
 import androidx.compose.material.icons.filled.Download
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.VolunteerActivism
+import androidx.compose.material.icons.filled.SupervisorAccount
 import androidx.compose.material.icons.filled.WebAsset
 
 import androidx.compose.foundation.background
@@ -50,7 +52,7 @@ import com.jhaiian.clint.settings.common.settingsSearchHighlight
 import com.jhaiian.clint.ui.theme.LocalClintColors
 
 enum class MainSettingsEntry {
-    BROWSER, LOOK_AND_FEEL, ACCESSIBILITY, PRIVACY, SITE_SETTINGS, DOWNLOADS, DATA_SAVER, BACKUP_RESTORE, UPDATES, MISC, DEBUG, ABOUT
+    BROWSER, LOOK_AND_FEEL, ACCESSIBILITY, PRIVACY, SITE_SETTINGS, PARENTAL_CONTROLS, DOWNLOADS, DATA_SAVER, BACKUP_RESTORE, UPDATES, PERFORMANCE, MISC, DEBUG, ABOUT
 }
 
 private class MainSettingsItem(
@@ -71,10 +73,12 @@ fun MainSettingsScreen(
     onBrowserClick: () -> Unit,
     onPrivacyClick: () -> Unit,
     onSiteSettingsClick: () -> Unit,
+    onParentalControlsClick: () -> Unit,
     onDataSaverClick: () -> Unit,
     onDownloadsClick: () -> Unit,
     onBackupRestoreClick: () -> Unit,
     onUpdatesClick: () -> Unit,
+    onPerformanceClick: () -> Unit,
     onMiscClick: () -> Unit,
     onDebugClick: () -> Unit,
     onAboutClick: () -> Unit,
@@ -115,6 +119,10 @@ fun MainSettingsScreen(
             MainSettingsItem(
                 MainSettingsEntry.SITE_SETTINGS, androidx.compose.material.icons.Icons.Filled.WebAsset,
                 stringResource(R.string.site_settings), stringResource(R.string.site_settings_summary), onSiteSettingsClick
+            ),
+            MainSettingsItem(
+                MainSettingsEntry.PARENTAL_CONTROLS, androidx.compose.material.icons.Icons.Filled.SupervisorAccount,
+                stringResource(R.string.parental_controls_title), stringResource(R.string.parental_controls_summary), onParentalControlsClick
             )
         ),
         stringResource(R.string.settings_group_data) to listOf(
@@ -133,6 +141,10 @@ fun MainSettingsScreen(
         ),
         stringResource(R.string.settings_group_advanced) to listOf(
             updatesItem,
+            MainSettingsItem(
+                MainSettingsEntry.PERFORMANCE, androidx.compose.material.icons.Icons.Filled.Bolt,
+                stringResource(R.string.perf_boost_title), stringResource(R.string.perf_boost_settings_summary), onPerformanceClick
+            ),
             MainSettingsItem(
                 MainSettingsEntry.MISC, androidx.compose.material.icons.Icons.Filled.Tune,
                 stringResource(R.string.pref_misc_title), stringResource(R.string.pref_misc_summary), onMiscClick

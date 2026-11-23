@@ -5,7 +5,6 @@ import com.jhaiian.clint.R
 import com.jhaiian.clint.downloads.mega.MegaCtrDecryptor
 import com.jhaiian.clint.downloads.mega.MegaRanges
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -16,6 +15,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
+import okhttp3.Response
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -29,6 +29,9 @@ internal class PartRange(val start: Long, end: Long, done: Long) {
     @Volatile var active = false
     @Volatile var failures = 0
     @Volatile var retryAt = 0L
+    @Volatile var call: Call? = null
+    @Volatile var lastDataAt = 0L
+    @Volatile var stalled = false
     val position: Long get() = start + done.get()
     val remaining: Long get() = (end - position + 1).coerceAtLeast(0L)
     val length: Long get() = (end - start + 1).coerceAtLeast(1L)
@@ -108,11 +111,12 @@ internal object PartMap {
 }
 
 internal sealed interface ParallelOutcome {
-    class Completed(val item: DownloadItem) : ParallelOutcome
-    class Paused(val item: DownloadItem) : ParallelOutcome
-    class FallbackSingle(val item: DownloadItem, val waitMs: Long) : ParallelOutcome
-    class Restart(val item: DownloadItem, val reason: String) : ParallelOutcome
-    class Failed(val item: DownloadItem, val message: String) : ParallelOutcome
+    val item: DownloadItem
+    class Completed(override val item: DownloadItem) : ParallelOutcome
+    class Paused(override val item: DownloadItem) : ParallelOutcome
+    class FallbackSingle(override val item: DownloadItem, val waitMs: Long) : ParallelOutcome
+    class Restart(override val item: DownloadItem, val reason: String) : ParallelOutcome
+    class Failed(override val item: DownloadItem, val message: String) : ParallelOutcome
 }
 
 internal object ParallelDownloader {
@@ -126,12 +130,15 @@ internal object ParallelDownloader {
     private const val MAX_BACKOFF_MS = 30_000L
     private const val MAX_RATE_LIMIT_WAIT_SEC = 300L
     private const val GIVE_UP_FAILURES = 8
+    private const val RANGE_STALL_MS = 15_000L
+    private const val STALL_RETRY_MS = 500L
 
     private sealed interface RangeResult {
         data object Done : RangeResult
         data object Stopped : RangeResult
         data object NoRangeSupport : RangeResult
-        class RateLimited(val retryAfterSeconds: Long?) : RangeResult
+        data object Stalled : RangeResult
+        class RateLimited(val retryAfterSeconds: Long?, val code: Int = 429) : RangeResult
         class Restart(val reason: String) : RangeResult
         class Fatal(val message: String) : RangeResult
         class Failed(val message: String) : RangeResult
@@ -160,16 +167,18 @@ internal object ParallelDownloader {
         val autoConnections = DownloadAutoTuner.isAuto(maxConnections)
         val autoSplit = DownloadAutoTuner.isAuto(item.splitParts)
         val connectionCap = if (autoConnections) DownloadAutoTuner.connectionCeiling(context) else maxConnections.coerceAtLeast(1)
-        val startConnections = if (autoConnections) DownloadAutoTuner.startingConnections(context, host, connectionCap) else connectionCap
+        val startConnections = if (autoConnections) DownloadAutoTuner.startingConnections(context, host, connectionCap) else DownloadAutoTuner.manualConnections(context, host, connectionCap)
         val minSplitBytes = if (autoSplit) DownloadAutoTuner.MIN_AUTO_PART_BYTES else MIN_SPLIT_BYTES
         val ceiling = AtomicInteger(startConnections)
-        val maxSafe = AtomicInteger(connectionCap)
+        val maxSafe = AtomicInteger(if (autoConnections) connectionCap else startConnections)
         val rateLimitUntil = AtomicLong(0L)
         val fatal = AtomicReference<String?>(null)
         val restart = AtomicReference<String?>(null)
         val fallback = AtomicBoolean(false)
         val lastError = AtomicReference<String?>(null)
         val activeWorkers = AtomicInteger(0)
+        val stopped = AtomicBoolean(false)
+        val pauseSeen = AtomicBoolean(false)
         val autoController = if (autoConnections) {
             AutoConcurrencyController(ceiling, { maxSafe.get() }) {
                 listOf(speedLimiter.currentLimit(), ClintDownloadManager.globalSpeedLimiter.currentLimit())
@@ -186,9 +195,14 @@ internal object ParallelDownloader {
                 (if (validator != null) " · If-Range: $validator" else " · no validator for safe resume")
         }
 
-        fun stopRequested(): Boolean =
-            fatal.get() != null || restart.get() != null || fallback.get() ||
-                ClintDownloadManager.pauseRequested.contains(id) || ClintDownloadManager.isRemoved(id)
+        fun stopRequested(): Boolean {
+            if (stopped.get()) return true
+            val paused = ClintDownloadManager.pauseRequested.contains(id)
+            if (!paused && fatal.get() == null && restart.get() == null && !fallback.get() && !ClintDownloadManager.isRemoved(id)) return false
+            if (paused) pauseSeen.set(true)
+            stopped.set(true)
+            return true
+        }
 
         fun canSplitMore(): Boolean = !autoSplit || ranges.size < DownloadAutoTuner.MAX_AUTO_PARTS
 
@@ -226,16 +240,34 @@ internal object ParallelDownloader {
         }
         fun allComplete(): Boolean = synchronized(lock) { ranges.all { it.complete } }
         fun snapshot(): List<PartRange> = synchronized(lock) { ranges.toList() }
+        fun cancelLiveCalls() = snapshot().forEach { it.call?.cancel() }
+        fun speedLimited(): Boolean =
+            speedLimiter.currentLimit() > 0L || ClintDownloadManager.globalSpeedLimiter.currentLimit() > 0L
 
-        fun transfer(range: PartRange, call: Call): RangeResult {
+        fun servesPlaceholder(response: Response): Boolean =
+            DownloadFilenameResolver.looksLikePlaceholder(
+                item.filename,
+                response.header("Content-Type"),
+                runCatching { DownloadFilenameResolver.readHead(response.body.byteStream()) }.getOrNull()
+            )
+
+        fun receive(range: PartRange, call: Call): RangeResult {
             call.execute().use { response ->
                 when {
                     response.code == 429 -> return RangeResult.RateLimited(parseRetryAfterSeconds(response.header("Retry-After")))
+                    response.code == 403 && (ceiling.get() > 1 || activeWorkers.get() > 1) ->
+                        return RangeResult.RateLimited(parseRetryAfterSeconds(response.header("Retry-After")), 403)
                     item.mega != null && response.code == DownloadWorker.MEGA_QUOTA_HTTP_CODE ->
                         return RangeResult.Fatal(context.getString(R.string.mega_error_quota))
                     item.mega != null && response.code == 200 && range.position > 0L &&
                         response.header("Content-Length")?.toLongOrNull() == totalBytes -> return RangeResult.NoRangeSupport
                     item.mega != null && response.code == 200 -> Unit
+                    response.code == 200 && servesPlaceholder(response) -> {
+                        DownloadLog.e(id, "RANGE") {
+                            "Server answered a range request with ${response.header("Content-Type") ?: "an unknown type"} instead of the file; the link has probably expired"
+                        }
+                        return RangeResult.Fatal(context.getString(R.string.download_error_link_expired))
+                    }
                     response.code == 200 && validator != null -> return RangeResult.Restart("server sent the whole file for If-Range, so it changed on the server")
                     response.code == 200 -> return RangeResult.NoRangeSupport
                     response.code == 401 || response.code == 403 || response.code == 404 || response.code == 410 ->
@@ -255,6 +287,7 @@ internal object ParallelDownloader {
                 target.openChannel(context).use { channel ->
                     val decryptor = item.mega?.let { MegaCtrDecryptor(it) }
                     val reader = BatchedReader(response.body.byteStream(), ByteArray(BUFFER_BYTES))
+                    range.lastDataAt = System.currentTimeMillis()
                     while (true) {
                         if (stopRequested() || Thread.currentThread().isInterrupted) return RangeResult.Stopped
                         val wanted = minOf(range.remaining, BUFFER_BYTES.toLong()).toInt()
@@ -279,6 +312,7 @@ internal object ParallelDownloader {
                             }
                         }
                         if (written > 0) {
+                            range.lastDataAt = System.currentTimeMillis()
                             ClintDownloadManager.noteActivity(id)
                             speedLimiter.acquire(written)
                             ClintDownloadManager.globalSpeedLimiter.acquire(written)
@@ -288,6 +322,17 @@ internal object ParallelDownloader {
                 }
             }
             return if (range.complete) RangeResult.Done else RangeResult.Failed("connection closed at byte ${range.position} before ${range.end}")
+        }
+
+        fun transfer(range: PartRange, call: Call): RangeResult {
+            range.call = call
+            try {
+                if (stopRequested() || Thread.currentThread().isInterrupted) return RangeResult.Stopped
+                return receive(range, call)
+            } finally {
+                range.lastDataAt = 0L
+                range.call = null
+            }
         }
 
         suspend fun fetch(range: PartRange): RangeResult {
@@ -311,23 +356,8 @@ internal object ParallelDownloader {
                 .build()
             DownloadLog.d(id, "RANGE") { "GET bytes=$startPosition-$endPosition (attempt ${range.failures + 1})" }
             return HostConnectionLimiter.withPermit(host) {
-                coroutineScope {
-                    val call = ClintDownloadManager.rangedHttpClient.newCall(request)
-                    val watcher = launch(Dispatchers.IO) {
-                        while (isActive) {
-                            if (stopRequested()) {
-                                call.cancel()
-                                break
-                            }
-                            delay(MONITOR_TICK_MS)
-                        }
-                    }
-                    try {
-                        withContext(DownloadDispatchers.network) { runInterruptible { transfer(range, call) } }
-                    } finally {
-                        watcher.cancel()
-                    }
-                }
+                val call = ClintDownloadManager.rangedHttpClient.newCall(request)
+                withContext(DownloadDispatchers.network) { runInterruptible { transfer(range, call) } }
             }
         }
 
@@ -341,6 +371,11 @@ internal object ParallelDownloader {
                     }
                 }
                 is RangeResult.Stopped -> Unit
+                is RangeResult.Stalled -> {
+                    range.failures++
+                    lastError.set("Connection stalled at byte ${range.position}")
+                    range.retryAt = now + STALL_RETRY_MS
+                }
                 is RangeResult.NoRangeSupport -> {
                     DownloadLog.w(id, "RANGE") { "Server answered a range request with the whole file; switching to a single connection" }
                     fallback.set(true)
@@ -356,11 +391,11 @@ internal object ParallelDownloader {
                     rateLimitUntil.updateAndGet { maxOf(it, now + backoffSeconds * 1000L) }
                     range.failures++
                     range.retryAt = now + backoffSeconds * 1000L
-                    lastError.set("Server error 429")
+                    lastError.set("Server error ${result.code}")
                     if (ceiling.get() > 1) {
                         val shrunk = ceiling.updateAndGet { (it - 1).coerceAtLeast(1) }
                         maxSafe.updateAndGet { minOf(it, shrunk) }
-                        DownloadLog.w(id, "RANGE") { "Rate limited (HTTP 429) · waiting ${backoffSeconds}s · connections reduced to $shrunk" }
+                        DownloadLog.w(id, "RANGE") { "Rate limited (HTTP ${result.code}) · waiting ${backoffSeconds}s · connections reduced to $shrunk" }
                     } else {
                         DownloadLog.w(id, "RANGE") { "Rate limited with one connection · waiting ${backoffSeconds}s and keeping the finished ranges" }
                     }
@@ -405,15 +440,18 @@ internal object ParallelDownloader {
                             }
                             val startedAt = System.currentTimeMillis()
                             val startDone = range.done.get()
-                            val result = try {
+                            val fetched = try {
                                 fetch(range)
                             } catch (e: CancellationException) {
+                                range.stalled = false
                                 range.active = false
                                 throw e
                             } catch (e: Throwable) {
-                                if (stopRequested()) RangeResult.Stopped
+                                if (stopRequested() || !isActive) RangeResult.Stopped
                                 else RangeResult.Failed("${e.javaClass.simpleName}: ${e.message}")
                             }
+                            val result = if (range.stalled && fetched !is RangeResult.Done && fetched !is RangeResult.Stopped) RangeResult.Stalled else fetched
+                            range.stalled = false
                             handle(range, result, startedAt, startDone)
                             range.active = false
                         }
@@ -431,65 +469,87 @@ internal object ParallelDownloader {
             var lastCheckpoint = System.currentTimeMillis()
             var lastRampUp = System.currentTimeMillis()
 
-            while (true) {
-                delay(MONITOR_TICK_MS)
-                if (ClintDownloadManager.isRemoved(id)) {
-                    jobs.forEach { it.cancel() }
-                    throw CancellationException("removed")
-                }
-                val current = snapshot()
-                val total = current.sumOf { it.done.get() }
-                val now = System.currentTimeMillis()
-                if (total != previousTotal.get()) {
-                    previousTotal.set(total)
-                    lastProgressAt.set(now)
-                }
-                item = item.copy(
-                    bytesDownloaded = total,
-                    partProgress = current.map { (it.done.get().toFloat() / it.length).coerceIn(0f, 1f) },
-                    activeConnections = activeWorkers.get()
-                )
-                if (total - lastNotifyBytes >= 65536L) {
-                    lastNotifyBytes = total
-                    val elapsed = now - lastSpeedTime
-                    if (elapsed >= 400L) {
-                        item = item.copy(speedBytesPerSec = (total - lastSpeedBytes) * 1000L / elapsed)
-                        lastSpeedBytes = total
-                        lastSpeedTime = now
+            try {
+                while (true) {
+                    delay(MONITOR_TICK_MS)
+                    if (ClintDownloadManager.isRemoved(id)) {
+                        jobs.forEach { it.cancel() }
+                        throw CancellationException("removed")
                     }
-                    DownloadNotificationHelper.showProgressNotificationThrottled(context, item)
-                    ClintDownloadManager.publish(item)
-                }
-                if (now - lastCheckpoint >= CHECKPOINT_INTERVAL_MS) {
-                    lastCheckpoint = now
+                    val current = snapshot()
                     val encoded = PartMap.encode(current)
-                    runCatching { target.openChannel(context).use { it.force(false) } }
-                    ClintDownloadManager.checkpointProgress(id, total, 0L, "", encoded, item.generation)
+                    val total = current.sumOf { it.done.get() }
+                    val now = System.currentTimeMillis()
+                    if (total != previousTotal.get()) {
+                        previousTotal.set(total)
+                        lastProgressAt.set(now)
+                    }
+                    item = item.copy(
+                        bytesDownloaded = total,
+                        partMap = encoded,
+                        partProgress = current.map { (it.done.get().toFloat() / it.length).coerceIn(0f, 1f) },
+                        activeConnections = activeWorkers.get()
+                    )
+                    if (total - lastNotifyBytes >= 65536L) {
+                        lastNotifyBytes = total
+                        val elapsed = now - lastSpeedTime
+                        if (elapsed >= 400L) {
+                            item = item.copy(speedBytesPerSec = (total - lastSpeedBytes) * 1000L / elapsed)
+                            lastSpeedBytes = total
+                            lastSpeedTime = now
+                        }
+                        DownloadNotificationHelper.showProgressNotificationThrottled(context, item)
+                        ClintDownloadManager.publish(item)
+                    }
+                    if (now - lastCheckpoint >= CHECKPOINT_INTERVAL_MS) {
+                        lastCheckpoint = now
+                        runCatching { target.openChannel(context).use { it.force(false) } }
+                        ClintDownloadManager.checkpointProgress(id, total, 0L, "", encoded, item.generation)
+                    }
+                    if (!speedLimited() && rateLimitUntil.get() <= now) {
+                        current.forEach { range ->
+                            val last = range.lastDataAt
+                            val call = range.call
+                            if (last > 0L && call != null && now - last >= RANGE_STALL_MS) {
+                                range.lastDataAt = 0L
+                                range.stalled = true
+                                DownloadLog.w(id, "RANGE") {
+                                    "Range ${range.start}-${range.end} received no data for ${RANGE_STALL_MS / 1000}s at byte ${range.position}; reconnecting"
+                                }
+                                call.cancel()
+                            }
+                        }
+                    }
+                    if (autoController != null) {
+                        autoController.onTick(now, total, canGrow = hasWork(), blocked = rateLimitUntil.get() > now)
+                    } else if (now - lastRampUp >= RAMP_UP_INTERVAL_MS) {
+                        lastRampUp = now
+                        if (ceiling.get() < maxSafe.get() && rateLimitUntil.get() <= now) ceiling.incrementAndGet()
+                    }
+                    val error = lastError.get()
+                    if (error != null && now - lastProgressAt.get() >= NO_PROGRESS_LIMIT_MS &&
+                        current.any { !it.complete && it.failures >= GIVE_UP_FAILURES }
+                    ) {
+                        DownloadLog.e(id, "PARTS") { "No progress for ${NO_PROGRESS_LIMIT_MS / 1000}s and ranges keep failing; giving up with \"$error\"" }
+                        fatal.compareAndSet(null, error)
+                    }
+                    if (stopRequested()) {
+                        cancelLiveCalls()
+                        jobs.forEach { it.cancel() }
+                        break
+                    }
+                    if (allComplete()) break
+                    val needed = ceiling.get() - activeWorkers.get()
+                    if (needed > 0 && hasWork()) repeat(needed) { spawnWorker() }
                 }
-                if (autoController != null) {
-                    autoController.onTick(now, total, canGrow = hasWork(), blocked = rateLimitUntil.get() > now)
-                } else if (now - lastRampUp >= RAMP_UP_INTERVAL_MS) {
-                    lastRampUp = now
-                    if (ceiling.get() < maxSafe.get() && rateLimitUntil.get() <= now) ceiling.incrementAndGet()
-                }
-                val error = lastError.get()
-                if (error != null && now - lastProgressAt.get() >= NO_PROGRESS_LIMIT_MS &&
-                    current.any { !it.complete && it.failures >= GIVE_UP_FAILURES }
-                ) {
-                    DownloadLog.e(id, "PARTS") { "No progress for ${NO_PROGRESS_LIMIT_MS / 1000}s and ranges keep failing; giving up with \"$error\"" }
-                    fatal.compareAndSet(null, error)
-                }
-                if (stopRequested()) {
-                    jobs.forEach { it.cancel() }
-                    break
-                }
-                if (allComplete()) break
-                val needed = ceiling.get() - activeWorkers.get()
-                if (needed > 0 && hasWork()) repeat(needed) { spawnWorker() }
+            } finally {
+                stopped.set(true)
+                cancelLiveCalls()
             }
         }
 
         if (autoConnections) DownloadAutoTuner.rememberConnections(context, host, ceiling.get())
+        else if (maxSafe.get() < connectionCap) DownloadAutoTuner.rememberManualConnections(context, host, maxSafe.get())
         val finalRanges = snapshot()
         val total = finalRanges.sumOf { it.done.get() }
         item = item.copy(
@@ -501,7 +561,7 @@ internal object ParallelDownloader {
             activeConnections = 0
         )
         if (ClintDownloadManager.isRemoved(id)) throw CancellationException("removed")
-        if (ClintDownloadManager.pauseRequested.remove(id)) return ParallelOutcome.Paused(item)
+        if (ClintDownloadManager.pauseRequested.remove(id) || pauseSeen.get()) return ParallelOutcome.Paused(item)
         restart.get()?.let { return ParallelOutcome.Restart(item, it) }
         if (fallback.get()) {
             var prefix = 0L

@@ -41,12 +41,16 @@ class DownloadForegroundService : LifecycleService() {
 
         fun start(context: Context) {
             if (DownloadTransferJobService.ensureRunning(context)) return
-            val started = runCatching {
-                val intent = Intent(context, DownloadForegroundService::class.java)
-                androidx.core.content.ContextCompat.startForegroundService(context, intent)
-            }.isSuccess
-            if (!started) DownloadBackgroundJobService.schedule(context)
+            if (!startService(context)) DownloadBackgroundJobService.schedule(context)
         }
+
+        internal fun startService(context: Context): Boolean = runCatching {
+            val intent = Intent(context, DownloadForegroundService::class.java)
+            androidx.core.content.ContextCompat.startForegroundService(context, intent)
+        }.isSuccess
+
+        internal fun hasUnresumableTransfer(): Boolean =
+            ClintDownloadManager.downloadsFlow.value.any { it.status in DOWNLOAD_PHASE && !it.resumable }
 
         private fun typeFor(items: List<DownloadItem>): Int {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return 0

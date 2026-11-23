@@ -1,9 +1,12 @@
 package com.jhaiian.clint.settings.browser
-import com.jhaiian.clint.browser.home.HOMEPAGE_SEARCH_ENGINE
-import com.jhaiian.clint.browser.home.HOMEPAGE_CUSTOM
+import androidx.compose.material.icons.filled.ViewAgenda
+import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.PictureInPictureAlt
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.SmartDisplay
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.AutoDelete
 import com.jhaiian.clint.tabs.InactiveTabsPolicy
@@ -13,9 +16,6 @@ import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
-import com.jhaiian.clint.browser.home.HOMEPAGE_DESIGN_GRADIENT
-import com.jhaiian.clint.browser.home.HOMEPAGE_DESIGN_IMAGE
-import com.jhaiian.clint.browser.home.HOMEPAGE_DESIGN_PLAIN
 import androidx.compose.material.icons.automirrored.filled.ManageSearch
 import androidx.compose.material.icons.filled.ArrowDropDownCircle
 import androidx.compose.material.icons.filled.ChatBubble
@@ -47,27 +47,16 @@ import com.jhaiian.clint.ui.theme.LocalClintColors
 @Composable
 fun BrowserSettingsScreen(
     state: BrowserSettingsUiState,
-    onHomepageConfirmed: (String, String) -> Unit,
-    onHomepageDesignConfirmed: (String) -> Unit,
-    onHomepageImageRowClicked: () -> Unit,
-    onHomepageShowFavoritesClicked: () -> Unit,
-    onHomepageShowQuickActionsClicked: () -> Unit,
-    onHomepageShowRecentClicked: () -> Unit,
-    onHomepageCenterContentClicked: () -> Unit,
-    onHomepageImageFullBrightnessClicked: () -> Unit,
+    onHomepageRowClicked: () -> Unit,
+    onSuggestionsRowClicked: () -> Unit,
     onDeleteInactiveTabsConfirmed: (String) -> Unit,
     onSearchEngineConfirmed: (String) -> Unit,
-    onCustomSearchEngineSaved: (name: String, url: String) -> Unit,
     onSearchSuggestionsApiConfirmed: (String) -> Unit,
-    onCustomSearchSuggestionsApiSaved: (name: String, url: String) -> Unit,
     onIncognitoSearchEngineConfirmed: (String) -> Unit,
-    onIncognitoCustomSearchEngineSaved: (name: String, url: String) -> Unit,
     onIncognitoSearchSuggestionsApiConfirmed: (String) -> Unit,
-    onIncognitoCustomSearchSuggestionsApiSaved: (name: String, url: String) -> Unit,
-    onSuggestionsShowHistoryClicked: () -> Unit,
-    onSuggestionsShowBookmarksClicked: () -> Unit,
     onJavascriptRowClicked: () -> Unit,
     onBackgroundPlaybackRowClicked: () -> Unit,
+    onVideoPlayerRowClicked: () -> Unit,
     onAboutConfigRowClicked: () -> Unit,
     onShortcutManagerRowClicked: () -> Unit,
     onWebsiteBlockerRowClicked: () -> Unit,
@@ -75,30 +64,14 @@ fun BrowserSettingsScreen(
     onRememberBrowsingModeRowClicked: () -> Unit,
     onProfilesRowClicked: () -> Unit,
     onExtensionsRowClicked: () -> Unit,
-    onTranslationsRowClicked: () -> Unit
+    onTranslationsRowClicked: () -> Unit,
+    onFindInPageRowClicked: () -> Unit,
+    onBookmarksRowClicked: () -> Unit
 ) {
     val colors = LocalClintColors.current
-    val homepageOptionsEnabled = state.homepage != HOMEPAGE_SEARCH_ENGINE && state.homepage != HOMEPAGE_CUSTOM
 
     SettingsScreenScaffold(
         overlay = {
-            if (state.homepageDialogOpen) {
-                HomepageDialog(
-                    current = state.homepage,
-                    currentCustomUrl = state.homepageCustomUrl,
-                    hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
-                    onConfirm = onHomepageConfirmed,
-                    onDismiss = { state.homepageDialogOpen = false }
-                )
-            }
-            if (state.homepageDesignDialogOpen) {
-                HomepageDesignDialog(
-                    current = state.homepageDesign,
-                    hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
-                    onConfirm = onHomepageDesignConfirmed,
-                    onDismiss = { state.homepageDesignDialogOpen = false }
-                )
-            }
             if (state.deleteInactiveTabsDialogOpen) {
                 InactiveTabsDialog(
                     current = state.deleteInactiveTabs,
@@ -110,33 +83,24 @@ fun BrowserSettingsScreen(
             if (state.searchEngineDialogOpen) {
                 SearchEngineDialog(
                     current = state.searchEngine,
-                    customName = state.customSearchEngineName,
-                    customUrl = state.customSearchEngineUrl,
                     hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
                     onConfirm = onSearchEngineConfirmed,
-                    onCustomSearchEngineSaved = onCustomSearchEngineSaved,
                     onDismiss = { state.searchEngineDialogOpen = false }
                 )
             }
             if (state.searchSuggestionsApiDialogOpen) {
                 SearchSuggestionsApiDialog(
                     current = state.searchSuggestionsApi,
-                    customName = state.customSearchSuggestionsApiName,
-                    customUrl = state.customSearchSuggestionsApiUrl,
                     hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
                     onConfirm = onSearchSuggestionsApiConfirmed,
-                    onCustomSearchSuggestionsApiSaved = onCustomSearchSuggestionsApiSaved,
                     onDismiss = { state.searchSuggestionsApiDialogOpen = false }
                 )
             }
             if (state.incognitoSearchEngineDialogOpen) {
                 SearchEngineDialog(
                     current = state.incognitoSearchEngine,
-                    customName = state.incognitoCustomSearchEngineName,
-                    customUrl = state.incognitoCustomSearchEngineUrl,
                     hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
                     onConfirm = onIncognitoSearchEngineConfirmed,
-                    onCustomSearchEngineSaved = onIncognitoCustomSearchEngineSaved,
                     onDismiss = { state.incognitoSearchEngineDialogOpen = false },
                     titleRes = R.string.incognito_search_engine_title,
                     showSameAsNormal = true
@@ -145,11 +109,8 @@ fun BrowserSettingsScreen(
             if (state.incognitoSearchSuggestionsApiDialogOpen) {
                 SearchSuggestionsApiDialog(
                     current = state.incognitoSearchSuggestionsApi,
-                    customName = state.incognitoCustomSearchSuggestionsApiName,
-                    customUrl = state.incognitoCustomSearchSuggestionsApiUrl,
                     hideStatusBar = state.hideStatusBar, hideSystemNavigation = state.hideSystemNavigation,
                     onConfirm = onIncognitoSearchSuggestionsApiConfirmed,
-                    onCustomSearchSuggestionsApiSaved = onIncognitoCustomSearchSuggestionsApiSaved,
                     onDismiss = { state.incognitoSearchSuggestionsApiDialogOpen = false },
                     titleRes = R.string.incognito_search_suggestions_api_title,
                     showSameAsNormal = true
@@ -162,36 +123,23 @@ fun BrowserSettingsScreen(
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Search,
                 title = stringResource(R.string.search_engine),
-                summary = engineSummaryText(state.searchEngine, state.customSearchEngineName),
+                summary = engineSummaryText(state.searchEngine),
                 colors = colors,
                 onClick = { state.searchEngineDialogOpen = true }
             )
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.AutoMirrored.Filled.ManageSearch,
                 title = stringResource(R.string.search_suggestions_api),
-                summary = if (state.searchSuggestionsApi == "off") stringResource(R.string.suggestions_api_off) else engineSummaryText(state.searchSuggestionsApi, state.customSearchSuggestionsApiName),
+                summary = if (state.searchSuggestionsApi == "off") stringResource(R.string.suggestions_api_off) else engineSummaryText(state.searchSuggestionsApi),
                 colors = colors,
                 onClick = { state.searchSuggestionsApiDialogOpen = true }
             )
             SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.History,
-                title = stringResource(R.string.suggestions_show_history_title),
-                summary = stringResource(R.string.suggestions_show_history_summary),
+                icon = androidx.compose.material.icons.Icons.Filled.ViewAgenda,
+                title = stringResource(R.string.pref_category_suggestions),
+                summary = stringResource(R.string.suggestions_settings_summary),
                 colors = colors,
-                onClick = onSuggestionsShowHistoryClicked,
-                trailing = {
-                    ClintSwitch(checked = state.suggestionsShowHistory)
-                }
-            )
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.Bookmark,
-                title = stringResource(R.string.suggestions_show_bookmarks_title),
-                summary = stringResource(R.string.suggestions_show_bookmarks_summary),
-                colors = colors,
-                onClick = onSuggestionsShowBookmarksClicked,
-                trailing = {
-                    ClintSwitch(checked = state.suggestionsShowBookmarks)
-                }
+                onClick = onSuggestionsRowClicked
             )
         }
 
@@ -200,82 +148,9 @@ fun BrowserSettingsScreen(
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Home,
                 title = stringResource(R.string.homepage_title),
-                summary = homepageSummaryText(state.homepage, state.homepageCustomUrl),
+                summary = stringResource(R.string.homepage_settings_summary),
                 colors = colors,
-                onClick = { state.homepageDialogOpen = true }
-            )
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.Gradient,
-                title = stringResource(R.string.homepage_design_title),
-                summary = homepageDesignSummaryText(state.homepageDesign),
-                colors = colors,
-                enabled = homepageOptionsEnabled,
-                onClick = { if (homepageOptionsEnabled) state.homepageDesignDialogOpen = true }
-            )
-            if (state.homepageDesign == HOMEPAGE_DESIGN_IMAGE) {
-                SettingsRow(
-                    icon = androidx.compose.material.icons.Icons.Filled.Image,
-                    title = stringResource(R.string.homepage_image_title),
-                    summary = stringResource(R.string.homepage_image_summary),
-                    colors = colors,
-                    enabled = homepageOptionsEnabled,
-                    onClick = { if (homepageOptionsEnabled) onHomepageImageRowClicked() }
-                )
-                SettingsRow(
-                    icon = androidx.compose.material.icons.Icons.Filled.BrightnessHigh,
-                    title = stringResource(R.string.homepage_image_full_brightness_title),
-                    summary = stringResource(R.string.homepage_image_full_brightness_summary),
-                    colors = colors,
-                    enabled = homepageOptionsEnabled,
-                    onClick = { if (homepageOptionsEnabled) onHomepageImageFullBrightnessClicked() },
-                    trailing = {
-                        ClintSwitch(checked = state.homepageImageFullBrightness && homepageOptionsEnabled)
-                    }
-                )
-            }
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.Apps,
-                title = stringResource(R.string.homepage_show_quick_actions_title),
-                summary = stringResource(R.string.homepage_show_quick_actions_summary),
-                colors = colors,
-                enabled = homepageOptionsEnabled,
-                onClick = { if (homepageOptionsEnabled) onHomepageShowQuickActionsClicked() },
-                trailing = {
-                    ClintSwitch(checked = state.homepageShowQuickActions && homepageOptionsEnabled)
-                }
-            )
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.Bookmark,
-                title = stringResource(R.string.homepage_show_favorites_title),
-                summary = stringResource(R.string.homepage_show_favorites_summary),
-                colors = colors,
-                enabled = homepageOptionsEnabled,
-                onClick = { if (homepageOptionsEnabled) onHomepageShowFavoritesClicked() },
-                trailing = {
-                    ClintSwitch(checked = state.homepageShowFavorites && homepageOptionsEnabled)
-                }
-            )
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.History,
-                title = stringResource(R.string.homepage_show_recent_title),
-                summary = stringResource(R.string.homepage_show_recent_summary),
-                colors = colors,
-                enabled = homepageOptionsEnabled,
-                onClick = { if (homepageOptionsEnabled) onHomepageShowRecentClicked() },
-                trailing = {
-                    ClintSwitch(checked = state.homepageShowRecent && homepageOptionsEnabled)
-                }
-            )
-            SettingsRow(
-                icon = androidx.compose.material.icons.Icons.Filled.VerticalAlignCenter,
-                title = stringResource(R.string.homepage_center_content_title),
-                summary = stringResource(R.string.homepage_center_content_summary),
-                colors = colors,
-                enabled = homepageOptionsEnabled,
-                onClick = { if (homepageOptionsEnabled) onHomepageCenterContentClicked() },
-                trailing = {
-                    ClintSwitch(checked = state.homepageCenterContent && homepageOptionsEnabled)
-                }
+                onClick = onHomepageRowClicked
             )
         }
 
@@ -312,16 +187,37 @@ fun BrowserSettingsScreen(
                     ClintSwitch(checked = state.backgroundPlayback)
                 }
             )
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.SmartDisplay,
+                title = stringResource(R.string.video_player_title),
+                summary = stringResource(R.string.video_player_summary),
+                colors = colors,
+                onClick = onVideoPlayerRowClicked
+            )
         }
 
         SettingsSectionLabel(stringResource(R.string.pref_category_tools))
         SettingsSection(colors.cardBackground) {
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.Bookmark,
+                title = stringResource(R.string.bookmarks_title),
+                summary = stringResource(R.string.bookmarks_settings_summary),
+                colors = colors,
+                onClick = onBookmarksRowClicked
+            )
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Translate,
                 title = stringResource(R.string.translation_settings_title),
                 summary = stringResource(R.string.translation_settings_summary),
                 colors = colors,
                 onClick = onTranslationsRowClicked
+            )
+            SettingsRow(
+                icon = androidx.compose.material.icons.Icons.Filled.FindInPage,
+                title = stringResource(R.string.find_settings_title),
+                summary = stringResource(R.string.find_settings_summary),
+                colors = colors,
+                onClick = onFindInPageRowClicked
             )
             SettingsRow(
                 icon = androidx.compose.material.icons.Icons.Filled.Extension,
@@ -363,9 +259,9 @@ fun BrowserSettingsScreen(
                 icon = androidx.compose.material.icons.Icons.Filled.Search,
                 title = stringResource(R.string.incognito_search_engine_title),
                 summary = if (state.incognitoSearchEngine == com.jhaiian.clint.browser.SameAsNormalMode) {
-                    stringResource(R.string.search_same_as_normal_summary, engineSummaryText(state.searchEngine, state.customSearchEngineName))
+                    stringResource(R.string.search_same_as_normal_summary, engineSummaryText(state.searchEngine))
                 } else {
-                    engineSummaryText(state.incognitoSearchEngine, state.incognitoCustomSearchEngineName)
+                    engineSummaryText(state.incognitoSearchEngine)
                 },
                 colors = colors,
                 onClick = { state.incognitoSearchEngineDialogOpen = true }
@@ -376,10 +272,10 @@ fun BrowserSettingsScreen(
                 summary = when (state.incognitoSearchSuggestionsApi) {
                     com.jhaiian.clint.browser.SameAsNormalMode -> stringResource(
                         R.string.search_same_as_normal_summary,
-                        if (state.searchSuggestionsApi == "off") stringResource(R.string.suggestions_api_off) else engineSummaryText(state.searchSuggestionsApi, state.customSearchSuggestionsApiName)
+                        if (state.searchSuggestionsApi == "off") stringResource(R.string.suggestions_api_off) else engineSummaryText(state.searchSuggestionsApi)
                     )
                     "off" -> stringResource(R.string.suggestions_api_off)
-                    else -> engineSummaryText(state.incognitoSearchSuggestionsApi, state.incognitoCustomSearchSuggestionsApiName)
+                    else -> engineSummaryText(state.incognitoSearchSuggestionsApi)
                 },
                 colors = colors,
                 onClick = { state.incognitoSearchSuggestionsApiDialogOpen = true }
@@ -423,12 +319,15 @@ fun BrowserSettingsScreen(
 }
 
 @Composable
-private fun engineSummaryText(engine: String, customName: String): String = when (engine) {
-    "brave" -> stringResource(R.string.engine_brave)
-    "ecosia" -> stringResource(R.string.engine_ecosia)
-    "google" -> stringResource(R.string.engine_google)
-    "custom" -> customName.ifBlank { stringResource(R.string.engine_custom) }
-    else -> stringResource(R.string.engine_duckduckgo)
+private fun engineSummaryText(engine: String): String {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return when (engine) {
+        "brave" -> stringResource(R.string.engine_brave)
+        "ecosia" -> stringResource(R.string.engine_ecosia)
+        "google" -> stringResource(R.string.engine_google)
+        else -> com.jhaiian.clint.browser.customSearchEngineFor(androidx.preference.PreferenceManager.getDefaultSharedPreferences(context), engine)?.name
+            ?: stringResource(R.string.engine_duckduckgo)
+    }
 }
 
 @Composable
@@ -437,18 +336,4 @@ private fun deleteInactiveTabsSummaryText(value: String): String = when (value) 
     InactiveTabsPolicy.AFTER_1_WEEK -> stringResource(R.string.delete_inactive_tabs_summary_1_week)
     InactiveTabsPolicy.AFTER_1_MONTH -> stringResource(R.string.delete_inactive_tabs_summary_1_month)
     else -> stringResource(R.string.delete_inactive_tabs_summary_never)
-}
-
-@Composable
-private fun homepageSummaryText(homepage: String, customUrl: String): String = when (homepage) {
-    HOMEPAGE_SEARCH_ENGINE -> stringResource(R.string.homepage_search_engine)
-    HOMEPAGE_CUSTOM -> customUrl.ifBlank { stringResource(R.string.homepage_custom) }
-    else -> stringResource(R.string.homepage_clint)
-}
-
-@Composable
-private fun homepageDesignSummaryText(design: String): String = when (design) {
-    HOMEPAGE_DESIGN_GRADIENT -> stringResource(R.string.homepage_design_gradient)
-    HOMEPAGE_DESIGN_IMAGE -> stringResource(R.string.homepage_design_image)
-    else -> stringResource(R.string.homepage_design_plain)
 }

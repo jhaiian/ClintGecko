@@ -52,6 +52,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
 import com.jhaiian.clint.browser.dialogs.JsDialog
+import com.jhaiian.clint.parental.ParentalGateHost
 import com.jhaiian.clint.ui.ClintDialog
 import com.jhaiian.clint.ui.ClintDialogActionFooter
 import com.jhaiian.clint.ui.ClintSwitch
@@ -81,6 +82,7 @@ fun ExtensionHost() {
     ClintExtensions.popup?.let { popup ->
         ExtensionPopupDialog(popup)
     }
+    ParentalGateHost(ClintExtensions.parentalGate, hideStatusBar, hideSystemNavigation) { ClintExtensions.parentalGate = null }
     ClintExtensions.popupDialog?.let { request ->
         JsDialog(request, hideStatusBar, hideSystemNavigation) { ClintExtensions.dismissPopupDialog(request) }
     }

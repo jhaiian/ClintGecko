@@ -1,0 +1,1 @@
+Trình duyệt Android dựa trên Firefox với ADM, thu thập phương tiện và tiện ích.

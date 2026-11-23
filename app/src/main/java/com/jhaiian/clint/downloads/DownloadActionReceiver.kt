@@ -9,6 +9,7 @@ class DownloadActionReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_PAUSE  = "com.jhaiian.clint.DOWNLOAD_PAUSE"
         const val ACTION_RESUME = "com.jhaiian.clint.DOWNLOAD_RESUME"
+        const val ACTION_CANCEL = "com.jhaiian.clint.DOWNLOAD_CANCEL"
         const val EXTRA_ID = "download_id"
     }
 
@@ -21,8 +22,9 @@ class DownloadActionReceiver : BroadcastReceiver() {
         ClintDownloadManager.init(appContext).invokeOnCompletion {
             try {
                 when (action) {
-                    ACTION_PAUSE  -> ClintDownloadManager.pause(appContext, id)
+                    ACTION_PAUSE  -> ClintDownloadManager.pauseByUser(appContext, id)
                     ACTION_RESUME -> ClintDownloadManager.resume(appContext, id)
+                    ACTION_CANCEL -> ClintDownloadManager.cancel(appContext, id)
                 }
             } finally {
                 pendingResult.finish()

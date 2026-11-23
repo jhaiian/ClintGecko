@@ -39,8 +39,8 @@ Want to help translate the app into your language? We’d love your help!
    - `values-fil` – Filipino  
    - `values-es` – Spanish  
    - `values-ja` – Japanese  
-   - `values-fr` – French  
-   - `values-de` – German  
+   - `values-ko` – Korean  
+   - `values-it` – Italian  
    You can search Google for the appropriate ISO 639 language code for your language.
 
 5. **Add your translated file**  

@@ -58,6 +58,14 @@ object MediaPlaybackController {
     private var focusRequest: AudioFocusRequest? = null
 
     @Volatile var tabIdResolver: ((ClintWebView) -> String?)? = null
+    var onPlaybackChanged: (() -> Unit)? = null
+    var inPictureInPicture = false
+    var pauseHandler: ((ClintWebView) -> Boolean)? = null
+
+    private fun pauseEntry(entry: MediaEntry) {
+        if (pauseHandler?.invoke(entry.view) == true) return
+        runCatching { entry.session.pause() }
+    }
 
     private val muteMethod by lazy {
         runCatching { MediaSession::class.java.getMethod("muteAudio", java.lang.Boolean.TYPE) }.getOrNull()
@@ -81,7 +89,7 @@ object MediaPlaybackController {
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
                 entries.values.filter { it.playing }.forEach {
                     it.resumeOnFocusGain = true
-                    runCatching { it.session.pause() }
+                    pauseEntry(it)
                 }
             }
         }
@@ -104,11 +112,11 @@ object MediaPlaybackController {
 
     private fun onAppVisibilityChanged(visible: Boolean) {
         appVisible = visible
-        if (!visible && !MediaPlaybackSettings.isBackgroundPlaybackEnabled(appContext)) pauseAll()
+        if (!visible && !inPictureInPicture && !MediaPlaybackSettings.isBackgroundPlaybackEnabled(appContext)) pauseAll()
     }
 
     private fun shouldBlockPlayback(): Boolean =
-        !appVisible && !MediaPlaybackSettings.isBackgroundPlaybackEnabled(appContext)
+        !appVisible && !inPictureInPicture && !MediaPlaybackSettings.isBackgroundPlaybackEnabled(appContext)
 
     internal fun current(): MediaEntry? =
         entries.values.filter { it.playing }.maxByOrNull { it.lastPlayedAt }
@@ -117,6 +125,8 @@ object MediaPlaybackController {
     internal fun tabIdFor(view: ClintWebView): String? = tabIdResolver?.invoke(view)
 
     fun isPlaying(view: ClintWebView): Boolean = entries[view]?.playing == true
+
+    fun playingState(view: ClintWebView): Boolean? = entries[view]?.playing
 
     private fun ensure(view: ClintWebView, mediaSession: MediaSession): MediaEntry {
         val existing = entries[view]
@@ -193,7 +203,7 @@ object MediaPlaybackController {
     fun onPlay(view: ClintWebView, mediaSession: MediaSession) {
         val entry = ensure(view, mediaSession)
         if (shouldBlockPlayback()) {
-            runCatching { mediaSession.pause() }
+            pauseEntry(entry)
             return
         }
         entry.playing = true
@@ -240,11 +250,11 @@ object MediaPlaybackController {
     fun pauseCurrent() {
         val entry = current() ?: return
         entry.resumeOnFocusGain = false
-        runCatching { entry.session.pause() }
+        pauseEntry(entry)
     }
 
     fun pauseAll() {
-        entries.values.filter { it.playing }.forEach { runCatching { it.session.pause() } }
+        entries.values.filter { it.playing }.forEach { pauseEntry(it) }
     }
 
     fun stopCurrent() {
@@ -303,5 +313,6 @@ object MediaPlaybackController {
     private fun dispatch() {
         val entry = current()
         MediaPlaybackService.sync(appContext, entry != null, entry?.playing == true)
+        onPlaybackChanged?.invoke()
     }
 }

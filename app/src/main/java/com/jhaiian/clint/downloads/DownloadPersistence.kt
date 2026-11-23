@@ -138,6 +138,8 @@ internal object DownloadPersistence {
                 val pageUrl = if (pageUrlIdx >= 0) it.getString(pageUrlIdx) ?: "" else ""
                 val isIncognitoIdx = it.getColumnIndex(DownloadDatabase.COL_IS_INCOGNITO)
                 val isIncognito = isIncognitoIdx >= 0 && it.getInt(isIncognitoIdx) != 0
+                val profileIdx = it.getColumnIndex(DownloadDatabase.COL_PROFILE_ID)
+                val profileId = if (profileIdx >= 0) it.getString(profileIdx) ?: "default" else "default"
                 val waitReasonIdx = it.getColumnIndex(DownloadDatabase.COL_WAIT_REASON)
                 val waitReason = if (waitReasonIdx >= 0 && status == DownloadStatus.PAUSED) it.getString(waitReasonIdx) else null
                 if (waitReason == DownloadDatabase.WAIT_SYSTEM) ClintDownloadManager.timeoutPausedIds.add(id)
@@ -184,7 +186,8 @@ internal object DownloadPersistence {
                     waitingForNetwork = waitReason == DownloadDatabase.WAIT_NETWORK,
                     waitingForUnmetered = waitReason == DownloadDatabase.WAIT_UNMETERED,
                     waitingForSchedule = waitReason == DownloadDatabase.WAIT_SCHEDULE,
-                    isIncognito = isIncognito
+                    isIncognito = isIncognito,
+                    profileId = profileId
                 )
                 val streamJsonIdx = it.getColumnIndex(DownloadDatabase.COL_STREAM_JSON)
                 val streamJson = if (streamJsonIdx >= 0) it.getString(streamJsonIdx) else null
@@ -195,6 +198,15 @@ internal object DownloadPersistence {
             }
         }
         loaded
+    }
+
+    fun deleteProfile(context: Context, profileId: String) {
+        db(context).writableDatabase.delete(DownloadDatabase.TABLE, "${DownloadDatabase.COL_PROFILE_ID} = ?", arrayOf(profileId))
+    }
+
+    fun reassignProfile(context: Context, profileId: String) {
+        val values = ContentValues().apply { put(DownloadDatabase.COL_PROFILE_ID, "default") }
+        db(context).writableDatabase.update(DownloadDatabase.TABLE, values, "${DownloadDatabase.COL_PROFILE_ID} = ?", arrayOf(profileId))
     }
 
     fun maxId(context: Context): Int =
@@ -217,6 +229,7 @@ internal object DownloadPersistence {
                 put(DownloadDatabase.COL_REFERER, item.referer)
                 put(DownloadDatabase.COL_PAGE_URL, item.pageUrl)
                 put(DownloadDatabase.COL_IS_INCOGNITO, if (item.isIncognito) 1 else 0)
+                put(DownloadDatabase.COL_PROFILE_ID, item.profileId)
                 put(DownloadDatabase.COL_COOKIES, item.cookies)
                 put(DownloadDatabase.COL_BYTES_DOWNLOADED, item.bytesDownloaded)
                 put(DownloadDatabase.COL_TOTAL_BYTES, item.totalBytes)

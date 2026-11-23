@@ -56,6 +56,9 @@ import com.jhaiian.clint.backup.BackupManager
 import com.jhaiian.clint.backup.RestoreManager
 import com.jhaiian.clint.backup.StageResult
 import com.jhaiian.clint.backup.UnlockResult
+import com.jhaiian.clint.parental.ParentalControls
+import com.jhaiian.clint.parental.ParentalGateHost
+import com.jhaiian.clint.parental.ParentalGateRequest
 import com.jhaiian.clint.settings.SettingsActivity
 import com.jhaiian.clint.settings.common.RowDivider
 import com.jhaiian.clint.settings.common.SettingsRow
@@ -123,7 +126,7 @@ private fun categoryNames(context: Context, categories: Collection<BackupCategor
     categories.joinToString { context.getString(categoryTitleRes(it)) }
 
 @Composable
-private fun PasswordVisibilityToggle(visible: Boolean, onToggle: () -> Unit) {
+internal fun PasswordVisibilityToggle(visible: Boolean, onToggle: () -> Unit) {
     val colors = LocalClintColors.current
     IconButton(onClick = onToggle) {
         Icon(
@@ -143,7 +146,11 @@ fun BackupRestorePane(activity: SettingsActivity) {
     val uiState = remember { BackupRestoreUiState(hideStatusBar, hideSystemNavigation) }
 
     var simpleDialog by remember { mutableStateOf<ConfirmDialogConfig?>(null) }
+    var parentalGate by remember { mutableStateOf<ParentalGateRequest?>(null) }
 
+    val restoreGateTitle = stringResource(R.string.parental_password_restore_title)
+    val restoreGateMessage = stringResource(R.string.parental_password_restore_message)
+    val restoreGateAction = stringResource(R.string.restore_action_continue)
     val okLabel = stringResource(R.string.backup_generic_ok)
     val cancelLabel = stringResource(R.string.action_cancel)
     val authTitle = stringResource(R.string.backup_auth_title)
@@ -346,8 +353,20 @@ fun BackupRestorePane(activity: SettingsActivity) {
     }
 
     fun startRestoreFlow() {
-        requireAuthThen(authSubtitleRestore) {
-            openDocumentLauncher.launch(arrayOf("*/*"))
+        val proceed = {
+            requireAuthThen(authSubtitleRestore) {
+                openDocumentLauncher.launch(arrayOf("*/*"))
+            }
+        }
+        if (ParentalControls.isProtected(activity, ParentalControls.AREA_RESTORE)) {
+            parentalGate = ParentalGateRequest(
+                title = restoreGateTitle,
+                message = restoreGateMessage,
+                positiveLabel = restoreGateAction,
+                onConfirm = { proceed() }
+            )
+        } else {
+            proceed()
         }
     }
 
@@ -368,6 +387,7 @@ fun BackupRestorePane(activity: SettingsActivity) {
     SettingsScreenScaffold(
         overlay = {
             ConfirmDialogHost(config = simpleDialog, hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation, onDismiss = { simpleDialog = null })
+            ParentalGateHost(parentalGate, hideStatusBar, hideSystemNavigation) { parentalGate = null }
 
             if (uiState.stage.value == BackupRestoreStage.SELECT_BACKUP_CATEGORIES) {
                 BackupCategoryDialog(uiState, hideStatusBar, hideSystemNavigation, onDismiss = { uiState.resetBackupFlow() }, onCreate = { launchBackupCreation() })

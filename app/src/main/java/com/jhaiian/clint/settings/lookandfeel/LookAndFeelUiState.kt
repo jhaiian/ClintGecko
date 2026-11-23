@@ -5,7 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 enum class LookAndFeelDialog {
-    THEME, ACCENT, SURFACE_INTENSITY, ADDRESS_BAR_POSITION, MENU_STYLE, SCROLL_HIDE_MODE, EXIT_CONFIRMATION, POPUP_ALERT_STYLE, LANGUAGE,
+    THEME, ACCENT, SURFACE_INTENSITY, ADDRESS_BAR_POSITION, MENU_STYLE, SCROLL_HIDE_MODE, EXIT_CONFIRMATION, BACK_CLOSE_TAB, POPUP_ALERT_STYLE, LANGUAGE,
     TAB_STRIP_POSITION, TAB_GROUP_BAR_POSITION
 }
 
@@ -19,12 +19,15 @@ class LookAndFeelUiState(
     initialMenuStyle: String,
     initialHideStatusBar: Boolean, initialHideSystemNavigation: Boolean,
     initialShowHomeButton: Boolean,
+    initialStripUrlScheme: Boolean,
     initialShowTabStrip: Boolean,
     initialTabStripPosition: String,
     initialTabGroupsEnabled: Boolean,
     initialTabGroupBarPosition: String,
     initialExitConfirmation: String,
-    initialPopupAlertStyle: String
+    initialBackCloseTab: String,
+    initialPopupAlertStyle: String,
+    initialPopupExtensionsFirst: Boolean
 ) {
     var theme by mutableStateOf(initialTheme)
     var accent by mutableStateOf(initialAccent)
@@ -37,13 +40,16 @@ class LookAndFeelUiState(
     var hideStatusBar by mutableStateOf(initialHideStatusBar)
     var hideSystemNavigation by mutableStateOf(initialHideSystemNavigation)
     var showHomeButton by mutableStateOf(initialShowHomeButton)
+    var stripUrlScheme by mutableStateOf(initialStripUrlScheme)
     var showTabStrip by mutableStateOf(initialShowTabStrip)
     var tabStripPosition by mutableStateOf(initialTabStripPosition)
     var tabGroupsEnabled by mutableStateOf(initialTabGroupsEnabled)
     var tabGroupBarPosition by mutableStateOf(initialTabGroupBarPosition)
 
     var exitConfirmation by mutableStateOf(initialExitConfirmation)
+    var backCloseTab by mutableStateOf(initialBackCloseTab)
     var popupAlertStyle by mutableStateOf(initialPopupAlertStyle)
+    var popupExtensionsFirst by mutableStateOf(initialPopupExtensionsFirst)
 
     var openDialog by mutableStateOf<LookAndFeelDialog?>(null)
 }

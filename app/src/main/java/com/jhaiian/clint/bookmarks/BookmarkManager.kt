@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
+import com.jhaiian.clint.profiles.ActiveProfile
 import org.json.JSONArray
 import java.io.File
 
@@ -24,6 +25,10 @@ object BookmarkManager {
     )
 
     @Volatile private var db: BookmarkDatabase? = null
+
+    private fun pid(context: Context): String = ActiveProfile.id(context)
+
+    private const val IN_PROFILE = "${BookmarkDatabase.COL_PROFILE_ID} = ?"
 
     private fun db(context: Context): BookmarkDatabase {
         return db ?: synchronized(this) {
@@ -78,7 +83,7 @@ object BookmarkManager {
     fun getAll(context: Context): MutableList<Bookmark> {
         val cursor = db(context).readableDatabase.query(
             BookmarkDatabase.TABLE, BOOKMARK_COLUMNS,
-            null, null, null, null,
+            IN_PROFILE, arrayOf(pid(context)), null, null,
             "${BookmarkDatabase.COL_ADDED_AT} DESC"
         )
         val list = mutableListOf<Bookmark>()
@@ -89,7 +94,7 @@ object BookmarkManager {
     fun getAllFoldersFlat(context: Context): List<BookmarkFolder> {
         val cursor = db(context).readableDatabase.query(
             BookmarkDatabase.FOLDER_TABLE, FOLDER_COLUMNS,
-            null, null, null, null,
+            "${BookmarkDatabase.COL_FOLDER_PROFILE_ID} = ?", arrayOf(pid(context)), null, null,
             "${BookmarkDatabase.COL_FOLDER_NAME} COLLATE NOCASE ASC"
         )
         val list = mutableListOf<BookmarkFolder>()
@@ -102,6 +107,7 @@ object BookmarkManager {
             put(BookmarkDatabase.COL_FOLDER_NAME, name)
             if (parentId == null) putNull(BookmarkDatabase.COL_FOLDER_PARENT_ID) else put(BookmarkDatabase.COL_FOLDER_PARENT_ID, parentId)
             put(BookmarkDatabase.COL_FOLDER_CREATED_AT, System.currentTimeMillis())
+            put(BookmarkDatabase.COL_FOLDER_PROFILE_ID, pid(context))
         }
         return db(context).writableDatabase.insert(BookmarkDatabase.FOLDER_TABLE, null, values)
     }
@@ -155,7 +161,7 @@ object BookmarkManager {
         }
         db(context).writableDatabase.update(
             BookmarkDatabase.TABLE, values,
-            "${BookmarkDatabase.COL_URL} = ?", arrayOf(url)
+            "${BookmarkDatabase.COL_URL} = ? AND $IN_PROFILE", arrayOf(url, pid(context))
         )
     }
 
@@ -165,6 +171,7 @@ object BookmarkManager {
             put(BookmarkDatabase.COL_TITLE, bookmark.title)
             put(BookmarkDatabase.COL_FAVICON_URL, bookmark.faviconUrl)
             put(BookmarkDatabase.COL_ADDED_AT, System.currentTimeMillis())
+            put(BookmarkDatabase.COL_PROFILE_ID, pid(context))
             put(BookmarkDatabase.COL_LAST_VISIT, bookmark.lastVisit)
             if (bookmark.folderId == null) putNull(BookmarkDatabase.COL_BOOKMARK_FOLDER_ID) else put(BookmarkDatabase.COL_BOOKMARK_FOLDER_ID, bookmark.folderId)
         }
@@ -176,8 +183,8 @@ object BookmarkManager {
     fun remove(context: Context, url: String) {
         db(context).writableDatabase.delete(
             BookmarkDatabase.TABLE,
-            "${BookmarkDatabase.COL_URL} = ?",
-            arrayOf(url)
+            "${BookmarkDatabase.COL_URL} = ? AND $IN_PROFILE",
+            arrayOf(url, pid(context))
         )
     }
 
@@ -188,8 +195,8 @@ object BookmarkManager {
         db(context).writableDatabase.update(
             BookmarkDatabase.TABLE,
             values,
-            "${BookmarkDatabase.COL_URL} = ?",
-            arrayOf(url)
+            "${BookmarkDatabase.COL_URL} = ? AND $IN_PROFILE",
+            arrayOf(url, pid(context))
         )
     }
 
@@ -198,8 +205,8 @@ object BookmarkManager {
         if (q.isBlank()) return getAll(context)
         val cursor = db(context).readableDatabase.query(
             BookmarkDatabase.TABLE, BOOKMARK_COLUMNS,
-            "${BookmarkDatabase.COL_URL} LIKE ? OR ${BookmarkDatabase.COL_TITLE} LIKE ?",
-            arrayOf("%$q%", "%$q%"),
+            "(${BookmarkDatabase.COL_URL} LIKE ? OR ${BookmarkDatabase.COL_TITLE} LIKE ?) AND $IN_PROFILE",
+            arrayOf("%$q%", "%$q%", pid(context)),
             null, null,
             "${BookmarkDatabase.COL_ADDED_AT} DESC"
         )
@@ -212,8 +219,8 @@ object BookmarkManager {
         val cursor = db(context).readableDatabase.query(
             BookmarkDatabase.TABLE,
             arrayOf(BookmarkDatabase.COL_ID),
-            "${BookmarkDatabase.COL_URL} = ?",
-            arrayOf(url),
+            "${BookmarkDatabase.COL_URL} = ? AND $IN_PROFILE",
+            arrayOf(url, pid(context)),
             null, null, null, "1"
         )
         return cursor.use { it.moveToFirst() }
@@ -225,12 +232,19 @@ object BookmarkManager {
             put(BookmarkDatabase.COL_TITLE, bookmark.title)
             put(BookmarkDatabase.COL_FAVICON_URL, bookmark.faviconUrl)
             put(BookmarkDatabase.COL_ADDED_AT, if (bookmark.addedAt > 0) bookmark.addedAt else System.currentTimeMillis())
+            put(BookmarkDatabase.COL_PROFILE_ID, pid(context))
             put(BookmarkDatabase.COL_LAST_VISIT, bookmark.lastVisit)
             if (bookmark.folderId == null) putNull(BookmarkDatabase.COL_BOOKMARK_FOLDER_ID) else put(BookmarkDatabase.COL_BOOKMARK_FOLDER_ID, bookmark.folderId)
         }
         db(context).writableDatabase.insertWithOnConflict(
             BookmarkDatabase.TABLE, null, values, SQLiteDatabase.CONFLICT_IGNORE
         )
+    }
+
+    fun removeProfile(context: Context, profileId: String) {
+        val writable = db(context).writableDatabase
+        writable.delete(BookmarkDatabase.TABLE, IN_PROFILE, arrayOf(profileId))
+        writable.delete(BookmarkDatabase.FOLDER_TABLE, "${BookmarkDatabase.COL_FOLDER_PROFILE_ID} = ?", arrayOf(profileId))
     }
 
     fun checkpointAndGetDatabaseFile(context: Context): File {

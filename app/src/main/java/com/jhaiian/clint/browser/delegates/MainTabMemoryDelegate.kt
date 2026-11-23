@@ -29,7 +29,7 @@ internal fun MainActivity.trimBackgroundTabs(keepLive: Int = MAX_LIVE_BACKGROUND
     val activeId = tabManager.activeTab?.id
     tabManager.tabs
         .filter { it.id != activeId && it.webView.canHibernate() }
-        .sortedByDescending { it.lastActiveAt }
+        .sortedWith(compareByDescending<com.jhaiian.clint.tabs.BrowserTab> { it.isPinned }.thenByDescending { it.lastActiveAt })
         .drop(minOf(keepLive, liveBackgroundTabBudget()))
         .forEach { it.webView.hibernate() }
 }

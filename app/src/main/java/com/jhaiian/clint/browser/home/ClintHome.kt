@@ -68,7 +68,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -102,6 +105,11 @@ import com.jhaiian.clint.browser.delegates.openSearchOverlay
 import com.jhaiian.clint.browser.delegates.switchToTabMode
 import com.jhaiian.clint.browser.engineDisplayName
 import com.jhaiian.clint.history.SearchHistoryManager
+import com.jhaiian.clint.profiles.WebProfiles
+import com.jhaiian.clint.downloads.ClintDownloadManager
+import com.jhaiian.clint.downloads.DownloadStatus
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import com.jhaiian.clint.ui.rememberClintFavicon
 import com.jhaiian.clint.tabs.TabThumbnailCache
 import com.jhaiian.clint.ui.theme.LocalClintColors
@@ -129,7 +137,6 @@ internal const val CLINT_HOME_HOST = "appassets.androidplatform.net"
 internal const val CLINT_HOME_PATH = "/clint/home"
 internal const val CLINT_HOME_URL = "https://$CLINT_HOME_HOST$CLINT_HOME_PATH"
 
-private const val RECENT_LIMIT = 5
 private const val RECENT_LOAD_LIMIT = 20
 private val ContentMaxWidth = 640.dp
 private val DesktopContentMaxWidth = 960.dp
@@ -139,18 +146,18 @@ internal fun isClintHomeUrl(url: String?): Boolean {
     return url.substringBefore('#').substringBefore('?').trimEnd('/') == CLINT_HOME_URL
 }
 
-private class HomeSite(val url: String, val title: String, val faviconUrl: String)
+internal class HomeSite(val url: String, val title: String, val faviconUrl: String)
 
-private class HomeAction(val icon: ImageVector, val labelRes: Int, val onClick: () -> Unit)
+internal class HomeAction(val icon: ImageVector, val labelRes: Int, val onClick: () -> Unit)
 
-private fun hostOf(url: String): String =
+internal fun hostOf(url: String): String =
     runCatching { Uri.parse(url).host.orEmpty().removePrefix("www.") }.getOrDefault("")
 
-private fun labelOf(site: HomeSite): String = site.title.ifBlank { hostOf(site.url) }.ifBlank { site.url }
+internal fun labelOf(site: HomeSite): String = site.title.ifBlank { hostOf(site.url) }.ifBlank { site.url }
 
-private suspend fun loadRecentSites(context: Context): List<HomeSite> =
+internal suspend fun loadRecentSites(context: Context): List<HomeSite> =
     withContext(Dispatchers.IO) {
-        val history = runCatching { SearchHistoryManager.getAll(context) }.getOrElse { emptyList() }
+        val history = runCatching { SearchHistoryManager.getRecent(context) }.getOrElse { emptyList() }
         history
             .filter { it.query.startsWith("http") && !isClintHomeUrl(it.query) }
             .distinctBy { hostOf(it.query) }
@@ -158,8 +165,8 @@ private suspend fun loadRecentSites(context: Context): List<HomeSite> =
             .map { HomeSite(it.query, it.title, "") }
     }
 
-private suspend fun loadHomeTiles(context: Context): List<HomeTile> =
-    withContext(Dispatchers.IO) { HomeTileStore.load(context) }
+internal suspend fun loadHomeTiles(context: Context, profileId: String?): List<HomeTile> =
+    withContext(Dispatchers.IO) { HomeTileStore.load(context, profileId) }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -168,6 +175,9 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
     val context = LocalContext.current
     val isIncognito = state.isIncognito
     val isDesktop = state.isDesktopMode
+    val profileId = remember(state.activeTabId) { state.activeTabId?.let { WebProfiles.profileOfTab(it) } ?: WebProfiles.DEFAULT_ID }
+    val layout = remember(state.homepageRefresh, profileId) { readHomepageLayout(context, activity.prefs, profileId) }
+    val tileProfile = if (layout.separateTiles) profileId else null
     var tiles by remember { mutableStateOf<List<HomeTile>>(emptyList()) }
     var recent by remember { mutableStateOf<List<HomeSite>>(emptyList()) }
     var iconVersion by remember { mutableIntStateOf(0) }
@@ -183,13 +193,13 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
     val scrollState = rememberScrollState()
     val thumbnailLayer = rememberGraphicsLayer()
 
-    LaunchedEffect(state.activeTabId, isIncognito) {
+    LaunchedEffect(state.activeTabId, isIncognito, tileProfile) {
         if (isIncognito) {
             tiles = emptyList()
             recent = emptyList()
             return@LaunchedEffect
         }
-        tiles = loadHomeTiles(context)
+        tiles = loadHomeTiles(context, tileProfile)
         recent = loadRecentSites(context)
     }
     LaunchedEffect(Unit) { revealed = true }
@@ -219,18 +229,22 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
     val hint = stringResource(R.string.search_bar_hint, engineName)
     val isBottomBar = state.addressBarPosition == AddressBarPosition.BOTTOM
 
-    val design = if (isIncognito && state.homepageDesign == HOMEPAGE_DESIGN_IMAGE) HOMEPAGE_DESIGN_PLAIN else state.homepageDesign
-    val bgImage by produceState<ImageBitmap?>(null, design, state.homepageImageVersion, refreshTick) {
-        value = if (design == HOMEPAGE_DESIGN_IMAGE) withContext(Dispatchers.IO) { loadHomepageBackground(context) } else null
+    val design = if (isIncognito && layout.design == HOMEPAGE_DESIGN_IMAGE) HOMEPAGE_DESIGN_PLAIN else layout.design
+    val darkImage = layout.imageSeparateDark && !colors.isLight
+    val bgImage by produceState<ImageBitmap?>(null, design, layout.imageVersion, refreshTick, profileId, darkImage, layout.imageBlur) {
+        value = if (design == HOMEPAGE_DESIGN_IMAGE) {
+            withContext(Dispatchers.IO) { loadHomepageBackground(context, profileId, darkImage, layout.imageBlur) }
+        } else null
     }
     val bgAlpha by animateFloatAsState(
         targetValue = if (bgImage != null) 1f else 0f,
         animationSpec = tween(320),
         label = "homeBackground"
     )
-    val cardAlpha = if (design == HOMEPAGE_DESIGN_IMAGE) 0.86f else 1f
-    val scrimTop = if (colors.isLight) 0.60f else 0.55f
-    val scrimBottom = if (colors.isLight) 0.84f else 0.80f
+    val cardAlpha = (if (design == HOMEPAGE_DESIGN_IMAGE) 0.86f else 1f) * layout.cardOpacity / 100f
+    val dimFactor = layout.imageDim / 100f
+    val scrimTop = (if (colors.isLight) 0.60f else 0.55f) * dimFactor
+    val scrimBottom = (if (colors.isLight) 0.84f else 0.80f) * dimFactor
     val captureThumbnail: suspend () -> Unit = {
         val tabId = state.activeTabId
         if (tabId != null) {
@@ -240,7 +254,7 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
             }
         }
     }
-    LaunchedEffect(state.activeTabId, isIncognito, design, bgImage, tiles, recent, iconVersion, refreshTick, colors.background, state.homepageShowQuickActions, state.homepageImageFullBrightness) {
+    LaunchedEffect(state.activeTabId, isIncognito, design, bgImage, tiles, recent, iconVersion, refreshTick, colors.background, layout) {
         delay(800)
         captureThumbnail()
     }
@@ -251,7 +265,7 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
             .collect { captureThumbnail() }
     }
     val tileUrls = remember(tiles) { tiles.allSites().map { it.url }.toSet() }
-    val recentShown = remember(recent, tileUrls) { recent.filter { it.url !in tileUrls }.take(RECENT_LIMIT) }
+    val recentShown = remember(recent, tileUrls, layout.recentCount) { recent.filter { it.url !in tileUrls }.take(layout.recentCount) }
     val hideStatusBar = remember { activity.prefs.getBoolean("hide_status_bar", false) }
     val hideSystemNavigation = remember { activity.prefs.getBoolean("hide_system_navigation", false) }
     val defaultFolderName = stringResource(R.string.home_folder_default_name)
@@ -266,7 +280,7 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
 
     fun commitTiles(updated: List<HomeTile>, icon: Pair<String, Bitmap>? = null) {
         tiles = updated
-        HomeTileStore.saveAsync(context, updated, icon) { if (icon != null) iconVersion++ }
+        HomeTileStore.saveAsync(context, updated, icon, tileProfile) { if (icon != null) iconVersion++ }
     }
 
     fun siteMenu(site: HomeSiteTile): List<HomeMenuEntry> = buildList {
@@ -306,7 +320,28 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
         )
     }
 
-    CompositionLocalProvider(LocalHomeCardAlpha provides cardAlpha) {
+    val wantsDownloads = HOMEPAGE_WIDGET_DOWNLOADS in layout.widgets
+    val downloadsActive by produceState(false, wantsDownloads) {
+        if (wantsDownloads) {
+            ClintDownloadManager.downloadsFlow
+                .map { list -> list.any { it.status in DownloadStatus.ACTIVELY_WORKING } }
+                .distinctUntilChanged()
+                .collect { value = it }
+        } else {
+            value = false
+        }
+    }
+    val continueSite = recent.firstOrNull()
+    val solidBackground = layout.solidColor(colors)
+    val gradientStart = layout.gradientStartColor(colors)
+    val gradientEnd = layout.gradientEndColor(colors)
+    val tileStyle = HomeTileStyle(layout.tileShape, layout.tileScale / 100f, layout.showTileLabels, layout.folderStyle == HOMEPAGE_FOLDER_PLAIN)
+
+    CompositionLocalProvider(
+        LocalHomeCardAlpha provides cardAlpha,
+        LocalHomeCardCorner provides layout.cardCorner.dp,
+        LocalHomeTileStyle provides tileStyle
+    ) {
     BoxWithConstraints(
         modifier = modifier
             .drawWithContent {
@@ -315,8 +350,25 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
             }
             .background(colors.background)
             .then(
-                if (design == HOMEPAGE_DESIGN_GRADIENT) Modifier.background(Brush.verticalGradient(listOf(topTint, Color.Transparent)))
-                else Modifier
+                when (design) {
+                    HOMEPAGE_DESIGN_GRADIENT -> Modifier.background(Brush.verticalGradient(listOf(topTint, Color.Transparent)))
+                    HOMEPAGE_DESIGN_SOLID -> Modifier.background(solidBackground)
+                    HOMEPAGE_DESIGN_CUSTOM_GRADIENT -> Modifier.drawBehind {
+                        val radians = Math.toRadians(layout.gradientAngle.toDouble())
+                        val dx = kotlin.math.sin(radians).toFloat()
+                        val dy = kotlin.math.cos(radians).toFloat()
+                        val half = (kotlin.math.abs(size.width * dx) + kotlin.math.abs(size.height * dy)) / 2f
+                        val center = Offset(size.width / 2f, size.height / 2f)
+                        drawRect(
+                            Brush.linearGradient(
+                                listOf(gradientStart, gradientEnd),
+                                start = Offset(center.x - dx * half, center.y - dy * half),
+                                end = Offset(center.x + dx * half, center.y + dy * half)
+                            )
+                        )
+                    }
+                    else -> Modifier
+                }
             )
             .pointerInput(Unit) {}
     ) {
@@ -325,9 +377,19 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
                 bitmap = bitmap,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = bgAlpha }
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clipToBounds()
+                    .graphicsLayer {
+                        alpha = bgAlpha
+                        if (layout.imageParallax) {
+                            scaleX = 1.15f
+                            scaleY = 1.15f
+                            translationY = -(scrollState.value * 0.15f).coerceAtMost(size.height * 0.07f)
+                        }
+                    }
             )
-            if (!state.homepageImageFullBrightness) {
+            if (!layout.fullBrightness && dimFactor > 0f) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -344,28 +406,93 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
         val compact = viewportHeight < 480.dp
         val maxContent = if (isDesktop) DesktopContentMaxWidth else ContentMaxWidth
         val contentWidth = if (maxWidth < maxContent) maxWidth else maxContent
-        val centered = state.homepageCenterContent
-        val showFavorites = state.homepageShowFavorites
-        val showQuickActions = state.homepageShowQuickActions
-        val showRecent = state.homepageShowRecent && recentShown.isNotEmpty()
+        val centered = layout.centerContent
+        val showFavorites = layout.showFavorites
+        val actions = layout.quickActions.map { key ->
+            when (key) {
+                HOMEPAGE_ACTION_BOOKMARKS -> HomeAction(homepageActionIcon(key), homepageActionLabel(key)) { activity.onMenuBookmarks() }
+                HOMEPAGE_ACTION_HISTORY -> HomeAction(homepageActionIcon(key), homepageActionLabel(key)) { activity.onMenuHistory() }
+                HOMEPAGE_ACTION_DOWNLOADS -> HomeAction(homepageActionIcon(key), homepageActionLabel(key)) { activity.onMenuDownloads() }
+                HOMEPAGE_ACTION_SETTINGS -> HomeAction(homepageActionIcon(key), homepageActionLabel(key)) { activity.onMenuSettings() }
+                HOMEPAGE_ACTION_EXTENSIONS -> HomeAction(homepageActionIcon(key), homepageActionLabel(key)) { activity.onMenuOpenExtensionsSettings() }
+                HOMEPAGE_ACTION_PROFILES -> HomeAction(homepageActionIcon(key), homepageActionLabel(key)) { activity.onMenuOpenProfiles() }
+                else -> if (isIncognito) {
+                    HomeAction(Icons.Filled.Tab, R.string.home_normal_mode) { activity.switchToTabMode(false) }
+                } else {
+                    HomeAction(Icons.Filled.VisibilityOff, R.string.incognito) { activity.switchToTabMode(true) }
+                }
+            }
+        }
+        val showQuickActions = layout.showQuickActions && actions.isNotEmpty()
+        val showRecent = layout.showRecent && recentShown.isNotEmpty()
         val sideBySide = isDesktop && !isIncognito && showFavorites && showRecent && contentWidth >= 800.dp
         val gridWidth = if (sideBySide) (contentWidth - 64.dp) * (1.6f / 2.6f) else contentWidth - 40.dp
         val tileWidth = if (isDesktop) 128.dp else 84.dp
-        val columns = (gridWidth / tileWidth).toInt().coerceIn(if (isDesktop) 2 else 3, 6)
+        val columns = if (layout.columns > 0) layout.columns else (gridWidth / tileWidth).toInt().coerceIn(if (isDesktop) 2 else 3, 6)
         val actionsPerRow = if (contentWidth >= 520.dp) 4 else 2
-        val actions = listOf(
-            HomeAction(Icons.Filled.Bookmark, R.string.menu_bookmarks) { activity.onMenuBookmarks() },
-            HomeAction(Icons.Filled.History, R.string.menu_history) { activity.onMenuHistory() },
-            HomeAction(Icons.Filled.Download, R.string.menu_downloads) { activity.onMenuDownloads() },
-            if (isIncognito) {
-                HomeAction(Icons.Filled.Tab, R.string.home_normal_mode) { activity.switchToTabMode(false) }
-            } else {
-                HomeAction(Icons.Filled.VisibilityOff, R.string.incognito) { activity.switchToTabMode(true) }
-            }
-        )
+        val heroStyle = if (isIncognito) HOMEPAGE_HERO_FULL else layout.heroStyle
+        val showHero = heroStyle != HOMEPAGE_HERO_NONE
+        val heroTitle = layout.title.ifBlank { stringResource(R.string.app_name) }
+        val heroGreeting = if (layout.showGreeting) stringResource(greetingRes) else ""
+        val searchCorner = when (layout.searchShape) {
+            HOMEPAGE_SHAPE_ROUNDED -> 16.dp
+            HOMEPAGE_SHAPE_SQUARE -> 6.dp
+            else -> 28.dp
+        }
         val openSearch: () -> Unit = { activity.openSearchOverlay(isBottom = isBottomBar) }
         val openVoice: () -> Unit = { activity.handleVoiceSearchTap() }
         val openSite: (HomeSite) -> Unit = { activity.loadUrl(it.url) }
+        val favoritesSection: @Composable () -> Unit = {
+            HomeTilesSection(tiles, columns, isDesktop, iconVersion, openTile, dropTiles, addTile, { tileMenu(it) })
+        }
+        val recentSection: @Composable () -> Unit = {
+            HomeRecentSection(recentShown, openSite, recentMenu)
+        }
+        val visibleWidgets = layout.widgets.filter {
+            when (it) {
+                HOMEPAGE_WIDGET_CLOCK -> true
+                HOMEPAGE_WIDGET_CONTINUE -> continueSite != null
+                else -> downloadsActive
+            }
+        }
+        val blocks = layout.sectionOrder.filter {
+            when (it) {
+                HOMEPAGE_BLOCK_SEARCH -> true
+                HOMEPAGE_BLOCK_ACTIONS -> showQuickActions
+                HOMEPAGE_BLOCK_FAVORITES -> !isIncognito && showFavorites
+                HOMEPAGE_BLOCK_RECENT -> !isIncognito && showRecent
+                else -> !isIncognito && visibleWidgets.isNotEmpty()
+            }
+        }
+        val renderBlock: @Composable (String) -> Unit = { key ->
+            when (key) {
+                HOMEPAGE_BLOCK_SEARCH -> if (isDesktop) {
+                    HomeSearchPill(
+                        hint = hint,
+                        onClick = openSearch,
+                        onVoice = openVoice,
+                        modifier = Modifier.widthIn(max = 680.dp),
+                        height = if (compact) 52.dp else 60.dp,
+                        corner = searchCorner,
+                        showVoice = layout.showVoice
+                    )
+                } else {
+                    HomeSearchPill(hint = hint, onClick = openSearch, onVoice = openVoice, corner = searchCorner, showVoice = layout.showVoice)
+                }
+                HOMEPAGE_BLOCK_ACTIONS -> if (isDesktop) HomeDesktopActions(actions, actionsPerRow) else HomeQuickActions(actions)
+                HOMEPAGE_BLOCK_FAVORITES -> favoritesSection()
+                HOMEPAGE_BLOCK_RECENT -> recentSection()
+                else -> HomeWidgets(
+                    items = visibleWidgets,
+                    dateText = dateText,
+                    continueTitle = continueSite?.let { labelOf(it) },
+                    continueHost = continueSite?.let { hostOf(it.url) },
+                    downloadsActive = downloadsActive,
+                    onContinue = { continueSite?.let { openSite(it) } },
+                    onDownloads = { activity.onMenuDownloads() }
+                )
+            }
+        }
 
         PullToRefreshBox(
             isRefreshing = isRefreshing,
@@ -374,7 +501,7 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
                     isRefreshing = true
                     scope.launch {
                         if (!isIncognito) {
-                            tiles = loadHomeTiles(context)
+                            tiles = loadHomeTiles(context, tileProfile)
                             recent = loadRecentSites(context)
                         }
                         refreshTick++
@@ -413,64 +540,51 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     if (centered) Spacer(Modifier.height(16.dp))
-                    if (isDesktop) {
-                        if (!centered) Spacer(Modifier.height(if (compact) 16.dp else 56.dp))
-                        HomeDesktopHero(
-                            isIncognito = isIncognito,
-                            showGlow = design == HOMEPAGE_DESIGN_GRADIENT,
-                            compact = compact,
-                            greeting = stringResource(greetingRes),
-                            date = dateText
-                        )
-                        Spacer(Modifier.height(if (compact) 18.dp else 32.dp))
-                        HomeSearchPill(
-                            hint = hint,
-                            onClick = openSearch,
-                            onVoice = openVoice,
-                            modifier = Modifier.widthIn(max = 680.dp),
-                            height = if (compact) 52.dp else 60.dp
-                        )
-                        if (showQuickActions) {
-                            Spacer(Modifier.height(if (compact) 16.dp else 24.dp))
-                            HomeDesktopActions(actions, actionsPerRow)
-                        }
-                    } else {
-                        if (!centered) Spacer(Modifier.height(if (compact) 12.dp else 40.dp))
-                        HomeHero(
-                            isIncognito = isIncognito,
-                            showGlow = design == HOMEPAGE_DESIGN_GRADIENT,
-                            compact = compact,
-                            greeting = stringResource(greetingRes)
-                        )
-                        Spacer(Modifier.height(if (compact) 16.dp else 28.dp))
-                        HomeSearchPill(hint = hint, onClick = openSearch, onVoice = openVoice)
-                        if (showQuickActions) {
+                    if (!centered) Spacer(Modifier.height(if (isDesktop) (if (compact) 16.dp else 56.dp) else (if (compact) 12.dp else 40.dp)))
+                    if (showHero) {
+                        if (isDesktop) {
+                            HomeDesktopHero(
+                                isIncognito = isIncognito,
+                                showGlow = design == HOMEPAGE_DESIGN_GRADIENT,
+                                compact = compact,
+                                greeting = heroGreeting,
+                                date = dateText,
+                                style = heroStyle,
+                                title = heroTitle
+                            )
+                            Spacer(Modifier.height(if (compact) 18.dp else 32.dp))
+                        } else {
+                            HomeHero(
+                                isIncognito = isIncognito,
+                                showGlow = design == HOMEPAGE_DESIGN_GRADIENT,
+                                compact = compact,
+                                greeting = heroGreeting,
+                                style = heroStyle,
+                                title = heroTitle
+                            )
                             Spacer(Modifier.height(if (compact) 16.dp else 28.dp))
-                            HomeQuickActions(actions)
                         }
                     }
-                    if (!isIncognito && (showFavorites || showRecent)) {
-                        Spacer(Modifier.height(if (compact) 20.dp else 32.dp))
-                        if (sideBySide) {
+                    var blockIndex = 0
+                    while (blockIndex < blocks.size) {
+                        val block = blocks[blockIndex]
+                        val next = blocks.getOrNull(blockIndex + 1)
+                        if (blockIndex > 0) Spacer(Modifier.height(if (compact) 18.dp else 28.dp))
+                        val paired = sideBySide && next != null &&
+                            (block == HOMEPAGE_BLOCK_FAVORITES || block == HOMEPAGE_BLOCK_RECENT) &&
+                            (next == HOMEPAGE_BLOCK_FAVORITES || next == HOMEPAGE_BLOCK_RECENT)
+                        if (paired) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(24.dp)
                             ) {
-                                Column(modifier = Modifier.weight(1.6f)) {
-                                    HomeTilesSection(tiles, columns, isDesktop, iconVersion, openTile, dropTiles, addTile, { tileMenu(it) })
-                                }
-                                Column(modifier = Modifier.weight(1f)) {
-                                    HomeRecentSection(recentShown, openSite, recentMenu)
-                                }
+                                Column(modifier = Modifier.weight(if (block == HOMEPAGE_BLOCK_FAVORITES) 1.6f else 1f)) { renderBlock(block) }
+                                Column(modifier = Modifier.weight(if (next == HOMEPAGE_BLOCK_FAVORITES) 1.6f else 1f)) { renderBlock(next) }
                             }
+                            blockIndex += 2
                         } else {
-                            if (showFavorites) {
-                                HomeTilesSection(tiles, columns, isDesktop, iconVersion, openTile, dropTiles, addTile, { tileMenu(it) })
-                            }
-                            if (showRecent) {
-                                if (showFavorites) Spacer(Modifier.height(if (compact) 20.dp else 32.dp))
-                                HomeRecentSection(recentShown, openSite, recentMenu)
-                            }
+                            renderBlock(block)
+                            blockIndex += 1
                         }
                     }
                     Spacer(Modifier.height(if (centered) 16.dp else 32.dp))
@@ -568,24 +682,24 @@ internal fun ClintHomeScreen(activity: MainActivity, state: MainUiState, modifie
 }
 
 @Composable
-private fun HomeHero(isIncognito: Boolean, showGlow: Boolean, compact: Boolean, greeting: String) {
+internal fun HomeHero(isIncognito: Boolean, showGlow: Boolean, compact: Boolean, greeting: String, style: String, title: String) {
     val colors = LocalClintColors.current
     val glowSize = if (compact) 72.dp else 96.dp
     val cardSize = if (compact) 52.dp else 68.dp
     val shape = RoundedCornerShape(22.dp)
+    val showLogo = style != HOMEPAGE_HERO_TEXT
+    val showText = style != HOMEPAGE_HERO_LOGO
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(modifier = Modifier.size(glowSize), contentAlignment = Alignment.Center) {
+        if (showLogo) Box(modifier = Modifier.size(glowSize), contentAlignment = Alignment.Center) {
             if (showGlow) {
-                if (showGlow) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .background(
-                                Brush.radialGradient(listOf(colors.primary.copy(alpha = 0.30f), Color.Transparent)),
-                                CircleShape
-                            )
-                    )
-                }
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.radialGradient(listOf(colors.primary.copy(alpha = 0.30f), Color.Transparent)),
+                            CircleShape
+                        )
+                )
             }
             Box(
                 modifier = Modifier
@@ -612,8 +726,8 @@ private fun HomeHero(isIncognito: Boolean, showGlow: Boolean, compact: Boolean, 
                 }
             }
         }
-        Spacer(Modifier.height(if (compact) 8.dp else 14.dp))
-        if (isIncognito) {
+        if (showLogo && showText) Spacer(Modifier.height(if (compact) 8.dp else 14.dp))
+        if (showText && isIncognito) {
             Text(
                 text = stringResource(R.string.incognito),
                 color = colors.onSurface,
@@ -627,18 +741,21 @@ private fun HomeHero(isIncognito: Boolean, showGlow: Boolean, compact: Boolean, 
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 6.dp, start = 12.dp, end = 12.dp)
             )
-        } else {
+        } else if (showText) {
+            if (greeting.isNotEmpty()) {
+                Text(
+                    text = greeting,
+                    color = colors.secondaryText,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
             Text(
-                text = greeting,
-                color = colors.secondaryText,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = stringResource(R.string.app_name),
+                text = title,
                 color = colors.onSurface,
                 fontSize = if (compact) 28.sp else 36.sp,
                 fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
                 letterSpacing = (-0.5).sp
             )
         }
@@ -646,25 +763,27 @@ private fun HomeHero(isIncognito: Boolean, showGlow: Boolean, compact: Boolean, 
 }
 
 @Composable
-private fun HomeSearchPill(
+internal fun HomeSearchPill(
     hint: String,
     onClick: () -> Unit,
     onVoice: () -> Unit,
     modifier: Modifier = Modifier,
-    height: Dp = 56.dp
+    height: Dp = 56.dp,
+    corner: Dp = 28.dp,
+    showVoice: Boolean = true
 ) {
     val colors = LocalClintColors.current
     Surface(
         onClick = onClick,
         color = colors.addressBarColor,
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(corner),
         border = BorderStroke(1.dp, colors.divider),
         shadowElevation = if (colors.isLight) 2.dp else 0.dp,
         modifier = modifier.fillMaxWidth().height(height)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(start = 18.dp, end = 6.dp)
+            modifier = Modifier.padding(start = 18.dp, end = if (showVoice) 6.dp else 18.dp)
         ) {
             Icon(
                 imageVector = Icons.Filled.Search,
@@ -680,60 +799,67 @@ private fun HomeSearchPill(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)
             )
-            IconButton(onClick = onVoice) {
-                Icon(
-                    imageVector = Icons.Filled.Mic,
-                    contentDescription = stringResource(R.string.voice_search),
-                    tint = colors.iconTint
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeQuickActions(actions: List<HomeAction>) {
-    val colors = LocalClintColors.current
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        actions.forEach { action ->
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .clickable(onClick = action.onClick)
-                    .padding(vertical = 8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(colors.cardBackground.copy(alpha = LocalHomeCardAlpha.current)),
-                    contentAlignment = Alignment.Center
-                ) {
+            if (showVoice) {
+                IconButton(onClick = onVoice) {
                     Icon(
-                        imageVector = action.icon,
-                        contentDescription = null,
-                        tint = colors.primary,
-                        modifier = Modifier.size(24.dp)
+                        imageVector = Icons.Filled.Mic,
+                        contentDescription = stringResource(R.string.voice_search),
+                        tint = colors.iconTint
                     )
                 }
-                Text(
-                    text = stringResource(action.labelRes),
-                    color = colors.secondaryText,
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp)
-                )
             }
         }
     }
 }
 
 @Composable
-private fun HomeSectionTitle(text: String) {
+internal fun HomeQuickActions(actions: List<HomeAction>) {
+    val colors = LocalClintColors.current
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        actions.chunked(4).forEach { rowActions ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                rowActions.forEach { action ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable(onClick = action.onClick)
+                            .padding(vertical = 8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(LocalHomeCardCorner.current * 0.9f))
+                                .background(colors.cardBackground.copy(alpha = LocalHomeCardAlpha.current)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = action.icon,
+                                contentDescription = null,
+                                tint = colors.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Text(
+                            text = stringResource(action.labelRes),
+                            color = colors.secondaryText,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 6.dp, start = 2.dp, end = 2.dp)
+                        )
+                    }
+                }
+                if (actions.size > 4) repeat(4 - rowActions.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun HomeSectionTitle(text: String) {
     val colors = LocalClintColors.current
     Text(
         text = text.uppercase(),
@@ -746,12 +872,12 @@ private fun HomeSectionTitle(text: String) {
 }
 
 @Composable
-private fun HomeEmptyFavorites(onAdd: () -> Unit) {
+internal fun HomeEmptyFavorites(onAdd: () -> Unit) {
     val colors = LocalClintColors.current
     Surface(
         onClick = onAdd,
         color = colors.cardBackground.copy(alpha = LocalHomeCardAlpha.current),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(LocalHomeCardCorner.current),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -776,12 +902,12 @@ private fun HomeEmptyFavorites(onAdd: () -> Unit) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HomeRecentCard(sites: List<HomeSite>, onOpen: (HomeSite) -> Unit, menuFor: (HomeSite) -> List<HomeMenuEntry>) {
+internal fun HomeRecentCard(sites: List<HomeSite>, onOpen: (HomeSite) -> Unit, menuFor: (HomeSite) -> List<HomeMenuEntry>) {
     val colors = LocalClintColors.current
     var menuUrl by remember { mutableStateOf<String?>(null) }
     Surface(
         color = colors.cardBackground.copy(alpha = LocalHomeCardAlpha.current),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(LocalHomeCardCorner.current),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column {
@@ -894,13 +1020,15 @@ private fun HomeRecentSection(recent: List<HomeSite>, onOpen: (HomeSite) -> Unit
 }
 
 @Composable
-private fun HomeDesktopHero(isIncognito: Boolean, showGlow: Boolean, compact: Boolean, greeting: String, date: String) {
+private fun HomeDesktopHero(isIncognito: Boolean, showGlow: Boolean, compact: Boolean, greeting: String, date: String, style: String, title: String) {
     val colors = LocalClintColors.current
     val cardSize = if (compact) 56.dp else 76.dp
     val shape = RoundedCornerShape(22.dp)
+    val showLogo = style != HOMEPAGE_HERO_TEXT
+    val showText = style != HOMEPAGE_HERO_LOGO
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(cardSize + 24.dp), contentAlignment = Alignment.Center) {
+            if (showLogo) Box(modifier = Modifier.size(cardSize + 24.dp), contentAlignment = Alignment.Center) {
                 Box(
                     modifier = Modifier
                         .matchParentSize()
@@ -934,9 +1062,9 @@ private fun HomeDesktopHero(isIncognito: Boolean, showGlow: Boolean, compact: Bo
                     }
                 }
             }
-            Spacer(Modifier.width(8.dp))
-            Column {
-                if (!isIncognito) {
+            if (showLogo && showText) Spacer(Modifier.width(8.dp))
+            if (showText) Column {
+                if (!isIncognito && greeting.isNotEmpty()) {
                     Text(
                         text = greeting,
                         color = colors.secondaryText,
@@ -945,7 +1073,7 @@ private fun HomeDesktopHero(isIncognito: Boolean, showGlow: Boolean, compact: Bo
                     )
                 }
                 Text(
-                    text = stringResource(if (isIncognito) R.string.incognito else R.string.app_name),
+                    text = if (isIncognito) stringResource(R.string.incognito) else title,
                     color = colors.onSurface,
                     fontSize = if (compact) 32.sp else 44.sp,
                     fontWeight = FontWeight.Bold,
@@ -982,7 +1110,7 @@ private fun HomeDesktopActions(actions: List<HomeAction>, perRow: Int) {
                     Surface(
                         onClick = action.onClick,
                         color = colors.cardBackground.copy(alpha = LocalHomeCardAlpha.current),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(LocalHomeCardCorner.current * 0.8f),
                         modifier = Modifier.weight(1f).height(48.dp)
                     ) {
                         Row(

@@ -11,8 +11,10 @@ enum class DownloadSettingsDialog {
 
 class DownloadSettingsUiState(
     initialDownloadManagerApp: String,
+    initialCustomDownloadManagerPackage: String?,
     initialLocationMode: String,
     initialCustomUri: Uri?,
+    initialSavedLocations: List<Uri>,
     initialCategorizeDownloads: Boolean,
     initialDialogUi: String,
     initialDuplicateHandling: String,
@@ -36,7 +38,6 @@ class DownloadSettingsUiState(
     initialIgnoringBatteryOptimizations: Boolean,
     initialShowGrantAllFilesAccessRow: Boolean,
     initialAllFilesAccessGranted: Boolean,
-    initialPushNotifications: Boolean,
     initialHistoryNormal: Boolean,
     initialHistoryIncognito: Boolean,
     initialKeepScreenOn: Boolean,
@@ -48,8 +49,10 @@ class DownloadSettingsUiState(
 initialHideSystemNavigation: Boolean
 ) {
     var downloadManagerApp by mutableStateOf(initialDownloadManagerApp)
+    var customDownloadManagerPackage by mutableStateOf(initialCustomDownloadManagerPackage)
     var locationMode by mutableStateOf(initialLocationMode)
     var customUri by mutableStateOf(initialCustomUri)
+    var savedLocations by mutableStateOf(initialSavedLocations)
     var categorizeDownloads by mutableStateOf(initialCategorizeDownloads)
     var dialogUi by mutableStateOf(initialDialogUi)
     var duplicateHandling by mutableStateOf(initialDuplicateHandling)
@@ -80,7 +83,6 @@ initialHideSystemNavigation: Boolean
     var showGrantAllFilesAccessRow by mutableStateOf(initialShowGrantAllFilesAccessRow)
     var allFilesAccessGranted by mutableStateOf(initialAllFilesAccessGranted)
 
-    var pushNotifications by mutableStateOf(initialPushNotifications)
     var historyNormal by mutableStateOf(initialHistoryNormal)
     var historyIncognito by mutableStateOf(initialHistoryIncognito)
     var keepScreenOn by mutableStateOf(initialKeepScreenOn)

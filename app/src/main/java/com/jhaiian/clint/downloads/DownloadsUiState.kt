@@ -13,7 +13,9 @@ class DownloadsUiState {
     var section by mutableStateOf(DownloadsSection.QUEUE)
     var sectionInitialized by mutableStateOf(false)
     var libraryKind by mutableStateOf<DownloadFileKind?>(null)
-    var libraryGrid by mutableStateOf(true)
+    var libraryViewMode by mutableStateOf(LibraryViewMode.Default)
+    var appearance by mutableStateOf(DownloadAppearance())
+    var libraryViewModeDialogOpen by mutableStateOf(false)
     var expandedIds by mutableStateOf<Set<Int>>(emptySet())
     var sheetItemId by mutableStateOf<Int?>(null)
     var logViewerId by mutableStateOf<Int?>(null)
@@ -42,6 +44,7 @@ class DownloadsUiState {
     var updateLinkItem by mutableStateOf<DownloadItem?>(null)
     var manualDownloadDialogOpen by mutableStateOf(false)
     var manualDownloadPrefillUrl by mutableStateOf<String?>(null)
+    var manualDownloadSession by mutableStateOf<IncomingDownloadSession?>(null)
 
     var confirmDialogConfig by mutableStateOf<com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig?>(null)
     var conflictDialogRequest by mutableStateOf<DownloadConflictDialogRequest?>(null)

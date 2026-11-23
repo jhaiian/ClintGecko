@@ -20,6 +20,11 @@ val ccacheExecutable: String? = (System.getenv("PATH") ?: "")
     .firstOrNull { it.isFile && it.canExecute() }
     ?.absolutePath
 
+val allAbis = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+val onlyAbi: String? = providers.gradleProperty("onlyAbi").orNull?.takeIf { it in allAbis }
+val buildAbis = onlyAbi?.let { listOf(it) } ?: allAbis
+val skipMinify = providers.gradleProperty("skipMinify").isPresent
+
 android {
     namespace = "com.jhaiian.clint"
     compileSdk {
@@ -34,8 +39,8 @@ android {
         applicationId = "com.jhaiian.clint.gecko"
         minSdk = 26
         targetSdk = 37
-        versionCode = 6
-        versionName = "1.0.5"
+        versionCode = 7
+        versionName = "1.0.6"
 
         externalNativeBuild {
             cmake {
@@ -48,7 +53,7 @@ android {
                 if (ccacheExecutable != null) {
                     arguments.add("-DCMAKE_CXX_COMPILER_LAUNCHER=$ccacheExecutable")
                 }
-                abiFilters("arm64-v8a", "armeabi-v7a", "x86_64")
+                abiFilters(*buildAbis.toTypedArray())
             }
         }
     }
@@ -93,8 +98,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            isMinifyEnabled = !skipMinify
+            isShrinkResources = !skipMinify
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (hasSigningConfig) {
                 signingConfig = signingConfigs["release"]
@@ -110,8 +115,8 @@ android {
         abi {
             isEnable = true
             reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
-            isUniversalApk = true
+            include(*buildAbis.toTypedArray())
+            isUniversalApk = onlyAbi == null
         }
     }
 
@@ -151,8 +156,9 @@ dependencies {
     implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.documentfile:documentfile:1.1.0")
     implementation("androidx.appcompat:appcompat:1.8.0")
+    implementation("androidx.browser:browser:1.10.0")
     implementation("com.google.android.material:material:1.14.0")
-    implementation("org.mozilla.geckoview:geckoview:159.0.20261022150525")
+    implementation("org.mozilla.geckoview:geckoview:160.0.20261116130455")
     implementation("androidx.preference:preference-ktx:1.2.1")
     implementation("androidx.recyclerview:recyclerview:1.4.0")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.2.0")
@@ -169,7 +175,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-service:2.11.0")
     implementation("androidx.work:work-runtime-ktx:2.12.0")
     implementation("androidx.biometric:biometric:1.1.0")
-    implementation("org.bouncycastle:bcprov-jdk18on:1.86")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.87")
     implementation("androidx.media3:media3-common:1.11.1")
     implementation("androidx.media3:media3-muxer:1.11.1")
     implementation("androidx.media3:media3-exoplayer:1.11.1")

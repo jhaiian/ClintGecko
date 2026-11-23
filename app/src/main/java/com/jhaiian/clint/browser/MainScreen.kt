@@ -17,9 +17,24 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 
+import com.jhaiian.clint.browser.find.FindBar
+import com.jhaiian.clint.browser.find.onSuggestionFindChosen
 import com.jhaiian.clint.browser.delegates.*
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import com.jhaiian.clint.browser.toolbar.BottomBarAction
+import com.jhaiian.clint.browser.toolbar.icon
+import com.jhaiian.clint.browser.toolbar.titleRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -102,9 +117,7 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
         AndroidView(
             factory = { activity.swipeRefreshView },
             modifier = Modifier.fillMaxSize(),
-            update = { view ->
-                view.setPadding(0, state.contentPaddingTopPx, 0, if (state.isFullscreen) 0 else maxOf(state.contentPaddingBottomPx, state.imeInsetPx))
-            }
+            update = { activity.applyWebContentLayout() }
         )
 
         if (state.isHomePage && !state.isFullscreen) {
@@ -118,6 +131,19 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
                         bottom = with(density) { state.contentPaddingBottomPx.toDp() }
                     )
             )
+        }
+
+        if (!state.isFullscreen && !state.isHomePage && !state.searchOverlayOpen && !tabSwitcherOpen && state.video.floatingButton) {
+            com.jhaiian.clint.browser.video.VideoFloatingBar(activity, state)
+        }
+        com.jhaiian.clint.downloads.mega.MegaDownloadFab(
+            activity = activity,
+            state = state,
+            visible = !state.isFullscreen && !state.isHomePage && !state.searchOverlayOpen && !tabSwitcherOpen,
+            modifier = Modifier.align(Alignment.BottomEnd)
+        )
+        if (state.isFullscreen && state.video.active && !state.video.inPip) {
+            com.jhaiian.clint.browser.video.VideoPlayerOverlay(state.video, remember { activity.videoPlayerController() })
         }
 
         val openTabSwitcher: () -> Unit = {
@@ -150,6 +176,7 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
                 activity = activity,
                 state = state,
                 navBarPaddingPx = effectiveNavBarPx,
+                onTabCountClick = openTabSwitcher,
                 showTabStrip = !tabStripAtTop,
                 showTabGroupBar = !tabGroupBarAtTop,
                 onOpenTabGroup = openTabGroup,
@@ -194,6 +221,8 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
             )
         }
 
+        FindBar(activity, state, tabSwitcherOpen)
+
         com.jhaiian.clint.translation.TranslateBar(
             request = state.translateBarRequest,
             visible = !state.isFullscreen && !state.searchOverlayOpen && !tabSwitcherOpen,
@@ -223,27 +252,48 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
             ),
             modifier = Modifier.align(if (state.searchOverlayIsBottom) Alignment.BottomStart else Alignment.TopStart)
         ) {
+            val currentEngine = searchEngineFor(activity.prefs, state.isIncognito)
+            val customEngine = customSearchEngineName(activity.prefs, state.isIncognito)
+            val engines = buildList {
+                add(SearchEngineOption("duckduckgo", engineDisplayName("duckduckgo", customEngine), "https://duckduckgo.com"))
+                add(SearchEngineOption("brave", engineDisplayName("brave", customEngine), "https://search.brave.com"))
+                add(SearchEngineOption("ecosia", engineDisplayName("ecosia", customEngine), "https://www.ecosia.org"))
+                add(SearchEngineOption("google", engineDisplayName("google", customEngine), "https://www.google.com"))
+                customSearchEngines(activity.prefs).filter { it.hasSearch }.forEach {
+                    add(SearchEngineOption(it.key, it.name, searchHomeUrlFor(activity.prefs, it.key)))
+                }
+            }
             SearchOverlay(
+                fieldShape = com.jhaiian.clint.browser.toolbar.searchBarShape(state.toolbarLayout.searchShape),
                 initialText = state.searchQuery,
                 isBottom = state.searchOverlayIsBottom,
-                hint = stringResource(
-                    R.string.search_bar_hint,
-                    engineDisplayName(
-                        searchEngineFor(activity.prefs, state.isIncognito),
-                        customSearchEngineName(activity.prefs, state.isIncognito)
-                    )
-                ),
+                hint = stringResource(R.string.search_bar_hint, engineDisplayName(currentEngine, customEngine)),
                 suggestions = state.suggestions,
                 statusBarPaddingPx = effectiveStatusBarPx,
+                display = remember { com.jhaiian.clint.browser.suggestions.readSuggestionDisplay(activity.prefs) },
                 navBarPaddingPx = effectiveNavBarPx,
                 onQueryChange = { activity.onSearchQueryChanged(it) },
                 onSubmit = { activity.onSearchSubmitted(it) },
                 onVoiceSearch = { activity.handleVoiceSearchTap() },
                 onClose = { activity.closeSearchOverlay() },
-                onSuggestionClick = { activity.onSuggestionChosen(it) },
+                onSuggestionClick = { item ->
+                    val tabId = item.tabId
+                    if (item.type == SuggestionType.FIND_IN_PAGE) {
+                        activity.onSuggestionFindChosen(item.query)
+                    } else if (tabId != null) {
+                        activity.onSuggestionTabChosen(tabId)
+                    } else {
+                        activity.onSuggestionChosen(item.query)
+                    }
+                },
                 onSuggestionDelete = { activity.onSuggestionHistoryDelete(it) },
                 modifier = Modifier.fillMaxSize(),
-                incognitoKeyboard = state.isIncognito && com.jhaiian.clint.privacy.IncognitoKeyboard.isEnabled(activity)
+                incognitoKeyboard = state.isIncognito && com.jhaiian.clint.privacy.IncognitoKeyboard.isEnabled(activity),
+                engines = engines,
+                currentEngine = currentEngine,
+                onSearchWithEngine = { query, engine -> activity.onSearchSubmitted(query, engine) },
+                canPaste = remember { activity.clipboardHasText() },
+                onPasteAndGo = { activity.pasteAndGo(state.searchOverlayIsBottom) }
             )
         }
 
@@ -333,7 +383,8 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
                 profiles = remember { com.jhaiian.clint.profiles.ProfileRepository.all(activity) },
                 hideStatusBar = hideStatusBarPref,
                 hideSystemNavigation = hideSystemNavigationPref,
-                onPick = { id -> state.profilePickerOpen = false; activity.onNewTabInProfile(id) },
+                onPick = { id -> state.profilePickerOpen = false; activity.onSwitchProfile(id) },
+                selectedId = activity.tabManager.activeProfileId,
                 onManage = {
                     state.profilePickerOpen = false
                     activity.startActivity(android.content.Intent(activity, com.jhaiian.clint.profiles.ProfilesActivity::class.java))
@@ -359,9 +410,20 @@ internal fun MainScreen(activity: MainActivity, state: MainUiState) {
         state.createShortcutRequest?.let { req ->
             com.jhaiian.clint.browser.dialogs.CreateShortcutDialog(req, activity, hideStatusBarPref, hideSystemNavigationPref) { state.createShortcutRequest = null }
         }
+        state.favoriteRequest?.let { req ->
+            com.jhaiian.clint.browser.home.HomeSiteEditDialog(
+                activity = activity,
+                request = req,
+                iconVersion = 0,
+                hideStatusBar = hideStatusBarPref,
+                hideSystemNavigation = hideSystemNavigationPref,
+                onDismiss = { state.favoriteRequest = null }
+            ) { url, title, icon, _ -> activity.saveFavorite(url, title, icon) }
+        }
         state.openInAppRequest?.let { req ->
             com.jhaiian.clint.browser.webview.OpenInAppDialog(req, hideStatusBarPref, hideSystemNavigationPref) { state.openInAppRequest = null }
         }
+        com.jhaiian.clint.parental.ParentalGateHost(state.parentalGate, hideStatusBarPref, hideSystemNavigationPref) { state.parentalGate = null }
         if (state.bookmarkFolderDialogOpen) {
             com.jhaiian.clint.bookmarks.MoveToFolderDialog(
                 tree = state.bookmarkFolderTree,
@@ -436,6 +498,7 @@ private fun TopToolbar(
             onTabCountClick = onTabCountClick,
             onMediaCaptureClick = { activity.mountMediaCaptureDialog() },
             showHomeButton = state.showHomeButton,
+            stripUrlScheme = state.stripUrlScheme,
             onHomeClick = { activity.navGoHome() },
             onSwipeTabChange = { direction -> activity.onSwipeTabChange(direction) },
             onSiteInfoClick = { if (!activity.openSiteInfo()) activity.openSearchOverlay(isBottom = false) },
@@ -552,7 +615,11 @@ private fun TabStripSlot(activity: MainActivity, state: MainUiState, onOpenTabGr
                 onAddToNewGroup = { id -> state.tabStripNewGroupTabId = id },
                 onRemoveFromGroup = { id -> activity.removeTabFromGroup(id) },
                 onToggleGroup = { groupId -> activity.toggleTabGroupCollapsed(groupId) },
-                onOpenGroup = onOpenTabGroup
+                onOpenGroup = onOpenTabGroup,
+                onTogglePinTab = { id ->
+                    val pinned = shown.tabs.firstOrNull { it.id == id }?.isPinned == true
+                    activity.setTabsPinned(listOf(id), !pinned)
+                }
             )
         }
     }
@@ -589,12 +656,21 @@ private fun PageLoadProgress(state: MainUiState) {
                 animationSpec = tween(250),
                 label = "pageLoadProgress"
             )
-            LinearProgressIndicator(
-                progress = { shownProgress },
-                color = colors.primary,
-                trackColor = colors.surface,
-                modifier = Modifier.fillMaxWidth().height(4.dp)
-            )
+            if (state.toolbarLayout.progressStyle == com.jhaiian.clint.browser.toolbar.PROGRESS_SQUIGGLE) {
+                com.jhaiian.clint.browser.toolbar.SquigglyProgress(
+                    progress = shownProgress,
+                    color = colors.primary,
+                    trackColor = colors.surface,
+                    modifier = Modifier.fillMaxWidth().height(4.dp)
+                )
+            } else {
+                LinearProgressIndicator(
+                    progress = { shownProgress },
+                    color = colors.primary,
+                    trackColor = colors.surface,
+                    modifier = Modifier.fillMaxWidth().height(4.dp)
+                )
+            }
         }
     }
 }
@@ -641,12 +717,14 @@ private fun BottomToolbar(
             onTabCountClick = onTabCountClick,
             onMediaCaptureClick = { activity.mountMediaCaptureDialog() },
             showHomeButton = state.showHomeButton,
+            stripUrlScheme = state.stripUrlScheme,
             onHomeClick = { activity.navGoHome() },
             onSwipeTabChange = { direction -> activity.onSwipeTabChange(direction) },
             onSiteInfoClick = { if (!activity.openSiteInfo()) activity.openSearchOverlay(isBottom = true) },
             openTabsSwipeDirection = -1,
             isBottomBar = true
         )
+        if (state.toolbarLayout.showInBottomPosition) BottomNavButtons(activity, state, 0, onTabCountClick)
     }
 }
 
@@ -655,6 +733,7 @@ private fun BottomNavBar(
     activity: MainActivity,
     state: MainUiState,
     navBarPaddingPx: Int,
+    onTabCountClick: () -> Unit,
     showTabStrip: Boolean,
     showTabGroupBar: Boolean,
     onOpenTabGroup: (String) -> Unit,
@@ -676,54 +755,147 @@ private fun BottomNavBar(
     ) {
         if (showTabGroupBar) TabGroupBarSlot(activity, state, onOpenTabGroup)
         if (showTabStrip) TabStripSlot(activity, state, onOpenTabGroup)
-        BottomNavButtons(activity, state, navBarPaddingPx)
+        BottomNavButtons(activity, state, navBarPaddingPx, onTabCountClick)
     }
 }
 
 @Composable
-private fun BottomNavButtons(activity: MainActivity, state: MainUiState, navBarPaddingPx: Int) {
+private fun BottomNavButtons(activity: MainActivity, state: MainUiState, navBarPaddingPx: Int, onTabCountClick: () -> Unit) {
     val density = LocalDensity.current
+    val colors = LocalClintColors.current
+    val layout = state.toolbarLayout
+    val barHeight = (if (layout.compact) 44.dp else 52.dp) + (if (layout.showLabels) 12.dp else 0.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(52.dp)
+            .height(barHeight)
             .padding(bottom = with(density) { navBarPaddingPx.toDp() }),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly
     ) {
-        NavIconButton(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), enabled = state.canGoBack) { activity.navGoBack() }
-        NavIconButton(androidx.compose.material.icons.Icons.AutoMirrored.Filled.ArrowForward, stringResource(R.string.forward), enabled = state.canGoForward) { activity.navGoForward() }
-        NavIconButton(androidx.compose.material.icons.Icons.Filled.Home, stringResource(R.string.home), enabled = true) { activity.navGoHome() }
-        NavIconButton(
-            if (state.isPageLoading) androidx.compose.material.icons.Icons.Filled.Close else androidx.compose.material.icons.Icons.Filled.Refresh,
-            stringResource(R.string.refresh),
-            enabled = true
-        ) { activity.navRefreshOrStop() }
-        NavIconButton(
-            if (state.isBookmarked) androidx.compose.material.icons.Icons.Filled.Bookmark else androidx.compose.material.icons.Icons.Filled.BookmarkBorder,
-            stringResource(R.string.content_desc_bookmark),
-            enabled = state.hasActiveUrl
-        ) { activity.navToggleBookmark() }
+        layout.bottomActions.forEach { action ->
+            val label = stringResource(action.titleRes())
+            if (action == BottomBarAction.MENU) {
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    com.jhaiian.clint.browser.menu.MenuTriggerButton(activity)
+                }
+            } else {
+                val longPressTarget = layout.longPress[action]
+                NavButton(
+                    label = label,
+                    enabled = bottomActionEnabled(action, state),
+                    showLabel = layout.showLabels,
+                    onLongClick = longPressTarget?.let { target -> { performBottomAction(activity, state, target, onTabCountClick) } },
+                    onClick = { performBottomAction(activity, state, action, onTabCountClick) }
+                ) {
+                    if (action == BottomBarAction.TABS) {
+                        Box(
+                            modifier = Modifier
+                                .defaultMinSize(minWidth = 26.dp, minHeight = 24.dp)
+                                .border(2.dp, colors.primary, RoundedCornerShape(5.dp))
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = state.tabCountText,
+                                color = colors.primary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    } else {
+                        Icon(
+                            imageVector = bottomActionIcon(action, state),
+                            contentDescription = label,
+                            tint = colors.iconTint
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
+private fun bottomActionEnabled(action: BottomBarAction, state: MainUiState): Boolean = when (action) {
+    BottomBarAction.BACK -> state.canGoBack
+    BottomBarAction.FORWARD -> state.canGoForward
+    BottomBarAction.BOOKMARK -> state.hasActiveUrl
+    BottomBarAction.SHARE, BottomBarAction.FIND_IN_PAGE -> state.hasActiveUrl && !state.isHomePage
+    else -> true
+}
+
+private fun bottomActionIcon(action: BottomBarAction, state: MainUiState): androidx.compose.ui.graphics.vector.ImageVector = when (action) {
+    BottomBarAction.RELOAD -> if (state.isPageLoading) androidx.compose.material.icons.Icons.Filled.Close else androidx.compose.material.icons.Icons.Filled.Refresh
+    BottomBarAction.BOOKMARK -> if (state.isBookmarked) androidx.compose.material.icons.Icons.Filled.Bookmark else androidx.compose.material.icons.Icons.Filled.BookmarkBorder
+    else -> action.icon()
+}
+
+private fun performBottomAction(activity: MainActivity, state: MainUiState, action: BottomBarAction, onTabCountClick: () -> Unit) {
+    when (action) {
+        BottomBarAction.BACK -> activity.navGoBack()
+        BottomBarAction.FORWARD -> activity.navGoForward()
+        BottomBarAction.HOME -> activity.navGoHome()
+        BottomBarAction.RELOAD -> activity.navRefreshOrStop()
+        BottomBarAction.BOOKMARK -> activity.navToggleBookmark()
+        BottomBarAction.SHARE -> activity.onMenuShare()
+        BottomBarAction.NEW_TAB -> if (state.isIncognito) activity.onNewIncognitoTab() else activity.onNewTab()
+        BottomBarAction.TABS -> onTabCountClick()
+        BottomBarAction.DOWNLOADS -> activity.onMenuDownloads()
+        BottomBarAction.HISTORY -> activity.onMenuHistory()
+        BottomBarAction.FIND_IN_PAGE -> activity.onMenuFindInPage()
+        BottomBarAction.MENU -> Unit
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.NavIconButton(
-    iconRes: androidx.compose.ui.graphics.vector.ImageVector,
-    description: String,
+private fun androidx.compose.foundation.layout.RowScope.NavButton(
+    label: String,
     enabled: Boolean,
-    onClick: () -> Unit
+    showLabel: Boolean,
+    onLongClick: (() -> Unit)?,
+    onClick: () -> Unit,
+    glyph: @Composable () -> Unit
 ) {
     val colors = LocalClintColors.current
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier.weight(1f).fillMaxSize()
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .fillMaxSize()
+            .combinedClickable(
+                role = Role.Button,
+                onClickLabel = label,
+                onClick = onClick,
+                onLongClick = onLongClick?.let { action ->
+                    {
+                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        action()
+                    }
+                }
+            ),
+        contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = iconRes,
-            contentDescription = description,
-            tint = colors.iconTint,
-            modifier = Modifier.alpha(if (enabled) 1.0f else 0.38f)
-        )
+        Column(
+            modifier = Modifier.alpha(if (enabled) 1.0f else 0.38f),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(contentAlignment = Alignment.Center) { glyph() }
+            if (showLabel) {
+                Text(
+                    text = label,
+                    color = colors.iconTint,
+                    fontSize = 10.sp,
+                    lineHeight = 12.sp,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 
@@ -732,6 +904,5 @@ internal fun engineDisplayName(engine: String, customName: String): String = whe
     "brave" -> stringResource(R.string.engine_brave)
     "ecosia" -> stringResource(R.string.engine_ecosia)
     "google" -> stringResource(R.string.engine_google)
-    "custom" -> customName.ifBlank { stringResource(R.string.engine_custom) }
-    else -> stringResource(R.string.engine_duckduckgo)
+    else -> if (isCustomEngineKey(engine)) customName.ifBlank { stringResource(R.string.engine_custom) } else stringResource(R.string.engine_duckduckgo)
 }

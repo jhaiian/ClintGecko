@@ -95,6 +95,10 @@ import com.jhaiian.clint.ui.TabMenuOverflowMenu
 import com.jhaiian.clint.ui.TabSelectionOverflowMenu
 import com.jhaiian.clint.ui.listscreen.ClintSearchField
 import com.jhaiian.clint.ui.showClintTwoActionSnackbar
+import com.jhaiian.clint.ui.showClintSnackbar
+import com.jhaiian.clint.ui.UNDO_SNACKBAR_TIMEOUT_MS
+import com.jhaiian.clint.ui.ClintDialog
+import androidx.compose.foundation.clickable
 import com.jhaiian.clint.ui.theme.LocalClintColors
 
 private val GridEdgePadding = 7.dp
@@ -222,21 +226,13 @@ private fun duplicateTabIds(tabs: List<TabPreview>, activeTabId: String?): List<
         .values
         .filter { it.size > 1 }
         .flatMap { copies ->
-            val keeper = copies.firstOrNull { it.id == activeTabId } ?: copies.first()
-            copies.filter { it.id != keeper.id }.map { it.id }
+            val keeper = copies.firstOrNull { it.id == activeTabId } ?: copies.firstOrNull { it.isPinned } ?: copies.first()
+            copies.filter { it.id != keeper.id && !it.isPinned }.map { it.id }
         }
 
 private fun canMergeTabs(dragged: TabPreview, target: TabPreview): Boolean =
     dragged.id != target.id && dragged.isIncognito == target.isIncognito &&
         (target.groupId == null || target.groupId != dragged.groupId)
-
-private fun suggestGroupName(urls: List<String>): String {
-    val hosts = urls.mapNotNull { url ->
-        runCatching { android.net.Uri.parse(url).host }.getOrNull()?.removePrefix("www.")?.takeIf { it.isNotBlank() }
-    }
-    if (hosts.isEmpty() || hosts.size != urls.size || hosts.distinct().size != 1) return ""
-    return hosts.first().take(TAB_GROUP_NAME_MAX_LENGTH)
-}
 
 @Composable
 fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
@@ -254,6 +250,7 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
     val groupsEnabled = remember { TabGroupPrefs.isEnabled(prefs) }
     var editorRequest by remember { mutableStateOf<TabGroupEditorRequest?>(null) }
     var showMovePicker by remember { mutableStateOf(false) }
+    var showRecentlyClosed by remember { mutableStateOf(false) }
     var scrollToGroupId by remember { mutableStateOf<String?>(null) }
     var searchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -336,13 +333,84 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
         }
     }
 
+    var showSortDialog by remember { mutableStateOf(false) }
+
+    fun undoArrangement(
+        previousOrder: List<String>,
+        previousAssignments: Map<String, String?>,
+        previousGroups: List<TabGroup>
+    ) {
+        commitGroups {
+            previousGroups.forEach { restoreGroup(it) }
+            val currentIds = this.tabs.map { it.id }
+            val currentSet = currentIds.toSet()
+            val previousSet = previousOrder.toSet()
+            applyArrangement(previousOrder.filter { it in currentSet } + currentIds.filter { it !in previousSet }, previousAssignments)
+        }
+    }
+
+    fun sortTabsWithUndo(mode: TabSortMode) {
+        val previousOrder = tabManager.tabs.map { it.id }
+        val previousAssignments = tabManager.tabs.associate { it.id to it.groupId }
+        val previousGroups = tabManager.groups.toList()
+        commitGroups { sortTabs(mode) }
+        activity.showClintSnackbar(
+            message = activity.getString(R.string.tab_menu_tabs_sorted),
+            actionLabel = activity.getString(R.string.action_undo),
+            timeoutMs = UNDO_SNACKBAR_TIMEOUT_MS
+        ) { undoArrangement(previousOrder, previousAssignments, previousGroups) }
+    }
+
+    fun groupBySiteWithUndo() {
+        val previousOrder = tabManager.tabs.map { it.id }
+        val previousAssignments = tabManager.tabs.associate { it.id to it.groupId }
+        val previousGroups = tabManager.groups.toList()
+        var created = 0
+        commitGroups { created = groupBySite() }
+        if (created > 0) {
+            activity.showClintSnackbar(
+                message = activity.resources.getQuantityString(R.plurals.tab_menu_grouped_by_site, created, created),
+                actionLabel = activity.getString(R.string.action_undo),
+                timeoutMs = UNDO_SNACKBAR_TIMEOUT_MS
+            ) { undoArrangement(previousOrder, previousAssignments, previousGroups) }
+        } else {
+            activity.showClintSnackbar(message = activity.getString(R.string.tab_menu_nothing_to_group))
+        }
+    }
+
+    if (showSortDialog) {
+        ClintDialog(
+            title = stringResource(R.string.tab_menu_sort_tabs),
+            hideStatusBar = hideStatusBar,
+            hideSystemNavigation = hideSystemNavigation,
+            onDismiss = { showSortDialog = false }
+        ) {
+            listOf(
+                TabSortMode.LAST_USED to R.string.tab_sort_last_used,
+                TabSortMode.SITE to R.string.tab_sort_site,
+                TabSortMode.TITLE to R.string.tab_sort_title
+            ).forEach { (mode, label) ->
+                Text(
+                    stringResource(label),
+                    color = colors.onSurface,
+                    fontSize = 16.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showSortDialog = false; sortTabsWithUndo(mode) }
+                        .padding(horizontal = 24.dp, vertical = 14.dp)
+                )
+            }
+        }
+    }
+
     var showProfilePicker by remember { mutableStateOf(false) }
     if (showProfilePicker) {
         com.jhaiian.clint.profiles.ProfilePickerDialog(
             profiles = remember { com.jhaiian.clint.profiles.ProfileRepository.all(activity) },
             hideStatusBar = hideStatusBar,
             hideSystemNavigation = hideSystemNavigation,
-            onPick = { id -> showProfilePicker = false; activity.onNewTabInProfile(id); onDismiss() },
+            onPick = { id -> showProfilePicker = false; activity.onSwitchProfile(id); onDismiss() },
+            selectedId = activity.tabManager.activeProfileId,
             onManage = {
                 showProfilePicker = false
                 activity.startActivity(android.content.Intent(activity, com.jhaiian.clint.profiles.ProfilesActivity::class.java))
@@ -350,6 +418,10 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
             },
             onDismiss = { showProfilePicker = false }
         )
+    }
+
+    if (showRecentlyClosed) {
+        RecentlyClosedSheet(activity, onDismiss = { showRecentlyClosed = false }, onReopened = onDismiss)
     }
 
     editorRequest?.let { request ->
@@ -711,6 +783,9 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
                     val ids = duplicateTabIds(tabs, activeTabId)
                     closeTabs(ids, activity.resources.getQuantityString(R.plurals.tab_menu_closed_duplicates, ids.size, ids.size))
                 }) else null,
+                onSortTabs = if (tabs.size >= 2) ({ showSortDialog = true }) else null,
+                onGroupBySite = if (groupsEnabled) ({ groupBySiteWithUndo() }) else null,
+                onRecentlyClosed = { showRecentlyClosed = true },
                 onToggleSelectionMode = { uiState.selectionMode = true },
                 onSelectAll = { uiState.selectAll(tabs.map { it.id }) },
                 onInvertSelection = { uiState.invertSelection(tabs.map { it.id }) },
@@ -732,7 +807,7 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
                         showProfilePicker = true
                     }
                 },
-                onCloseAllTabs = { closeTabs(tabs.map { it.id }) },
+                onCloseAllTabs = { closeTabs(tabs.filter { !it.isPinned }.map { it.id }) },
                 buttonsAtBottom = buttonsAtBottom,
                 onToggleButtonsAtBottom = {
                     buttonsAtBottom = !buttonsAtBottom
@@ -977,6 +1052,7 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
                                                         onToggleSelect = { uiState.toggleSelected(preview.id) },
                                                         onClose = { closeTabs(listOf(preview.id)) },
                                                         onToggleMute = { activity.toggleTabMute(preview.id) },
+                                                        onTogglePin = { commitGroups { setPinned(listOf(preview.id), !preview.isPinned) } },
                                                         mergeHighlighted = mergeHighlighted,
                                                         showDragHandle = !searching,
                                                         longPressDragModifier = cardDragModifier,
@@ -998,6 +1074,7 @@ fun TabMenuScreen(activity: MainActivity, onDismiss: () -> Unit) {
                                                         onToggleSelect = { uiState.toggleSelected(preview.id) },
                                                         onClose = { closeTabs(listOf(preview.id)) },
                                                         onToggleMute = { activity.toggleTabMute(preview.id) },
+                                                        onTogglePin = { commitGroups { setPinned(listOf(preview.id), !preview.isPinned) } },
                                                         mergeHighlighted = mergeHighlighted,
                                                         showDragHandle = !searching,
                                                         longPressDragModifier = cardDragModifier,
@@ -1159,6 +1236,9 @@ private fun TabMenuTopBar(
     listView: Boolean,
     onToggleListView: () -> Unit,
     onCloseDuplicates: (() -> Unit)?,
+    onSortTabs: (() -> Unit)?,
+    onGroupBySite: (() -> Unit)?,
+    onRecentlyClosed: () -> Unit,
     onToggleSelectionMode: () -> Unit,
     onSelectAll: () -> Unit,
     onInvertSelection: () -> Unit,
@@ -1255,6 +1335,9 @@ private fun TabMenuTopBar(
                             onCollapseAllGroups = if (hasGroups && !allGroupsCollapsed) onCollapseAllGroups else null,
                             onExpandAllGroups = if (hasGroups && allGroupsCollapsed) onExpandAllGroups else null,
                             onCloseDuplicates = onCloseDuplicates,
+                            onSortTabs = onSortTabs,
+                            onGroupBySite = onGroupBySite,
+                            onRecentlyClosed = onRecentlyClosed,
                             listView = listView,
                             onToggleListView = onToggleListView,
                             buttonsAtBottom = buttonsAtBottom,

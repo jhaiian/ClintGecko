@@ -3,6 +3,7 @@ package com.jhaiian.clint.history
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.jhaiian.clint.parental.ParentalGateRequest
 import com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig
 import com.jhaiian.clint.ui.listscreen.ListSortKey
 import com.jhaiian.clint.ui.listscreen.ListSortOrder
@@ -25,6 +26,7 @@ class HistoryUiState {
 
     var deleteConfirm by mutableStateOf<ConfirmDialogConfig?>(null)
     var clearAllConfirm by mutableStateOf<ConfirmDialogConfig?>(null)
+    var parentalGate by mutableStateOf<ParentalGateRequest?>(null)
 
     val selectedCount get() = selectedKeys.size
 

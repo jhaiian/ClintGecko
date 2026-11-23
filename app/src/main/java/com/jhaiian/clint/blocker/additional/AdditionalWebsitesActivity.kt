@@ -11,6 +11,9 @@ import androidx.core.view.WindowCompat
 import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
 import com.jhaiian.clint.base.ClintActivity
+import com.jhaiian.clint.blocker.WebsiteBlockerActivity
+import com.jhaiian.clint.blocker.WebsiteBlockerGuardHost
+import com.jhaiian.clint.parental.ParentalGateRequest
 import com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig
 import com.jhaiian.clint.ui.listscreen.ConfirmDialogHost
 import com.jhaiian.clint.ui.rememberMaxContentWidth
@@ -21,9 +24,32 @@ class AdditionalWebsitesActivity : ClintActivity() {
     private lateinit var db: AdditionalWebsitesDatabase
     private lateinit var uiState: AdditionalWebsitesUiState
     private var deleteConfirm by mutableStateOf<ConfirmDialogConfig?>(null)
+    private var guardRequest by mutableStateOf<ParentalGateRequest?>(null)
 
     private fun reload() {
         uiState.rules = db.getAll()
+    }
+
+    private fun isProtectionActive(): Boolean =
+        PreferenceManager.getDefaultSharedPreferences(this).getBoolean(WebsiteBlockerActivity.PREF_ENABLED, false) &&
+            AdditionalWebsitesState.isEnabled(this)
+
+    private fun setAdditionalEnabled(enabled: Boolean) {
+        uiState.isEnabled = enabled
+        AdditionalWebsitesState.setEnabled(this, enabled)
+    }
+
+    private fun requestToggleEnabled(enabled: Boolean) {
+        if (enabled || !isProtectionActive()) {
+            setAdditionalEnabled(enabled)
+            return
+        }
+        guardRequest = ParentalGateRequest(
+            title = getString(R.string.website_blocker_guard_additional_disable_title),
+            message = getString(R.string.website_blocker_guard_additional_disable_message),
+            positiveLabel = getString(R.string.website_blocker_guard_turn_off_action),
+            onConfirm = { setAdditionalEnabled(false) }
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,10 +83,7 @@ class AdditionalWebsitesActivity : ClintActivity() {
                         maxContentWidth = maxContentWidth,
                         hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
                         onExit = { finish() },
-                        onToggleEnabled = { enabled ->
-                            uiState.isEnabled = enabled
-                            AdditionalWebsitesState.setEnabled(this@AdditionalWebsitesActivity, enabled)
-                        },
+                        onToggleEnabled = { enabled -> requestToggleEnabled(enabled) },
                         onAddHosts = { hosts ->
                             db.addAll(hosts)
                             reload()
@@ -69,6 +92,7 @@ class AdditionalWebsitesActivity : ClintActivity() {
                     )
 
                     ConfirmDialogHost(deleteConfirm, hideStatusBar, hideSystemNavigation) { deleteConfirm = null }
+                    WebsiteBlockerGuardHost(guardRequest, hideStatusBar, hideSystemNavigation) { guardRequest = null }
                 }
             }
         }
@@ -77,6 +101,19 @@ class AdditionalWebsitesActivity : ClintActivity() {
     private fun showDeleteSelectedConfirm() {
         val ids = uiState.selectedIds
         if (ids.isEmpty()) return
+        if (isProtectionActive()) {
+            guardRequest = ParentalGateRequest(
+                title = getString(R.string.website_blocker_guard_additional_delete_title),
+                message = getString(R.string.website_blocker_guard_additional_delete_message, ids.size),
+                positiveLabel = getString(R.string.history_delete_selected),
+                onConfirm = {
+                    db.removeAll(ids)
+                    uiState.exitSelectionMode()
+                    reload()
+                }
+            )
+            return
+        }
         deleteConfirm = ConfirmDialogConfig(
             title = getString(R.string.additional_websites_delete_confirm_title),
             message = getString(R.string.additional_websites_delete_confirm_message, ids.size),

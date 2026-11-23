@@ -43,13 +43,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -57,6 +55,8 @@ import androidx.preference.PreferenceManager
 import com.caverock.androidsvg.SVG
 import com.jhaiian.clint.R
 import com.jhaiian.clint.browser.MainActivity
+import com.jhaiian.clint.ui.ClintSheetWindowInsets
+import com.jhaiian.clint.ui.rememberSheetFlingConnection
 import com.jhaiian.clint.ui.theme.LocalClintColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -79,6 +79,7 @@ data class ImageLongPressRequest(
 internal fun ImageLongPressSheet(request: ImageLongPressRequest, activity: MainActivity, onDismiss: () -> Unit) {
     val colors = LocalClintColors.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val flingBoundaryConnection = rememberSheetFlingConnection(sheetState)
     val hideStatusBar = remember { PreferenceManager.getDefaultSharedPreferences(activity).getBoolean("hide_status_bar", false) }
     val hideSystemNavigation = remember { PreferenceManager.getDefaultSharedPreferences(activity).getBoolean("hide_system_navigation", false) }
 
@@ -108,11 +109,6 @@ internal fun ImageLongPressSheet(request: ImageLongPressRequest, activity: MainA
 
     val showTabActions = !request.isStandalone || request.isPreviewContext
     val listState = rememberLazyListState()
-    val flingBoundaryConnection = remember {
-        object : NestedScrollConnection {
-            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity = available
-        }
-    }
     val configuration = LocalConfiguration.current
 
     val isPortrait = configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
@@ -125,6 +121,7 @@ internal fun ImageLongPressSheet(request: ImageLongPressRequest, activity: MainA
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        contentWindowInsets = { ClintSheetWindowInsets },
         containerColor = colors.popupBackground,
         dragHandle = { BottomSheetDefaults.DragHandle(color = colors.divider) }
     ) {

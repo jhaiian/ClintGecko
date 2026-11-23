@@ -111,11 +111,20 @@ fun DownloadsScreen(
     }
 
     val resumeAll = { allItems.filter { it.status == DownloadStatus.PAUSED }.forEach { onResume(it.id) } }
-    val pauseAll = { allItems.filter { it.status in DownloadStatus.ACTIVELY_WORKING || it.status == DownloadStatus.QUEUED }.forEach { onPause(it.id) } }
+    val pauseAll = {
+        allItems.filter {
+            it.status == DownloadStatus.QUEUED ||
+                (it.status in DownloadStatus.ACTIVELY_WORKING && (it.resumable || it.bytesDownloaded == 0L))
+        }.forEach { onPause(it.id) }
+    }
     val onItemClick: (DownloadItem) -> Unit = { item ->
         when {
             state.isInSelectionMode -> state.toggleSelection(item.id)
-            item.status == DownloadStatus.COMPLETE -> onOpenItem(item)
+            item.status == DownloadStatus.COMPLETE -> when (state.appearance.tapAction) {
+                DownloadTapAction.OPEN -> onOpenItem(item)
+                DownloadTapAction.SHEET -> state.sheetItemId = item.id
+                DownloadTapAction.SHARE -> itemActions.onShare(item)
+            }
             item.status == DownloadStatus.QUEUED -> state.sheetItemId = item.id
             else -> state.toggleExpanded(item.id)
         }
@@ -170,7 +179,7 @@ fun DownloadsScreen(
                         tick = tick,
                         gridState = queueGridState,
                         maxContentWidth = maxContentWidth,
-                        showPulse = unfinished.isNotEmpty() && query.isBlank(),
+                        showPulse = unfinished.isNotEmpty() && query.isBlank() && state.appearance.showLiveStats,
                         totalHistory = totalHistory,
                         perItemHistory = perItemHistory,
                         onPause = onPause, onResume = onResume, onRetry = onRetry,
@@ -189,6 +198,8 @@ fun DownloadsScreen(
                         items = libraryItems,
                         gridState = libraryGridState,
                         maxContentWidth = maxContentWidth,
+                        hideStatusBar = hideStatusBar,
+                        hideSystemNavigation = hideSystemNavigation,
                         onItemClick = onItemClick,
                         onItemLongClick = onItemLongClick,
                         onShowSheet = { state.sheetItemId = it.id },
@@ -309,12 +320,15 @@ fun DownloadsScreen(
         DownloadUpdateLinkDialog(item = item, hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation, onDismiss = { state.updateLinkItem = null })
     }
     if (state.manualDownloadDialogOpen) {
-        DownloadManualDialog(
-            hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
-            prefillUrl = state.manualDownloadPrefillUrl,
-            onDismiss = { state.manualDownloadDialogOpen = false; state.manualDownloadPrefillUrl = null },
-            onSubmit = onSubmitManualDownload
-        )
+        androidx.compose.runtime.key(state.manualDownloadPrefillUrl, state.manualDownloadSession) {
+            DownloadManualDialog(
+                hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
+                prefillUrl = state.manualDownloadPrefillUrl,
+                session = state.manualDownloadSession,
+                onDismiss = { state.manualDownloadDialogOpen = false; state.manualDownloadPrefillUrl = null; state.manualDownloadSession = null },
+                onSubmit = onSubmitManualDownload
+            )
+        }
     }
 }
 
@@ -337,6 +351,12 @@ private fun DownloadsToolbar(
 ) {
     val colors = LocalClintColors.current
     val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { androidx.preference.PreferenceManager.getDefaultSharedPreferences(context) }
+    fun applySort(key: DownloadSortKey, order: ListSortOrder) {
+        state.sortKey = key
+        state.sortOrder = order
+        DownloadAppearance.saveSort(prefs, key, order)
+    }
     val showToolbarIcons = !state.isInSelectionMode && !state.isSearchMode
 
     Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -377,12 +397,12 @@ private fun DownloadsToolbar(
                         expanded = state.sortMenuOpen,
                         onDismiss = { state.sortMenuOpen = false },
                         sortKey = state.sortKey, sortOrder = state.sortOrder,
-                        onSortByName = { state.sortKey = DownloadSortKey.NAME; state.sortOrder = ListSortOrder.ASCENDING },
-                        onSortByDate = { state.sortKey = DownloadSortKey.DATE; state.sortOrder = ListSortOrder.DESCENDING },
-                        onSortBySize = { state.sortKey = DownloadSortKey.SIZE; state.sortOrder = ListSortOrder.DESCENDING },
-                        onSortByStatus = { state.sortKey = DownloadSortKey.STATUS; state.sortOrder = ListSortOrder.ASCENDING },
-                        onSortAscending = { state.sortOrder = ListSortOrder.ASCENDING },
-                        onSortDescending = { state.sortOrder = ListSortOrder.DESCENDING }
+                        onSortByName = { applySort(DownloadSortKey.NAME, defaultSortOrder(DownloadSortKey.NAME)) },
+                        onSortByDate = { applySort(DownloadSortKey.DATE, defaultSortOrder(DownloadSortKey.DATE)) },
+                        onSortBySize = { applySort(DownloadSortKey.SIZE, defaultSortOrder(DownloadSortKey.SIZE)) },
+                        onSortByStatus = { applySort(DownloadSortKey.STATUS, defaultSortOrder(DownloadSortKey.STATUS)) },
+                        onSortAscending = { applySort(state.sortKey, ListSortOrder.ASCENDING) },
+                        onSortDescending = { applySort(state.sortKey, ListSortOrder.DESCENDING) }
                     )
                 }
             }

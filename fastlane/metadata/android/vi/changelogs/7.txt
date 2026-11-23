@@ -1,0 +1,11 @@
+• Trình phát video tích hợp với cử chỉ và PiP
+• Hồ sơ riêng biệt, chuyển đổi dễ dàng
+• Menu mới và thanh công cụ tùy chỉnh được
+• Thêm tùy chọn cho trang chủ và gợi ý tìm kiếm
+• Tìm trong trang
+• Ghim và sắp xếp thẻ, thẻ mới đóng gần đây
+• Hỗ trợ Custom Tabs
+• Kiểu xem tải xuống mới, cập nhật trực tiếp, trình tải xuống tùy chọn
+• Chọn nhiều và lọc theo kích thước trong Media Capture
+• Kiểm soát của phụ huynh và Tăng hiệu năng
+• GeckoView 160, thiết lập ban đầu mới và 5 ngôn ngữ

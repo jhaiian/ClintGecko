@@ -88,10 +88,12 @@ fun ProfilesScreen(
     hideStatusBar: Boolean,
     hideSystemNavigation: Boolean,
     onExit: () -> Unit,
-    onCreate: (String, Int) -> Unit,
-    onUpdate: (String, String, Int) -> Unit,
+    onCreate: (String, Int, Boolean) -> Unit,
+    onUpdate: (String, String, Int, Boolean) -> Unit,
     onClearData: (BrowserProfile) -> Unit,
-    onDelete: (BrowserProfile) -> ProfileDeleteResult
+    onDelete: (BrowserProfile) -> ProfileDeleteResult,
+    activeId: String,
+    onSwitch: (String) -> Unit
 ) {
     val colors = LocalClintColors.current
     var showCreate by remember { mutableStateOf(false) }
@@ -163,15 +165,18 @@ fun ProfilesScreen(
                                 name = stringResource(R.string.profiles_default_name),
                                 summary = stringResource(R.string.profiles_default_summary),
                                 color = ProfileRepository.defaultColor,
+                                selected = activeId == WebProfiles.DEFAULT_ID,
+                                onClick = { onSwitch(WebProfiles.DEFAULT_ID) },
                                 menu = null
                             )
                             profiles.forEach { profile ->
                                 RowDivider(colors.divider)
                                 ProfileRow(
                                     name = profile.name,
-                                    summary = null,
+                                    summary = if (profile.temporary) stringResource(R.string.profiles_temporary_label) else null,
                                     color = profile.color,
-                                    onClick = { editing = profile },
+                                    selected = activeId == profile.id,
+                                    onClick = { onSwitch(profile.id) },
                                     menu = {
                                         ProfileMenu(
                                             onEdit = { editing = profile },
@@ -218,10 +223,11 @@ fun ProfilesScreen(
             positiveLabel = stringResource(R.string.profiles_action_create),
             initialName = "",
             initialColor = ProfileRepository.palette[profiles.size % ProfileRepository.palette.size],
+            initialTemporary = false,
             hideStatusBar = hideStatusBar,
             hideSystemNavigation = hideSystemNavigation,
             onDismiss = { showCreate = false },
-            onConfirm = { name, color -> showCreate = false; onCreate(name, color) }
+            onConfirm = { name, color, temporary -> showCreate = false; onCreate(name, color, temporary) }
         )
     }
 
@@ -231,10 +237,11 @@ fun ProfilesScreen(
             positiveLabel = stringResource(R.string.action_save),
             initialName = target.name,
             initialColor = target.color,
+            initialTemporary = target.temporary,
             hideStatusBar = hideStatusBar,
             hideSystemNavigation = hideSystemNavigation,
             onDismiss = { editing = null },
-            onConfirm = { name, color -> editing = null; onUpdate(target.id, name, color) }
+            onConfirm = { name, color, temporary -> editing = null; onUpdate(target.id, name, color, temporary) }
         )
     }
 
@@ -283,6 +290,7 @@ private fun ProfileRow(
     name: String,
     summary: String?,
     color: Int,
+    selected: Boolean = false,
     onClick: (() -> Unit)? = null,
     menu: (@Composable () -> Unit)?
 ) {
@@ -306,6 +314,17 @@ private fun ProfileRow(
             if (summary != null) {
                 Text(summary, color = colors.secondaryText, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
             }
+            if (selected) {
+                Text(
+                    stringResource(R.string.profiles_active_label),
+                    color = colors.primary,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+        }
+        if (selected) {
+            Icon(Icons.Filled.Check, contentDescription = null, tint = colors.primary, modifier = Modifier.padding(horizontal = 8.dp).size(22.dp))
         }
         menu?.invoke()
     }
@@ -345,14 +364,16 @@ private fun ProfileEditorDialog(
     positiveLabel: String,
     initialName: String,
     initialColor: Int,
+    initialTemporary: Boolean,
     hideStatusBar: Boolean,
     hideSystemNavigation: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (String, Int) -> Unit
+    onConfirm: (String, Int, Boolean) -> Unit
 ) {
     val colors = LocalClintColors.current
     var name by remember { mutableStateOf(initialName) }
     var color by remember { mutableIntStateOf(initialColor) }
+    var temporary by remember { mutableStateOf(initialTemporary) }
     ClintDialog(
         title = title,
         hideStatusBar = hideStatusBar,
@@ -362,7 +383,7 @@ private fun ProfileEditorDialog(
             ClintDialogActionFooter(
                 onCancel = onDismiss,
                 positiveLabel = positiveLabel,
-                onPositive = { onConfirm(name.trim(), color) },
+                onPositive = { onConfirm(name.trim(), color, temporary) },
                 positiveEnabled = name.isNotBlank()
             )
         }
@@ -388,6 +409,28 @@ private fun ProfileEditorDialog(
                 hideSystemNavigation = hideSystemNavigation,
                 onSelect = { color = it }
             )
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { temporary = !temporary }
+                    .padding(top = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                com.jhaiian.clint.ui.ClintCheckbox(checked = temporary, onCheckedChange = { temporary = it })
+                Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                    Text(
+                        stringResource(R.string.profiles_temporary_title),
+                        color = colors.onSurface,
+                        fontSize = 16.sp
+                    )
+                    Text(
+                        stringResource(R.string.profiles_temporary_summary),
+                        color = colors.secondaryText,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
         }
     }
 }

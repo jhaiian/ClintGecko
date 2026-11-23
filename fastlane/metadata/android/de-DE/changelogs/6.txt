@@ -1,0 +1,11 @@
+• Downloads von MEGA-Dateien und -Ordnern
+• Downloads pausiert hinzufügen, Umgang mit doppelten Dateien
+• Schlankeres, schnelleres GeckoView und flüssigerer Tab-Wechsel
+• Bessere Stream-Erkennung in der Medienerfassung
+• Eigene Suchmaschine und eigene Vorschläge für den Inkognito-Modus
+• Benachrichtigung zum Schließen aller Inkognito-Tabs
+• Bedienungshilfen für Schriftgröße und Zoom
+• Erweiterungen installieren, die nicht von Mozilla signiert sind
+• Browserdaten löschen folgt dem gewählten Zeitraum
+• Kopieren, Einfügen und Einfügen und öffnen in der Adressleiste
+• GeckoView 159 und Korrekturen für Verknüpfungen

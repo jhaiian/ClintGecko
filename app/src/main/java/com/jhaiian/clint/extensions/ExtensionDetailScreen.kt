@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storefront
@@ -42,6 +43,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -226,6 +228,16 @@ fun ExtensionDetailScreen(
                                 onClick = { ClintExtensions.setAllowedInPrivate(info, !info.allowedInPrivate) },
                                 enabled = !busy,
                                 trailing = { ClintSwitch(checked = info.allowedInPrivate) }
+                            )
+                            RowDivider(colors.divider)
+                            val pinned = info.id in ClintExtensions.pinnedIds
+                            val pinLimit = ClintExtensions.pinnedLimit(LocalConfiguration.current.screenWidthDp)
+                            ActionRow(
+                                icon = Icons.Filled.PushPin,
+                                title = stringResource(R.string.ext_pin_search_bar),
+                                summary = stringResource(R.string.ext_pin_search_bar_summary),
+                                onClick = { ClintExtensions.setPinned(info.id, !pinned, pinLimit) },
+                                trailing = { ClintSwitch(checked = pinned) }
                             )
                             if (info.optionsUrl != null) {
                                 RowDivider(colors.divider)

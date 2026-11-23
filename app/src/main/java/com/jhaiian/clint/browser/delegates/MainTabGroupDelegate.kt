@@ -3,9 +3,14 @@ package com.jhaiian.clint.browser.delegates
 import com.jhaiian.clint.R
 import com.jhaiian.clint.browser.MainActivity
 import com.jhaiian.clint.browser.home.isClintHomeUrl
+import com.jhaiian.clint.profiles.ProfileRepository
+import com.jhaiian.clint.profiles.WebProfiles
+import com.jhaiian.clint.tabs.BrowserTab
+import com.jhaiian.clint.tabs.ClosedTab
 import com.jhaiian.clint.tabs.TabGroup
 import com.jhaiian.clint.tabs.TabGroupBarState
 import com.jhaiian.clint.tabs.TabGroupPrefs
+import com.jhaiian.clint.tabs.TabSessionManager
 import com.jhaiian.clint.ui.UNDO_SNACKBAR_TIMEOUT_MS
 import com.jhaiian.clint.ui.showClintSnackbar
 
@@ -14,7 +19,8 @@ private data class ClosedTabSnapshot(
     val title: String,
     val profileId: String,
     val groupId: String?,
-    val index: Int
+    val index: Int,
+    val isPinned: Boolean = false
 )
 
 internal fun MainActivity.refreshTabGroupBar() {
@@ -71,11 +77,13 @@ internal fun MainActivity.closeTabsWithUndo(ids: List<String>, message: String) 
                 ?: tab.webView.url?.takeIf { it.isNotEmpty() && it != "about:blank" }
                 ?: tab.url.takeIf { it.isNotEmpty() && it != "about:blank" }
                 ?: return@mapNotNull null
-            ClosedTabSnapshot(url, tab.title, tab.profileId, tab.groupId, tabManager.tabs.indexOf(tab))
+            ClosedTabSnapshot(url, tab.title, tab.profileId, tab.groupId, tabManager.tabs.indexOf(tab), tab.isPinned)
         }
         .sortedBy { it.index }
     val closedGroups = snapshots.mapNotNull { it.groupId }.distinct().mapNotNull { tabManager.group(it) }
     val activeWasClosed = targets.any { it.id == previousActiveId }
+    val closedAt = System.currentTimeMillis()
+    recordClosedTabs(targets, closedAt)
     targets.forEach { tab ->
         val index = tabManager.tabs.indexOfFirst { it.id == tab.id }
         if (index >= 0) onTabClosed(index)
@@ -84,8 +92,57 @@ internal fun MainActivity.closeTabsWithUndo(ids: List<String>, message: String) 
     onTabGroupsChanged()
     if (snapshots.isEmpty()) return
     showClintSnackbar(message, getString(R.string.action_undo), timeoutMs = UNDO_SNACKBAR_TIMEOUT_MS) {
+        TabSessionManager.removeClosedBatchAsync(this, closedAt)
         reopenClosedTabs(snapshots, closedGroups, placeholderTabId, if (activeWasClosed) null else previousActiveId)
     }
+}
+
+private fun MainActivity.closedTabEntries(tabs: List<BrowserTab>, closedAt: Long): List<ClosedTab> =
+    tabs
+        .filter { !it.isIncognito && !it.isRefreshLinkTab && !tabManager.isGhostTab(it) }
+        .mapNotNull { tab ->
+            val url = tab.pendingUrl?.takeIf { it.isNotEmpty() && it != "about:blank" }
+                ?: tab.webView.url?.takeIf { it.isNotEmpty() && it != "about:blank" }
+                ?: tab.url.takeIf { it.isNotEmpty() && it != "about:blank" }
+                ?: return@mapNotNull null
+            if (isClintHomeUrl(url)) return@mapNotNull null
+            val group = tabManager.group(tab.groupId)
+            tabManager.tabs.indexOf(tab) to ClosedTab(
+                url = url,
+                title = tab.title,
+                profileId = tab.profileId,
+                groupName = group?.name,
+                groupColor = group?.color,
+                closedAt = closedAt
+            )
+        }
+        .sortedBy { it.first }
+        .map { it.second }
+
+internal fun MainActivity.recordClosedTabs(tabs: List<BrowserTab>, closedAt: Long) {
+    TabSessionManager.addClosedAsync(this, closedTabEntries(tabs, closedAt))
+}
+
+internal fun MainActivity.reopenClosedTab(entry: ClosedTab) {
+    val profileId = if (entry.profileId == WebProfiles.DEFAULT_ID || ProfileRepository.get(this, entry.profileId) != null) {
+        entry.profileId
+    } else {
+        WebProfiles.DEFAULT_ID
+    }
+    val groupName = entry.groupName
+    val groupColor = entry.groupColor
+    val grouped = TabGroupPrefs.isEnabled(prefs) && groupName != null && groupColor != null
+    val match = if (grouped) {
+        tabManager.groups.firstOrNull { !it.isIncognito && it.name == groupName && it.color == groupColor }
+    } else {
+        null
+    }
+    openNewTab(isIncognito = false, url = entry.url, profileId = profileId, groupId = match?.id)
+    if (grouped && match == null) {
+        tabManager.activeTab?.id?.let { tabManager.createGroup(groupName, groupColor, listOf(it)) }
+    }
+    TabSessionManager.removeClosedAsync(this, entry.id)
+    onTabGroupsChanged()
 }
 
 private fun MainActivity.reopenClosedTabs(
@@ -105,7 +162,8 @@ private fun MainActivity.reopenClosedTabs(
             deferLoad = true,
             title = snapshot.title,
             profileId = snapshot.profileId,
-            groupId = snapshot.groupId.takeIf { groupsEnabled }
+            groupId = snapshot.groupId.takeIf { groupsEnabled },
+            isPinned = snapshot.isPinned
         )
         id
     }

@@ -47,12 +47,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jhaiian.clint.R
+import com.jhaiian.clint.ui.rememberSheetFlingConnection
 import com.jhaiian.clint.ui.theme.LocalClintColors
 import com.jhaiian.clint.util.formatRelativeTimestamp
 
@@ -81,30 +83,31 @@ internal fun DownloadItemSheet(
     val info = downloadStatusInfo(item, onPause, onResume, onRetry)
     fun dismissThen(action: () -> Unit): () -> Unit = { onDismiss(); action() }
 
-    val actions = buildList {
+    val available = buildMap<SheetActionId, SheetAction> {
         if (isComplete) {
-            add(SheetAction(stringResource(R.string.downloads_sheet_folder), Icons.Filled.FolderOpen, dismissThen { itemActions.onOpenFolder(item) }))
-            add(SheetAction(stringResource(R.string.downloads_sheet_rename), Icons.Filled.Edit, dismissThen { itemActions.onRename(item) }))
+            put(SheetActionId.FOLDER, SheetAction(stringResource(SheetActionId.FOLDER.label), SheetActionId.FOLDER.icon, dismissThen { itemActions.onOpenFolder(item) }))
+            put(SheetActionId.RENAME, SheetAction(stringResource(SheetActionId.RENAME.label), SheetActionId.RENAME.icon, dismissThen { itemActions.onRename(item) }))
         } else {
             if (item.status == DownloadStatus.QUEUED) {
-                add(SheetAction(stringResource(R.string.downloads_sheet_download_next), Icons.Filled.VerticalAlignTop, dismissThen { ClintDownloadManager.moveToFrontOfQueue(item.id) }))
+                put(SheetActionId.DOWNLOAD_NEXT, SheetAction(stringResource(SheetActionId.DOWNLOAD_NEXT.label), SheetActionId.DOWNLOAD_NEXT.icon, dismissThen { ClintDownloadManager.moveToFrontOfQueue(item.id) }))
             }
-            add(SheetAction(stringResource(R.string.downloads_sheet_settings), Icons.Filled.Tune, dismissThen { itemActions.onChangeSettings(item) }))
+            put(SheetActionId.SETTINGS, SheetAction(stringResource(SheetActionId.SETTINGS.label), SheetActionId.SETTINGS.icon, dismissThen { itemActions.onChangeSettings(item) }))
             if (item.mega == null) {
-                add(SheetAction(stringResource(R.string.downloads_sheet_update_link), Icons.Filled.Link, dismissThen { itemActions.onUpdateLink(item) }))
-                add(SheetAction(stringResource(R.string.downloads_sheet_update_link_browser), Icons.Filled.Language, dismissThen { itemActions.onUpdateLinkInBrowser(item) }))
+                put(SheetActionId.UPDATE_LINK, SheetAction(stringResource(SheetActionId.UPDATE_LINK.label), SheetActionId.UPDATE_LINK.icon, dismissThen { itemActions.onUpdateLink(item) }))
+                put(SheetActionId.UPDATE_LINK_BROWSER, SheetAction(stringResource(SheetActionId.UPDATE_LINK_BROWSER.label), SheetActionId.UPDATE_LINK_BROWSER.icon, dismissThen { itemActions.onUpdateLinkInBrowser(item) }))
             }
         }
-        add(SheetAction(stringResource(R.string.downloads_sheet_redownload), Icons.Filled.Refresh, dismissThen { itemActions.onRedownload(item) }))
-        add(SheetAction(stringResource(R.string.downloads_sheet_redownload_custom), Icons.Filled.Download, dismissThen { itemActions.onRedownloadOptions(item) }))
-        add(SheetAction(stringResource(R.string.downloads_sheet_copy_link), Icons.Filled.Link, dismissThen { itemActions.onCopyLink(item) }))
-        add(SheetAction(stringResource(R.string.downloads_sheet_copy_name), Icons.Filled.ContentCopy, dismissThen { itemActions.onCopyFilename(item) }))
-        add(SheetAction(stringResource(R.string.downloads_sheet_copy_path), Icons.Filled.ContentCopy, dismissThen { itemActions.onCopyPath(item) }))
-        add(SheetAction(stringResource(R.string.download_menu_properties), Icons.Filled.Info, dismissThen { itemActions.onProperties(item) }))
+        put(SheetActionId.REDOWNLOAD, SheetAction(stringResource(SheetActionId.REDOWNLOAD.label), SheetActionId.REDOWNLOAD.icon, dismissThen { itemActions.onRedownload(item) }))
+        put(SheetActionId.REDOWNLOAD_CUSTOM, SheetAction(stringResource(SheetActionId.REDOWNLOAD_CUSTOM.label), SheetActionId.REDOWNLOAD_CUSTOM.icon, dismissThen { itemActions.onRedownloadOptions(item) }))
+        put(SheetActionId.COPY_LINK, SheetAction(stringResource(SheetActionId.COPY_LINK.label), SheetActionId.COPY_LINK.icon, dismissThen { itemActions.onCopyLink(item) }))
+        put(SheetActionId.COPY_NAME, SheetAction(stringResource(SheetActionId.COPY_NAME.label), SheetActionId.COPY_NAME.icon, dismissThen { itemActions.onCopyFilename(item) }))
+        put(SheetActionId.COPY_PATH, SheetAction(stringResource(SheetActionId.COPY_PATH.label), SheetActionId.COPY_PATH.icon, dismissThen { itemActions.onCopyPath(item) }))
+        put(SheetActionId.PROPERTIES, SheetAction(stringResource(SheetActionId.PROPERTIES.label), SheetActionId.PROPERTIES.icon, dismissThen { itemActions.onProperties(item) }))
         if (DownloadLog.enabled || DownloadLog.hasLog(context, item.id)) {
-            add(SheetAction(stringResource(R.string.download_log_view), Icons.Filled.BugReport, dismissThen(onViewLog)))
+            put(SheetActionId.LOG, SheetAction(stringResource(SheetActionId.LOG.label), SheetActionId.LOG.icon, dismissThen(onViewLog)))
         }
     }
+    val actions = LocalDownloadAppearance.current.sheetActions.mapNotNull { available[it] }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -118,6 +121,7 @@ internal fun DownloadItemSheet(
                 Modifier
                     .widthIn(max = 560.dp)
                     .fillMaxWidth()
+                    .nestedScroll(rememberSheetFlingConnection(sheetState, consumeFling = false))
                     .verticalScroll(rememberScrollState())
                     .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -265,6 +269,7 @@ internal fun DownloadsSelectionSheet(
                 Modifier
                     .widthIn(max = 560.dp)
                     .fillMaxWidth()
+                    .nestedScroll(rememberSheetFlingConnection(sheetState, consumeFling = false))
                     .verticalScroll(rememberScrollState())
                     .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)

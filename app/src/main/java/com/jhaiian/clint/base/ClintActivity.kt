@@ -86,6 +86,8 @@ abstract class ClintActivity : AppCompatActivity() {
 
     protected open fun onSystemThemeChanged() {}
 
+    protected open val translucentWindow: Boolean get() = false
+
     override fun onResume() {
         super.onResume()
         openDialogCount = 0
@@ -114,6 +116,10 @@ abstract class ClintActivity : AppCompatActivity() {
         val theme = appliedTheme ?: "system"
         val accent = appliedAccent ?: "material_you"
         val intensity = appliedIntensity ?: "soft_tint"
+        if (translucentWindow) {
+            window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
+            return
+        }
         val chrome = resolveThemeChrome(this, theme, accent, intensity)
         window.setBackgroundDrawable(ColorDrawable(chrome.background))
         window.statusBarColor = chrome.statusBar

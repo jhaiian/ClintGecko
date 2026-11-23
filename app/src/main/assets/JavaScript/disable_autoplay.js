@@ -28,14 +28,14 @@
         var proto = HTMLMediaElement.prototype;
         var nativePlay = proto.play;
         proto.play = function () {
-            if (allowed()) return nativePlay.apply(this, arguments);
+            if (allowed() || this.hasAttribute('data-clint-vt')) return nativePlay.apply(this, arguments);
             return Promise.reject(new DOMException('Autoplay prevented by Data Saver', 'NotAllowedError'));
         };
     } catch (e) {}
 
     document.addEventListener('play', function (event) {
         var el = event.target;
-        if (!(el instanceof HTMLMediaElement) || allowed()) return;
+        if (!(el instanceof HTMLMediaElement) || allowed() || el.hasAttribute('data-clint-vt')) return;
         try { el.pause(); } catch (e) {}
     }, true);
 })();

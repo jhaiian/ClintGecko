@@ -11,6 +11,9 @@ import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
 import com.jhaiian.clint.base.ClintActivity
+import com.jhaiian.clint.parental.ParentalControls
+import com.jhaiian.clint.parental.ParentalGateHost
+import com.jhaiian.clint.parental.ParentalGateRequest
 import com.jhaiian.clint.ui.rememberMaxContentWidth
 import com.jhaiian.clint.ui.theme.ClintComposeTheme
 import kotlinx.coroutines.Job
@@ -22,6 +25,7 @@ class DeleteBrowsingDataActivity : ClintActivity() {
     private var selection by mutableStateOf<Set<BrowsingDataType>>(emptySet())
     private var summary by mutableStateOf<BrowsingDataSummary?>(null)
     private var isDeleting by mutableStateOf(false)
+    private var parentalGate by mutableStateOf<ParentalGateRequest?>(null)
     private var summaryJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,6 +58,11 @@ class DeleteBrowsingDataActivity : ClintActivity() {
                     },
                     onDelete = { deleteSelected() }
                 )
+                ParentalGateHost(
+                    request = parentalGate,
+                    hideStatusBar = prefs.getBoolean("hide_status_bar", false),
+                    hideSystemNavigation = prefs.getBoolean("hide_system_navigation", false)
+                ) { parentalGate = null }
             }
         }
     }
@@ -71,6 +80,23 @@ class DeleteBrowsingDataActivity : ClintActivity() {
         val tabsAvailable = (currentSummary?.openTabs ?: 0) > 0
         val toDelete = if (tabsAvailable) selection else selection - BrowsingDataType.TABS
         if (toDelete.isEmpty()) return
+        if (BrowsingDataType.HISTORY !in toDelete) {
+            performDelete(toDelete)
+            return
+        }
+        ParentalControls.gate(
+            context = this,
+            area = ParentalControls.AREA_HISTORY,
+            title = getString(R.string.parental_history_title),
+            message = getString(R.string.parental_history_message),
+            positiveLabel = getString(R.string.history_delete_selected),
+            show = { parentalGate = it },
+            action = { performDelete(toDelete) }
+        )
+    }
+
+    private fun performDelete(toDelete: Set<BrowsingDataType>) {
+        if (isDeleting) return
         isDeleting = true
         lifecycleScope.launch {
             BrowsingDataCleaner.delete(this@DeleteBrowsingDataActivity, range, toDelete)

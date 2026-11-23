@@ -2,6 +2,7 @@ package com.jhaiian.clint.downloads
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.PlayArrow
 
 import com.jhaiian.clint.R
 
@@ -106,6 +107,9 @@ fun DownloadRequestDialog(
     initialSpeedLimitAmount: Int = 0,
     initialSpeedLimitUnit: String = DEFAULT_SPEED_LIMIT_UNIT,
     showAddButton: Boolean = true,
+    batchCount: Int = 0,
+    largestFileBytes: Long = -1L,
+    onPlay: ((filename: String) -> Unit)? = null,
     fragmentManager: FragmentManager,
     onLaunchFolderPicker: (onPicked: (Uri) -> Unit) -> Unit,
     onDismiss: () -> Unit,
@@ -155,7 +159,7 @@ fun DownloadRequestDialog(
     }
     var categorizeEnabled by remember { mutableStateOf(initialCategorizeEnabled ?: DownloadCategories.isEnabled(context)) }
     val destinationPreviewText = remember(locationMode, customUri, filename, extension, categorizeEnabled) {
-        if (!categorizeEnabled) return@remember null
+        if (!categorizeEnabled || batchCount > 0) return@remember null
         val resolvedFilename = if (extension.isNotBlank()) "$filename.$extension" else filename
         val basePath = if (locationMode == DownloadSettingsKeys.MODE_CUSTOM) customUri?.let { uriToDisplayPath(it) } else DEFAULT_DOWNLOAD_PATH
         basePath?.let { it.trimEnd('/') + "/" + DownloadCategories.categorySubpathDisplay(categorizeEnabled, resolvedFilename) + resolvedFilename }
@@ -186,7 +190,7 @@ fun DownloadRequestDialog(
 
     fun pickCustomFolder() {
         onLaunchFolderPicker { uri ->
-            prefs.edit().putString(DownloadSettingsKeys.PREF_DOWNLOAD_CUSTOM_URI, uri.toString()).apply()
+            DownloadSavedLocations.add(context, uri)
             customUri = uri
         }
     }
@@ -204,7 +208,7 @@ fun DownloadRequestDialog(
                 return
             }
         }
-        val fat32Error = checkFat32FileSizeLimit(context, effectiveContentLength, locationMode, customUri)
+        val fat32Error = checkFat32FileSizeLimit(context, largestFileBytes.takeIf { it > 0L } ?: effectiveContentLength, locationMode, customUri)
         if (fat32Error != null) {
             blockingError = ConfirmDialogConfig(
                 title = context.getString(R.string.download_error_fat32_title),
@@ -240,9 +244,16 @@ fun DownloadRequestDialog(
             startPaused = startPaused
         )
         onSubmit(submission, onDismiss) {
-            filenameFocusRequester.requestFocus()
-            keyboardController?.show()
+            if (batchCount == 0) {
+                filenameFocusRequester.requestFocus()
+                keyboardController?.show()
+            }
         }
+    }
+
+    val canPlay = onPlay != null && batchCount == 0 && isStreamableWebUrl(url) && isPlayableVideoExtension(extension)
+    fun playVideo() {
+        onPlay?.invoke(if (extension.isNotBlank()) "$filename.$extension" else filename)
     }
 
     fun toggleSchedule() {
@@ -255,7 +266,7 @@ fun DownloadRequestDialog(
 
     fun selectLocationMode(mode: String) {
         locationMode = mode
-        if (mode == DownloadSettingsKeys.MODE_CUSTOM) pickCustomFolder()
+        if (mode == DownloadSettingsKeys.MODE_CUSTOM && customUri == null) pickCustomFolder()
     }
 
     ClintDialog(
@@ -295,13 +306,15 @@ fun DownloadRequestDialog(
     ) {
         if (compact) {
             CompactDownloadRequestContent(
+                batchCount = batchCount,
                 url = url, onCopyLink = onCopyLink,
                 filename = filename, onFilenameChange = { filename = it; nameEdited = true },
                 extension = extension, onExtensionChange = { extension = it; nameEdited = true },
                 filenameFocusRequester = filenameFocusRequester,
                 fileSizeText = fileSizeText,
+                canPlay = canPlay, onPlay = { playVideo() },
                 locationMode = locationMode, onLocationModeSelected = { selectLocationMode(it) },
-                customUri = customUri, onPickFolder = { pickCustomFolder() },
+                customUri = customUri, onPickFolder = { pickCustomFolder() }, onSelectFolder = { customUri = it },
                 showStorageInfo = showStorageInfo, storageInfoText = storageInfoText,
                 categorizeEnabled = categorizeEnabled, onCategorizeToggle = { categorizeEnabled = !categorizeEnabled },
                 destinationPreviewText = destinationPreviewText,
@@ -322,39 +335,55 @@ fun DownloadRequestDialog(
             )
         } else {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 2.dp)) {
-                DialogSectionLabel(stringResource(R.string.download_dialog_section_link))
-                SettingsSection(colors.dialogSectionBackground, bottomSpacing = 8.dp) {
-                    Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            androidx.compose.material.icons.Icons.Filled.Link,
-                            contentDescription = stringResource(R.string.download_dialog_link_clip_label),
-                            tint = colors.iconTint,
-                            modifier = Modifier.size(18.dp).clickable { onCopyLink() }.padding(2.dp)
-                        )
-                        Text(
-                            url, color = colors.onSurface, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).padding(start = 10.dp)
-                        )
-                    }
-                }
-
-                DialogSectionLabel(stringResource(R.string.download_dialog_section_file))
-                SettingsSection(colors.dialogSectionBackground, bottomSpacing = 8.dp) {
-                    Column(Modifier.padding(12.dp)) {
-                        Row(Modifier.fillMaxWidth()) {
-                            ClintOutlinedTextField(
-                                value = filename, onValueChange = { filename = it; nameEdited = true },
-                                modifier = Modifier.weight(1f).focusRequester(filenameFocusRequester),
-                                label = { Text(stringResource(R.string.download_dialog_filename_hint)) }, singleLine = true
+                if (batchCount > 0) {
+                    DialogSectionLabel(stringResource(R.string.download_dialog_section_files))
+                    SettingsSection(colors.dialogSectionBackground, bottomSpacing = 8.dp) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(
+                                stringResource(R.string.media_capture_selected_count, batchCount),
+                                color = colors.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium
                             )
-                            ClintOutlinedTextField(
-                                value = extension, onValueChange = { extension = it; nameEdited = true },
-                                modifier = Modifier.width(96.dp).padding(start = 8.dp),
-                                label = { Text(stringResource(R.string.download_dialog_extension_hint), maxLines = 1, overflow = TextOverflow.Ellipsis) }, singleLine = true
+                            Text(fileSizeText, color = colors.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                        }
+                    }
+                } else {
+                    DialogSectionLabel(stringResource(R.string.download_dialog_section_link))
+                    SettingsSection(colors.dialogSectionBackground, bottomSpacing = 8.dp) {
+                        Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                androidx.compose.material.icons.Icons.Filled.Link,
+                                contentDescription = stringResource(R.string.download_dialog_link_clip_label),
+                                tint = colors.iconTint,
+                                modifier = Modifier.size(18.dp).clickable { onCopyLink() }.padding(2.dp)
+                            )
+                            Text(
+                                url, color = colors.onSurface, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f).padding(start = 10.dp)
                             )
                         }
-                        Text(fileSizeText, color = colors.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
+
+                    DialogSectionLabel(stringResource(R.string.download_dialog_section_file))
+                    SettingsSection(colors.dialogSectionBackground, bottomSpacing = 8.dp) {
+                        Column(Modifier.padding(12.dp)) {
+                            Row(Modifier.fillMaxWidth()) {
+                                ClintOutlinedTextField(
+                                    value = filename, onValueChange = { filename = it; nameEdited = true },
+                                    modifier = Modifier.weight(1f).focusRequester(filenameFocusRequester),
+                                    label = { Text(stringResource(R.string.download_dialog_filename_hint)) }, singleLine = true
+                                )
+                                ClintOutlinedTextField(
+                                    value = extension, onValueChange = { extension = it; nameEdited = true },
+                                    modifier = Modifier.width(96.dp).padding(start = 8.dp),
+                                    label = { Text(stringResource(R.string.download_dialog_extension_hint), maxLines = 1, overflow = TextOverflow.Ellipsis) }, singleLine = true
+                                )
+                            }
+                            Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(fileSizeText, color = colors.secondaryText, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                                if (canPlay) DownloadPlayButton(compact = false, onClick = { playVideo() })
+                            }
+                        }
                     }
                 }
 
@@ -386,22 +415,16 @@ fun DownloadRequestDialog(
                                     locationMode = DownloadSettingsKeys.MODE_DEFAULT; locationMenuOpen = false
                                 })
                                 DropdownMenuItem(text = { Text(stringResource(R.string.download_location_option_custom), color = colors.onSurface) }, onClick = {
-                                    locationMode = DownloadSettingsKeys.MODE_CUSTOM; locationMenuOpen = false
-                                    pickCustomFolder()
+                                    locationMenuOpen = false
+                                    selectLocationMode(DownloadSettingsKeys.MODE_CUSTOM)
                                 })
                             }
                         }
                         if (locationMode == DownloadSettingsKeys.MODE_CUSTOM) {
-                            Row(
-                                Modifier.fillMaxWidth().clickable { pickCustomFolder() }.padding(vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(androidx.compose.material.icons.Icons.Filled.Folder, contentDescription = null, tint = colors.iconTint, modifier = Modifier.size(20.dp))
-                                Text(
-                                    customUri?.let { uriToDisplayPath(it) } ?: stringResource(R.string.download_location_tap_to_choose),
-                                    color = colors.onSurface, fontSize = 13.sp, modifier = Modifier.padding(start = 10.dp)
-                                )
-                            }
+                            SavedLocationFolderRow(
+                                customUri = customUri, compact = false,
+                                onSelect = { customUri = it }, onAddNew = { pickCustomFolder() }
+                            )
                         }
                         if (showStorageInfo && storageInfoText.isNotEmpty()) {
                             Text(storageInfoText, color = colors.secondaryText, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
@@ -561,6 +584,30 @@ fun DownloadRequestDialog(
     }
 
     ConfirmDialogHost(blockingError, hideStatusBar, hideSystemNavigation) { blockingError = null }
+}
+
+@Composable
+internal fun DownloadPlayButton(compact: Boolean, onClick: () -> Unit) {
+    val colors = LocalClintColors.current
+    TextButton(
+        onClick = onClick,
+        modifier = if (compact) Modifier.height(32.dp) else Modifier,
+        contentPadding = PaddingValues(horizontal = if (compact) 8.dp else 12.dp, vertical = 0.dp)
+    ) {
+        Icon(
+            androidx.compose.material.icons.Icons.Filled.PlayArrow,
+            contentDescription = null,
+            tint = colors.primary,
+            modifier = Modifier.size(if (compact) 16.dp else 20.dp)
+        )
+        Text(
+            stringResource(R.string.action_play),
+            color = colors.primary,
+            fontWeight = FontWeight.Medium,
+            fontSize = if (compact) 13.sp else androidx.compose.ui.unit.TextUnit.Unspecified,
+            modifier = Modifier.padding(start = 4.dp)
+        )
+    }
 }
 
 @Composable

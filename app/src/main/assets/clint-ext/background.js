@@ -3,6 +3,10 @@
   var cfg = { media: false, dnt: false, ds: null };
   var reg = null;
   var port = null;
+  var bundled = false;
+  var releaseFirstLoad;
+  var firstBundle = new Promise(function (resolve) { releaseFirstLoad = resolve; });
+  setTimeout(function () { bundled = true; releaseFirstLoad(); }, 3000);
   var EMPTY_JS = "data:application/javascript;charset=utf-8,";
   var EMPTY_CSS = "data:text/css;charset=utf-8,";
   var EMPTY_HTML = "data:text/html;charset=utf-8,";
@@ -142,6 +146,7 @@
   }
 
   function decide(d) {
+    if (!bundled && d.type === "main_frame") return firstBundle.then(function () { return {}; });
     var ds = cfg.ds;
     if (!ds || !ds.on || d.tabId < 0 || d.type === "main_frame" || !isHttp(d.url)) return {};
     var pageHost = hostOf(pageUrlOf(d));
@@ -218,7 +223,13 @@
     return { responseHeaders: out };
   }
 
-  async function registerBundle(code) {
+  var regChain = Promise.resolve();
+  function registerBundle(code) {
+    regChain = regChain.then(function () { return swapBundle(code); });
+    return regChain;
+  }
+
+  async function swapBundle(code) {
     if (reg) { try { await reg.unregister(); } catch (e) {} reg = null; }
     try {
       reg = await browser.contentScripts.register({
@@ -352,9 +363,17 @@
   function onNative(m) {
     if (!m) return;
     if (m.k === "bundle") {
-      registerBundle(m.code).then(function () { port.postMessage({ k: "bundleOk", seq: m.seq }); });
+      save("clintBundle", m.code);
+      registerBundle(m.code).then(function () {
+        bundled = true;
+        releaseFirstLoad();
+        port.postMessage({ k: "bundleOk", seq: m.seq });
+      });
     } else if (m.k === "cfg") {
-      if (m.cfg) cfg = m.cfg;
+      if (m.cfg) {
+        cfg = m.cfg;
+        save("clintCfg", JSON.stringify(m.cfg));
+      }
     } else if (m.k === "cookies") {
       cookiesFor(m);
     } else if (m.k === "ck") {
@@ -363,6 +382,17 @@
       installUnsigned(m);
     }
   }
+
+  function save(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) {}
+  }
+
+  try {
+    var cachedCfg = localStorage.getItem("clintCfg");
+    if (cachedCfg) cfg = JSON.parse(cachedCfg);
+    var cachedBundle = localStorage.getItem("clintBundle");
+    if (cachedBundle) registerBundle(cachedBundle).then(function () { bundled = true; releaseFirstLoad(); });
+  } catch (e) {}
 
   var attempts = 0;
   function connect() {

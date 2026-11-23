@@ -50,7 +50,8 @@ internal class DownloadDatabase(context: Context) :
                 $COL_WAIT_REASON       TEXT,
                 $COL_MEGA_JSON         TEXT,
                 $COL_PAGE_URL          TEXT    NOT NULL DEFAULT '',
-                $COL_IS_INCOGNITO      INTEGER NOT NULL DEFAULT 0
+                $COL_IS_INCOGNITO      INTEGER NOT NULL DEFAULT 0,
+                $COL_PROFILE_ID        TEXT    NOT NULL DEFAULT 'default'
             )"""
         )
     }
@@ -95,11 +96,14 @@ internal class DownloadDatabase(context: Context) :
         if (oldVersion < 13) {
             db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_IS_INCOGNITO INTEGER NOT NULL DEFAULT 0")
         }
+        if (oldVersion < 14) {
+            db.execSQL("ALTER TABLE $TABLE ADD COLUMN $COL_PROFILE_ID TEXT NOT NULL DEFAULT 'default'")
+        }
     }
 
     companion object {
         const val DB_NAME                = "clint_downloads.db"
-        const val DB_VERSION             = 13
+        const val DB_VERSION             = 14
         const val TABLE                  = "downloads"
         const val COL_ID                 = "id"
         const val COL_URL                = "url"
@@ -138,6 +142,7 @@ internal class DownloadDatabase(context: Context) :
         const val COL_MEGA_JSON          = "mega_json"
         const val COL_PAGE_URL           = "page_url"
         const val COL_IS_INCOGNITO       = "is_incognito"
+        const val COL_PROFILE_ID         = "profile_id"
         const val WAIT_NETWORK           = "network"
         const val WAIT_UNMETERED         = "unmetered"
         const val WAIT_SCHEDULE          = "schedule"

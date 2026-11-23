@@ -11,6 +11,9 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FilterNone
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.SelectAll
@@ -43,6 +46,9 @@ fun TabMenuOverflowMenu(
     onCollapseAllGroups: (() -> Unit)? = null,
     onExpandAllGroups: (() -> Unit)? = null,
     onCloseDuplicates: (() -> Unit)? = null,
+    onSortTabs: (() -> Unit)? = null,
+    onGroupBySite: (() -> Unit)? = null,
+    onRecentlyClosed: (() -> Unit)? = null,
     listView: Boolean = false,
     onToggleListView: (() -> Unit)? = null,
     buttonsAtBottom: Boolean = false,
@@ -65,7 +71,7 @@ fun TabMenuOverflowMenu(
             onDismiss(); onNewIncognitoTab()
         }
         if (showProfileTab) {
-            ListMenuItem(androidx.compose.material.icons.Icons.Filled.AccountCircle, stringResource(R.string.profiles_new_tab_in), checked = false) {
+            ListMenuItem(androidx.compose.material.icons.Icons.Filled.AccountCircle, stringResource(R.string.profiles_switch), checked = false) {
                 onDismiss(); onNewProfileTab()
             }
         }
@@ -79,6 +85,21 @@ fun TabMenuOverflowMenu(
         }
         onCloseDuplicates?.let { action ->
             ListMenuItem(Icons.Filled.FilterNone, stringResource(R.string.tab_menu_close_duplicates), checked = false) {
+                onDismiss(); action()
+            }
+        }
+        onSortTabs?.let { action ->
+            ListMenuItem(Icons.AutoMirrored.Filled.Sort, stringResource(R.string.tab_menu_sort_tabs), checked = false) {
+                onDismiss(); action()
+            }
+        }
+        onGroupBySite?.let { action ->
+            ListMenuItem(Icons.Filled.Language, stringResource(R.string.tab_menu_group_by_site), checked = false) {
+                onDismiss(); action()
+            }
+        }
+        onRecentlyClosed?.let { action ->
+            ListMenuItem(Icons.Filled.History, stringResource(R.string.tab_menu_recently_closed), checked = false) {
                 onDismiss(); action()
             }
         }

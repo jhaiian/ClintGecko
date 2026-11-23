@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.Build
 import android.widget.Toast
 import com.jhaiian.clint.R
+import com.jhaiian.clint.parental.ParentalGateRequest
 import com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig
 
 internal fun WebsiteBlockerActivity.confirmCheckUpdateForItem(category: WebsiteBlockerCategory) {
@@ -49,12 +50,25 @@ internal fun WebsiteBlockerActivity.confirmRemoveForItem(category: WebsiteBlocke
         Toast.makeText(this, getString(R.string.filter_list_operation_in_progress), Toast.LENGTH_SHORT).show()
         return
     }
+    requestCategoryRemoval(setOf(category.id)) {}
+}
+
+private fun WebsiteBlockerActivity.requestCategoryRemoval(ids: Set<String>, onRemoved: () -> Unit) {
+    if (uiState.masterEnabled && ids.any { it in uiState.compiledEnabledIds }) {
+        uiState.guardRequest = ParentalGateRequest(
+            title = getString(R.string.website_blocker_guard_reset_title),
+            message = getString(R.string.website_blocker_guard_reset_message, ids.size),
+            positiveLabel = getString(R.string.history_delete_selected),
+            onConfirm = { removeCategories(ids); onRemoved() }
+        )
+        return
+    }
     uiState.confirmDialog = ConfirmDialogConfig(
         title = getString(R.string.website_blocker_delete_confirm_title),
-        message = getString(R.string.website_blocker_delete_confirm_message, 1),
+        message = getString(R.string.website_blocker_delete_confirm_message, ids.size),
         negativeLabel = getString(R.string.action_cancel),
         positiveLabel = getString(R.string.history_delete_selected),
-        onPositive = { removeCategories(listOf(category.id)) }
+        onPositive = { removeCategories(ids); onRemoved() }
     )
 }
 
@@ -139,13 +153,7 @@ internal fun WebsiteBlockerActivity.confirmForceUpdateForSelection() {
 internal fun WebsiteBlockerActivity.confirmRemoveForSelection() {
     val ids = uiState.selectedIds
     if (ids.isEmpty()) return
-    uiState.confirmDialog = ConfirmDialogConfig(
-        title = getString(R.string.website_blocker_delete_confirm_title),
-        message = getString(R.string.website_blocker_delete_confirm_message, ids.size),
-        negativeLabel = getString(R.string.action_cancel),
-        positiveLabel = getString(R.string.history_delete_selected),
-        onPositive = { removeCategories(ids); uiState.exitSelectionMode() }
-    )
+    requestCategoryRemoval(ids) { uiState.exitSelectionMode() }
 }
 
 internal fun WebsiteBlockerActivity.copySelectedCategoryNames() {

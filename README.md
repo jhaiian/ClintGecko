@@ -10,10 +10,12 @@ Android Firefox-based browser with ADM, media capture, and extensions.
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blueviolet.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android%208.0%2B-blueviolet.svg)](https://developer.android.com)
-[![Stable](https://img.shields.io/badge/Stable-1.0.5-blueviolet.svg)](https://github.com/jhaiian/ClintGecko/releases/tag/v1.0.5)
-[![Beta](https://img.shields.io/badge/Beta-1.0.5-blueviolet.svg)](https://github.com/jhaiian/ClintGecko/releases/tag/v1.0.5)
+[![Stable](https://img.shields.io/badge/Stable-1.0.6-blueviolet.svg)](https://github.com/jhaiian/ClintGecko/releases/tag/v1.0.6)
+[![Beta](https://img.shields.io/badge/Beta-1.0.6-blueviolet.svg)](https://github.com/jhaiian/ClintGecko/releases/tag/v1.0.6)
 [![Downloads](https://img.shields.io/github/downloads/jhaiian/ClintGecko/total?color=blueviolet)](https://github.com/jhaiian/ClintGecko/releases)
 [![Open Source](https://img.shields.io/badge/Open%20Source-Yes-blueviolet.svg)](https://github.com/jhaiian/ClintGecko)
+
+<a href="https://trendshift.io/repositories/301608?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-301608" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/301608/daily?language=Kotlin" alt="jhaiian%2FClintGecko | Trendshift" width="250" height="55"/></a>
 
 <img src="docs/banner.png" width="900" alt="Clint Gecko, built for people who want more" />
 
@@ -165,7 +167,10 @@ Clint will always remain free. Thank you for being part of this journey. 💜
 
 ## Installation
 
-Download the latest APK from the [Releases](https://github.com/jhaiian/ClintGecko/releases) page.
+Download the latest APK from GitHub, or add Clint Gecko to Obtainium to get updates automatically.
+
+<a href="https://github.com/jhaiian/ClintGecko/releases/latest"><img src="https://raw.githubusercontent.com/Kunzisoft/Github-badge/main/get-it-on-github.png" alt="Get it on GitHub" height="80" /></a>
+<a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://add/https://github.com/jhaiian/ClintGecko"><img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="80" /></a>
 
 ---
 
@@ -187,6 +192,18 @@ Join the official Clint Gecko community on Discord and Reddit to share feedback,
 
 - **Discord** – [discord.gg/4kUe4yPQ32](https://discord.gg/4kUe4yPQ32)
 - **Reddit** – [reddit.com/r/ClintBrowser](https://reddit.com/r/ClintBrowser)
+
+---
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=clintgecko%2Fclintgecko%2Cjhaiian%2Fclintgecko&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=clintgecko/clintgecko%2Cjhaiian/clintgecko&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=clintgecko/clintgecko%2Cjhaiian/clintgecko&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=clintgecko/clintgecko%2Cjhaiian/clintgecko&type=date&legend=top-left" />
+ </picture>
+</a>
 
 ---
 

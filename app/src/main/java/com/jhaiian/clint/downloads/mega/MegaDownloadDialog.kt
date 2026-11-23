@@ -51,7 +51,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.jhaiian.clint.R
 import com.jhaiian.clint.downloads.ClintDownloadManager
+import com.jhaiian.clint.downloads.DownloadSavedLocations
 import com.jhaiian.clint.downloads.DownloadStatus
+import com.jhaiian.clint.downloads.SavedLocationFolderRow
 import com.jhaiian.clint.downloads.MegaDownloadEntry
 import com.jhaiian.clint.downloads.resolveStorageInfoText
 import com.jhaiian.clint.downloads.uriToDisplayPath
@@ -168,7 +170,7 @@ internal fun MegaDownloadDialog(
 
     fun pickCustomFolder() {
         onLaunchFolderPicker { uri ->
-            prefs.edit().putString(DownloadSettingsKeys.PREF_DOWNLOAD_CUSTOM_URI, uri.toString()).apply()
+            DownloadSavedLocations.add(context, uri)
             customUri = uri
         }
     }
@@ -290,22 +292,16 @@ internal fun MegaDownloadDialog(
                                                         text = { Text(stringResource(R.string.download_location_option_custom), color = colors.onSurface) },
                                                         onClick = {
                                                             locationMode = DownloadSettingsKeys.MODE_CUSTOM; locationMenuOpen = false
-                                                            pickCustomFolder()
+                                                            if (customUri == null) pickCustomFolder()
                                                         }
                                                     )
                                                 }
                                             }
                                             if (locationMode == DownloadSettingsKeys.MODE_CUSTOM) {
-                                                Row(
-                                                    Modifier.fillMaxWidth().clickable { pickCustomFolder() }.padding(vertical = 6.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Icon(Icons.Filled.Folder, contentDescription = null, tint = colors.iconTint, modifier = Modifier.size(20.dp))
-                                                    Text(
-                                                        customUri?.let { uriToDisplayPath(it) } ?: stringResource(R.string.download_location_tap_to_choose),
-                                                        color = colors.onSurface, fontSize = 13.sp, modifier = Modifier.padding(start = 10.dp)
-                                                    )
-                                                }
+                                                SavedLocationFolderRow(
+                                                    customUri = customUri, compact = false,
+                                                    onSelect = { customUri = it }, onAddNew = { pickCustomFolder() }
+                                                )
                                             }
                                             if (storageInfoText.isNotEmpty()) {
                                                 Text(storageInfoText, color = colors.secondaryText, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))

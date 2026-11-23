@@ -1,5 +1,6 @@
 package com.jhaiian.clint.browser.delegates
 import androidx.compose.ui.graphics.toArgb
+import com.jhaiian.clint.browser.find.findSuggestionFor
 import com.jhaiian.clint.browser.webview.ClintWebView
 import com.jhaiian.clint.browser.webview.ClintGecko
 import com.jhaiian.clint.browser.home.isClintHomeUrl
@@ -8,6 +9,11 @@ import com.jhaiian.clint.ui.theme.ThemeMode
 import com.jhaiian.clint.browser.*
 import com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_BOOKMARKS
 import com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_HISTORY
+import com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_HISTORY_LIMIT
+import com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_BOOKMARK_LIMIT
+import com.jhaiian.clint.browser.suggestions.PREF_SUGGESTIONS_SHOW_TABS
+import com.jhaiian.clint.browser.suggestions.SUGGESTIONS_HISTORY_LIMIT_DEFAULT
+import com.jhaiian.clint.browser.suggestions.SUGGESTIONS_BOOKMARK_LIMIT_DEFAULT
 import com.jhaiian.clint.browser.suggestions.SuggestionFetcher
 import com.jhaiian.clint.settings.datasaver.DataSaverMode
 import com.jhaiian.clint.browser.webview.loadJsAsset
@@ -22,8 +28,7 @@ import com.jhaiian.clint.bookmarks.BookmarkManager
 import com.jhaiian.clint.history.HistoryItem
 import com.jhaiian.clint.history.SearchHistoryManager
 
-private const val SUGGESTION_HISTORY_LIMIT = 20
-private const val SUGGESTION_BOOKMARK_LIMIT = 10
+private const val SUGGESTION_TAB_LIMIT = 3
 
 internal fun MainActivity.applyAddressBarPosition() {
     val position = prefs.getString("address_bar_position", "top") ?: "top"
@@ -53,8 +58,33 @@ private fun MainActivity.clintPageSuggestions(query: String): List<SuggestionIte
         emptyList()
     }
 
+private fun suggestionHost(url: String): String =
+    runCatching { android.net.Uri.parse(url).host.orEmpty().removePrefix("www.") }.getOrDefault("")
+
+private fun isWebAddress(text: String): Boolean = text.startsWith("http://") || text.startsWith("https://")
+
+private fun cleanHistory(history: List<HistoryItem>, query: String, limit: Int): List<HistoryItem> {
+    val typed = query.trim()
+    val seen = mutableSetOf<String>()
+    return history.filter {
+        val web = isWebAddress(it.query)
+        if (!web && typed.isNotEmpty() && it.query.trim().equals(typed, ignoreCase = true)) return@filter false
+        val key = if (web && it.title.isNotBlank()) "${it.title.trim().lowercase()}|${suggestionHost(it.query)}" else it.query.lowercase()
+        seen.add(key)
+    }.take(limit)
+}
+
+private fun matchingTabs(tabs: List<SuggestionItem>, query: String): List<SuggestionItem> {
+    val typed = query.trim()
+    if (typed.isEmpty()) return emptyList()
+    return tabs.filter {
+        it.displayText.contains(typed, ignoreCase = true) || it.query.removePrefix("https://").removePrefix("http://").contains(typed, ignoreCase = true)
+    }.take(SUGGESTION_TAB_LIMIT)
+}
+
 private fun combineSuggestions(
     pages: List<SuggestionItem>,
+    tabs: List<SuggestionItem>,
     bookmarks: List<Bookmark>,
     history: List<HistoryItem>,
     suggestions: List<String>
@@ -65,17 +95,20 @@ private fun combineSuggestions(
         seenUrls.add(it.query)
         items.add(it)
     }
+    tabs.forEach {
+        if (seenUrls.add(it.query)) items.add(it)
+    }
     bookmarks.forEach {
-        seenUrls.add(it.url)
-        items.add(SuggestionItem(it.url, it.title.ifBlank { it.url }, SuggestionType.BOOKMARK))
+        if (seenUrls.add(it.url)) items.add(SuggestionItem(it.url, it.title.ifBlank { it.url }, SuggestionType.BOOKMARK))
     }
     history.forEach {
         if (seenUrls.add(it.query)) {
             items.add(SuggestionItem(it.query, it.title.ifBlank { it.query }, SuggestionType.HISTORY))
         }
     }
+    val seenQueries = items.filter { !isWebAddress(it.query) }.mapTo(mutableSetOf()) { it.query.trim().lowercase() }
     suggestions.forEach {
-        if (seenUrls.add(it)) {
+        if (seenUrls.add(it) && seenQueries.add(it.trim().lowercase())) {
             items.add(SuggestionItem(it, it, SuggestionType.SUGGESTION))
         }
     }
@@ -83,6 +116,7 @@ private fun combineSuggestions(
 }
 
 internal fun MainActivity.openSearchOverlay(isBottom: Boolean) {
+    uiState.find.voicePending = false
     uiState.searchOverlayIsBottom = isBottom
     val current = tabManager.activeTab?.webView?.url?.takeUnless { isClintHomeUrl(it) } ?: ""
     uiState.searchOverlayOpen = true
@@ -98,7 +132,7 @@ internal fun MainActivity.clipboardHasText(): Boolean {
         description.hasMimeType(android.content.ClipDescription.MIMETYPE_TEXT_URILIST)
 }
 
-private fun MainActivity.clipboardText(): String? {
+internal fun MainActivity.clipboardText(): String? {
     val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
     val clip = clipboard.primaryClip ?: return null
     if (clip.itemCount == 0) return null
@@ -132,18 +166,27 @@ internal fun MainActivity.closeSearchOverlay() {
 internal fun MainActivity.onSearchQueryChanged(query: String) {
     uiState.searchQuery = query
     val bgHandler = suggestionsBgHandler ?: return
+    val activeTab = tabManager.activeTab
+    val openTabs = if (prefs.getBoolean(PREF_SUGGESTIONS_SHOW_TABS, true)) {
+        tabManager.tabs
+            .filter { it !== activeTab && it.isIncognito == activeTab?.isIncognito && !tabManager.isGhostTab(it) && isWebAddress(it.url) }
+            .map { SuggestionItem(it.url, it.title.ifBlank { it.url }, SuggestionType.TAB, it.id) }
+    } else emptyList()
+    val findItems = findSuggestionFor(query)
     bgHandler.removeCallbacksAndMessages(null)
     bgHandler.post {
-        val isIncognito = tabManager.activeTab?.isIncognito == true
+        val isIncognito = activeTab?.isIncognito == true
         val incognitoHistoryAllowed = prefs.getBoolean("incognito_search_history_enabled", false)
         val historyAllowed = prefs.getBoolean(PREF_SUGGESTIONS_SHOW_HISTORY, true) && (!isIncognito || incognitoHistoryAllowed)
         val bookmarksAllowed = prefs.getBoolean(PREF_SUGGESTIONS_SHOW_BOOKMARKS, true)
+        val historyLimit = prefs.getInt(PREF_SUGGESTIONS_HISTORY_LIMIT, SUGGESTIONS_HISTORY_LIMIT_DEFAULT)
+        val bookmarkLimit = prefs.getInt(PREF_SUGGESTIONS_BOOKMARK_LIMIT, SUGGESTIONS_BOOKMARK_LIMIT_DEFAULT)
         if (query.isBlank()) {
             suggestionFetcher?.cancel()
             lastOnlineSuggestions = emptyList()
-            val history = if (historyAllowed) SearchHistoryManager.getAll(this).take(SUGGESTION_HISTORY_LIMIT) else emptyList()
-            val bookmarks = if (bookmarksAllowed) BookmarkManager.getAll(this).take(SUGGESTION_BOOKMARK_LIMIT) else emptyList()
-            runOnUiThread { uiState.suggestions = combineSuggestions(emptyList(), bookmarks, history, emptyList()) }
+            val history = if (historyAllowed) cleanHistory(SearchHistoryManager.getRecent(this), query, historyLimit) else emptyList()
+            val bookmarks = if (bookmarksAllowed) BookmarkManager.getAll(this).take(bookmarkLimit) else emptyList()
+            runOnUiThread { uiState.suggestions = combineSuggestions(emptyList(), emptyList(), bookmarks, history, emptyList()) }
             return@post
         }
         val suggestionsApi = com.jhaiian.clint.browser.searchSuggestionsApiFor(prefs, isIncognito)
@@ -152,22 +195,35 @@ internal fun MainActivity.onSearchQueryChanged(query: String) {
             suggestionFetcher?.cancel()
             lastOnlineSuggestions = emptyList()
         }
-        val history = if (historyAllowed) SearchHistoryManager.search(this, query).take(SUGGESTION_HISTORY_LIMIT) else emptyList()
-        val bookmarks = if (bookmarksAllowed) BookmarkManager.search(this, query).take(SUGGESTION_BOOKMARK_LIMIT) else emptyList()
+        val history = if (historyAllowed) cleanHistory(SearchHistoryManager.search(this, query), query, historyLimit) else emptyList()
+        val bookmarks = if (bookmarksAllowed) BookmarkManager.search(this, query).take(bookmarkLimit) else emptyList()
         val pages = clintPageSuggestions(query)
-        runOnUiThread { uiState.suggestions = combineSuggestions(pages, bookmarks, history, lastOnlineSuggestions) }
+        val tabs = matchingTabs(openTabs, query)
+        runOnUiThread { uiState.suggestions = findItems + combineSuggestions(pages, tabs, bookmarks, history, lastOnlineSuggestions) }
         if (onlineBlocked) return@post
-        val customSuggestionsUrl = if (suggestionsApi == "custom") {
-            customSearchSuggestionsApiQueryUrl(prefs, android.net.Uri.encode(query), isIncognito)
+        val customSuggestionsUrl = if (isCustomEngineKey(suggestionsApi)) {
+            suggestionsQueryUrlFor(prefs, suggestionsApi, android.net.Uri.encode(query))
         } else null
         suggestionFetcher?.fetch(query, suggestionsApi, customSuggestionsUrl) { suggestions ->
             lastOnlineSuggestions = suggestions
-            runOnUiThread { uiState.suggestions = combineSuggestions(pages, bookmarks, history, suggestions) }
+            runOnUiThread { uiState.suggestions = findItems + combineSuggestions(pages, tabs, bookmarks, history, suggestions) }
         }
     }
 }
 
 internal fun MainActivity.onSuggestionHistoryDelete(query: String) {
+    com.jhaiian.clint.parental.ParentalControls.gate(
+        context = this,
+        area = com.jhaiian.clint.parental.ParentalControls.AREA_HISTORY,
+        title = getString(R.string.parental_history_title),
+        message = getString(R.string.parental_history_message),
+        positiveLabel = getString(R.string.history_delete_selected),
+        show = { uiState.parentalGate = it },
+        action = { deleteSuggestionHistory(query) }
+    )
+}
+
+private fun MainActivity.deleteSuggestionHistory(query: String) {
     val bgHandler = suggestionsBgHandler ?: return
     bgHandler.post {
         SearchHistoryManager.delete(this, query)
@@ -175,10 +231,16 @@ internal fun MainActivity.onSuggestionHistoryDelete(query: String) {
     }
 }
 
-internal fun MainActivity.onSearchSubmitted(input: String) {
+internal fun MainActivity.onSuggestionTabChosen(tabId: String) {
+    closeSearchOverlay()
+    focusTabById(tabId)
+}
+
+internal fun MainActivity.onSearchSubmitted(input: String, engine: String? = null) {
     val trimmed = input.trim()
     if (trimmed.isEmpty()) return
-    val formatted = formatUrl(trimmed)
+    val target = if (engine != null && formatUrl(trimmed) == getSearchQueryUrl(trimmed)) getSearchQueryUrl(trimmed, engine = engine) else trimmed
+    val formatted = formatUrl(target)
     setAddressBarText(formatted, isBottom = uiState.searchOverlayIsBottom)
     uiState.searchOverlayOpen = false
     suggestionFetcher?.cancel()
@@ -187,7 +249,7 @@ internal fun MainActivity.onSearchSubmitted(input: String) {
     if (tabManager.activeTab?.isIncognito != true) {
         Thread { SearchHistoryManager.add(this, trimmed) }.start()
     }
-    loadUrl(trimmed)
+    loadUrl(target)
 }
 
 internal fun MainActivity.onSuggestionChosen(query: String) {
@@ -411,8 +473,22 @@ internal fun MainActivity.updateMediaCaptureEnabledState() {
     )
 }
 
+internal fun MainActivity.updateToolbarLayout() {
+    val layout = com.jhaiian.clint.browser.toolbar.ToolbarCustomizationStore.read(prefs)
+    val current = uiState.toolbarLayout
+    uiState.toolbarLayout = layout.copy(
+        compact = current.compact,
+        showLabels = current.showLabels,
+        showInBottomPosition = current.showInBottomPosition
+    )
+}
+
 internal fun MainActivity.updateHomeButtonState() {
     uiState.showHomeButton = prefs.getBoolean("show_home_button", true)
+}
+
+internal fun MainActivity.updateStripUrlSchemeState() {
+    uiState.stripUrlScheme = prefs.getBoolean(com.jhaiian.clint.util.PREF_STRIP_URL_SCHEME, true)
 }
 
 internal fun MainActivity.updateSwipeRefreshColors(isIncognito: Boolean) {

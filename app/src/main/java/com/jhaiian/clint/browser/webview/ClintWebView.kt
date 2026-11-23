@@ -45,7 +45,8 @@ class ClintWebView(
     context: Context,
     val isPrivate: Boolean = false,
     val profileId: String? = null,
-    deferOpen: Boolean = false
+    deferOpen: Boolean = false,
+    adoptSession: GeckoSession? = null
 ) : FrameLayout(context) {
 
     val geckoView = object : GeckoView(context) {
@@ -132,6 +133,7 @@ class ClintWebView(
         }
     var clipboardPermissionHandler: ((String, (Boolean) -> Unit) -> Unit)? = null
     var clipboardDismissHandler: (() -> Unit)? = null
+    var findRequestHandler: ((String) -> Unit)? = null
 
     @Volatile var rawUrl: String? = null
         private set
@@ -169,6 +171,8 @@ class ClintWebView(
     private val queuedEvals = ArrayList<JSONObject>()
     private var topPort: WebExtension.Port? = null
     private val ports = ArrayList<WebExtension.Port>()
+    private val popupProbes = ArrayList<ClintPopupProbe>()
+    private val pendingPopups = ArrayList<ClintPopupWindow>()
 
     fun attachExtension(ext: WebExtension) {
         if (extensionAttached || destroyed) return
@@ -293,6 +297,15 @@ class ClintWebView(
         dispatchToPage(JSONObject().put("k", "eval").put("code", script).put("id", id))
     }
 
+    fun applyColorFilter(cfx: JSONObject) {
+        dispatchToPage(JSONObject().put("k", "cfx").put("cfx", cfx))
+    }
+
+    fun broadcastScript(script: String) {
+        val message = JSONObject().put("k", "eval").put("code", script).put("id", "")
+        ArrayList(ports).forEach { runCatching { it.postMessage(message) } }
+    }
+
     fun queryVideoSize(callback: (String?) -> Unit) {
         val id = evalSeq.incrementAndGet().toString()
         pendingEval[id] = callback
@@ -300,11 +313,62 @@ class ClintWebView(
         dispatchToPage(JSONObject().put("k", "videoSize").put("id", id))
     }
 
+    fun queryLinkText(callback: (String?) -> Unit) {
+        val id = evalSeq.incrementAndGet().toString()
+        pendingEval[id] = callback
+        ClintGecko.main.postDelayed({ pendingEval.remove(id)?.invoke(null) }, 1500)
+        dispatchToPage(JSONObject().put("k", "linkText").put("id", id))
+    }
+
     fun extractReaderContent(callback: (String?) -> Unit) {
         val id = evalSeq.incrementAndGet().toString()
         pendingEval[id] = callback
         ClintGecko.main.postDelayed({ pendingEval.remove(id)?.invoke(null) }, 8000)
         dispatchToPage(JSONObject().put("k", "reader").put("id", id))
+    }
+
+    fun findInPage(query: String, flags: Int, callback: (GeckoSession.FinderResult?) -> Unit) {
+        if (destroyed || !session.isOpen) {
+            callback(null)
+            return
+        }
+        session.finder.find(query, flags).accept(
+            { result -> ClintGecko.main.post { callback(result) } },
+            { ClintGecko.main.post { callback(null) } }
+        )
+    }
+
+    fun clearFind() {
+        if (destroyed || !session.isOpen) return
+        session.finder.clear()
+    }
+
+    fun setFindDisplay(dimPage: Boolean) {
+        if (destroyed || !session.isOpen) return
+        var flags = GeckoSession.FINDER_DISPLAY_HIGHLIGHT_ALL or GeckoSession.FINDER_DISPLAY_DRAW_LINK_OUTLINE
+        if (dimPage) flags = flags or GeckoSession.FINDER_DISPLAY_DIM_PAGE
+        session.finder.setDisplayFlags(flags)
+    }
+
+    fun scanPage(query: String, regex: Boolean, matchCase: Boolean, wholeWord: Boolean, callback: (String?) -> Unit) {
+        val id = evalSeq.incrementAndGet().toString()
+        pendingEval[id] = callback
+        ClintGecko.main.postDelayed({ pendingEval.remove(id)?.invoke(null) }, 8000)
+        dispatchToPage(
+            JSONObject().put("k", "find").put("id", id).put("q", query)
+                .put("regex", regex).put("mc", matchCase).put("ww", wholeWord)
+        )
+    }
+
+    fun selectScanned(index: Int, callback: (Boolean) -> Unit) {
+        val id = evalSeq.incrementAndGet().toString()
+        pendingEval[id] = { callback(it == "1") }
+        ClintGecko.main.postDelayed({ pendingEval.remove(id)?.invoke(null) }, 5000)
+        dispatchToPage(JSONObject().put("k", "findGo").put("id", id).put("i", index))
+    }
+
+    fun clearScanned() {
+        dispatchToPage(JSONObject().put("k", "findClear"))
     }
 
     private fun dispatchToPage(msg: JSONObject) {
@@ -318,7 +382,7 @@ class ClintWebView(
     }
 
     fun loadUrl(url: String) {
-        ClintGecko.whenReady { if (!destroyed) doLoad(url) }
+        if (!destroyed) doLoad(url)
     }
 
     fun loadUrl(url: String, headers: Map<String, String>) = loadUrl(url)
@@ -344,6 +408,15 @@ class ClintWebView(
         if (LongShot.isLongShotUrl(url)) {
             showLongShot(replace = false)
             return
+        }
+        if (com.jhaiian.clint.extensions.ClintExtensions.parentalControlsActive()) {
+            val uri = Uri.parse(url)
+            if (com.jhaiian.clint.extensions.ClintExtensions.isExtensionPageUrl(uri) &&
+                !com.jhaiian.clint.extensions.ClintExtensions.isPageApproved(this, uri)
+            ) {
+                com.jhaiian.clint.extensions.ClintExtensions.requestPageAccess(this, uri)
+                return
+            }
         }
         lastFailedUrl = null
         awaitingRealLoad = true
@@ -399,6 +472,12 @@ class ClintWebView(
         awaitingRealLoad = false
     }
 
+    fun restoreUrlAfterDeniedLoad() {
+        awaitingRealLoad = false
+        val current = currentUrl
+        if (!current.isNullOrEmpty()) webViewClient?.onTabUrlRestored(this, current)
+    }
+
     fun canGoBack(): Boolean = canGoBackState
     fun canGoForward(): Boolean = canGoForwardState
     fun goBack() {
@@ -427,6 +506,12 @@ class ClintWebView(
         if (destroyed || !session.isOpen) return
         session.setFocused(false)
         if (!isMediaPlaying) deactivateSession()
+    }
+
+    fun onBackground() {
+        ClintGecko.clearForeground(this)
+        if (destroyed || !session.isOpen) return
+        session.setFocused(false)
     }
 
     private fun activateSession() {
@@ -539,6 +624,10 @@ class ClintWebView(
         ClintGecko.main.removeCallbacks(detachDeactivateRunnable)
         pendingEval.clear()
         queuedEvals.clear()
+        popupProbes.toList().forEach { it.cancel() }
+        popupProbes.clear()
+        pendingPopups.toList().forEach { it.decline() }
+        pendingPopups.clear()
         ports.clear()
         topPort = null
         bridges.clear()
@@ -569,6 +658,7 @@ class ClintWebView(
         selectPromptHandler = null
         clipboardPermissionHandler = null
         clipboardDismissHandler = null
+        findRequestHandler = null
         removeAllViews()
     }
 
@@ -591,6 +681,23 @@ class ClintWebView(
         super.onDetachedFromWindow()
         ClintGecko.main.removeCallbacks(detachDeactivateRunnable)
         if (!destroyed && session.isOpen) ClintGecko.main.postDelayed(detachDeactivateRunnable, DETACH_DEACTIVATE_DELAY_MS)
+    }
+
+    private var dynamicToolbarMaxHeight = 0
+    private var dynamicToolbarClipping = 0
+
+    fun setDynamicToolbar(maxHeight: Int, clipping: Int) {
+        val max = maxHeight.coerceAtLeast(0)
+        val clip = clipping.coerceIn(-max, 0)
+        if (max != dynamicToolbarMaxHeight) {
+            dynamicToolbarMaxHeight = max
+            dynamicToolbarClipping = 0
+            runCatching { geckoView.setDynamicToolbarMaxHeight(max) }
+        }
+        if (clip != dynamicToolbarClipping) {
+            dynamicToolbarClipping = clip
+            runCatching { geckoView.setVerticalClipping(clip) }
+        }
     }
 
     override fun canScrollVertically(direction: Int): Boolean =
@@ -733,8 +840,26 @@ class ClintWebView(
         }
 
         override fun onNewSession(session: GeckoSession, uri: String): GeckoResult<GeckoSession>? {
-            webChromeClient?.onNewWindow(uri)
-            return GeckoResult.fromValue(null)
+            val chrome = webChromeClient ?: return GeckoResult.fromValue(null)
+            if (destroyed || !chrome.acceptsNewWindow(uri)) return GeckoResult.fromValue(null)
+            val extensionsFirst = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean("popup_extensions_first", true)
+            if (!extensionsFirst || isSameOriginUrl(currentUrl, uri) ||
+                !com.jhaiian.clint.extensions.ClintExtensions.hasRequestBlocker(isPrivate)
+            ) {
+                val (popup, result) = createPopupWindow(uri)
+                chrome.onPopupWindow(popup)
+                return result
+            }
+            val probe = ClintPopupProbe(isPrivate, profileId, uri) { finished, target, adoptable ->
+                popupProbes.remove(finished)
+                if (target == null) return@ClintPopupProbe
+                val popup = createProbedPopup(finished, target, adoptable)
+                val client = webChromeClient
+                if (destroyed || client == null) popup.decline() else client.onPopupWindow(popup)
+            }
+            popupProbes.add(probe)
+            return GeckoResult.fromValue(probe.session)
         }
 
         override fun onLoadError(session: GeckoSession, uri: String?, error: WebRequestError): GeckoResult<String>? {
@@ -867,7 +992,9 @@ class ClintWebView(
         override fun onExternalResponse(session: GeckoSession, response: WebResponse) {
             val headers = response.headers
             fun header(name: String): String? = headers.entries.firstOrNull { it.key.equals(name, true) }?.value
-            if (com.jhaiian.clint.downloads.ResponseDownloads.isInline(response.uri)) {
+            if (com.jhaiian.clint.downloads.ResponseDownloads.isInline(response.uri) &&
+                (response.body != null || !response.uri.startsWith("blob:", true))
+            ) {
                 if (!com.jhaiian.clint.downloads.ResponseDownloads.save(context, response)) {
                     android.widget.Toast.makeText(context, R.string.download_response_failed, android.widget.Toast.LENGTH_SHORT).show()
                 }
@@ -890,7 +1017,7 @@ class ClintWebView(
         }
 
         override fun onCloseRequest(session: GeckoSession) {
-            webChromeClient?.onNewWindow("about:blank")
+            webChromeClient?.onCloseWindow()
         }
 
         override fun onCrash(session: GeckoSession) {
@@ -1203,6 +1330,32 @@ class ClintWebView(
             finish(result, false)
             clipboardDismissHandler?.invoke()
         }
+
+        override fun onPrepareActionMode(actionMode: android.view.ActionMode, menu: android.view.Menu): Boolean {
+            val changed = super.onPrepareActionMode(actionMode, menu)
+            val selection = getSelection()
+            val show = findRequestHandler != null && selection != null && selection.text.isNotBlank() &&
+                (selection.flags and GeckoSession.SelectionActionDelegate.FLAG_IS_PASSWORD) == 0
+            val existing = menu.findItem(FIND_MENU_ID)
+            if (show && existing == null) {
+                menu.add(android.view.Menu.NONE, FIND_MENU_ID, FIND_MENU_ORDER, this@ClintWebView.context.getString(R.string.menu_find_in_page))
+                    .setShowAsAction(android.view.MenuItem.SHOW_AS_ACTION_NEVER)
+                return true
+            }
+            if (!show && existing != null) {
+                menu.removeItem(FIND_MENU_ID)
+                return true
+            }
+            return changed
+        }
+
+        override fun onActionItemClicked(actionMode: android.view.ActionMode, menuItem: android.view.MenuItem): Boolean {
+            if (menuItem.itemId != FIND_MENU_ID) return super.onActionItemClicked(actionMode, menuItem)
+            val text = getSelection()?.text?.replace(Regex("\\s+"), " ")?.trim()?.take(FIND_SELECTION_MAX_CHARS).orEmpty()
+            clearSelection()
+            if (text.isNotEmpty()) findRequestHandler?.invoke(text)
+            return true
+        }
     }
 
     private fun findActivity(): android.app.Activity? {
@@ -1216,12 +1369,8 @@ class ClintWebView(
 
     init {
         ClintGecko.init(context)
-        val builder = GeckoSessionSettings.Builder()
-            .usePrivateMode(isPrivate)
-            .allowJavascript(true)
-            .useTrackingProtection(ClintGecko.blocksTrackingContent(isPrivate))
-        if (!profileId.isNullOrEmpty()) builder.contextId(profileId)
-        session = GeckoSession(builder.build())
+        session = adoptSession ?: GeckoSession(sessionSettings(isPrivate, profileId))
+        if (adoptSession != null) neverOpened = true
         session.contentDelegate = contentDelegate
         session.navigationDelegate = navigationDelegate
         session.progressDelegate = progressDelegate
@@ -1236,17 +1385,109 @@ class ClintWebView(
         session.translationsSessionDelegate = translator.delegate
         findActivity()?.let { session.selectionActionDelegate = ClipboardSelectionDelegate(it) }
         autofillAllowed = !isPrivate
-        if (!deferOpen) {
+        if (!deferOpen && adoptSession == null) {
             session.open(ClintGecko.runtime)
             geckoView.setSession(session)
         }
         addView(geckoView, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         addView(cover, LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        if (!deferOpen) ClintGecko.registerView(this)
+        if (!deferOpen && adoptSession == null) ClintGecko.registerView(this)
+    }
+
+    fun bindAdoptedSession(url: String, title: String?, loaded: Boolean, attempt: Int = 0) {
+        if (destroyed || !neverOpened) return
+        if (!session.isOpen) {
+            if (attempt < ADOPT_MAX_ATTEMPTS) {
+                ClintGecko.main.postDelayed({ bindAdoptedSession(url, title, loaded, attempt + 1) }, ADOPT_RETRY_MS)
+            } else {
+                neverOpened = false
+                loadUrl(url)
+            }
+            return
+        }
+        neverOpened = false
+        geckoView.setSession(session)
+        ClintGecko.registerView(this)
+        if (loaded) {
+            rawUrl = url
+            currentUrl = url
+            pagePainted = true
+            progress = 100
+            hideCover()
+            webViewClient?.doUpdateVisitedHistory(this, url)
+            if (!title.isNullOrEmpty()) {
+                currentTitle = title
+                webChromeClient?.onReceivedTitle(this, title)
+            }
+            webChromeClient?.onProgressChanged(this, 100)
+        }
+        if (isWindowActive() && !paused) activateSession()
+    }
+
+    private fun trackPopup(popup: ClintPopupWindow) {
+        pendingPopups.add(popup)
+    }
+
+    private fun createPopupWindow(uri: String): Pair<ClintPopupWindow, GeckoResult<GeckoSession>> {
+        val result = GeckoResult<GeckoSession>()
+        val popupSession = GeckoSession(sessionSettings(isPrivate, profileId))
+        lateinit var popup: ClintPopupWindow
+        popup = ClintPopupWindow(
+            url = uri,
+            session = popupSession,
+            isLoaded = false,
+            skipPrompt = false,
+            titleProvider = { null },
+            onAccept = {
+                pendingPopups.remove(popup)
+                result.complete(popupSession)
+            },
+            onDecline = {
+                pendingPopups.remove(popup)
+                result.complete(null)
+            }
+        )
+        trackPopup(popup)
+        return popup to result
+    }
+
+    private fun createProbedPopup(probe: ClintPopupProbe, url: String, adoptable: Boolean): ClintPopupWindow {
+        lateinit var popup: ClintPopupWindow
+        popup = ClintPopupWindow(
+            url = url,
+            session = if (adoptable) probe.session else null,
+            isLoaded = adoptable,
+            skipPrompt = adoptable,
+            titleProvider = { probe.title },
+            onAccept = {
+                pendingPopups.remove(popup)
+                if (adoptable) probe.detach() else probe.cancel()
+            },
+            onDecline = {
+                pendingPopups.remove(popup)
+                probe.cancel()
+            }
+        )
+        trackPopup(popup)
+        return popup
     }
 
     companion object {
+        fun sessionSettings(isPrivate: Boolean, profileId: String?): GeckoSessionSettings {
+            val builder = GeckoSessionSettings.Builder()
+                .usePrivateMode(isPrivate)
+                .allowJavascript(true)
+                .useTrackingProtection(ClintGecko.blocksTrackingContent(isPrivate))
+            if (!profileId.isNullOrEmpty()) builder.contextId(profileId)
+            return builder.build()
+        }
+
+        private const val ADOPT_RETRY_MS = 50L
+        private const val ADOPT_MAX_ATTEMPTS = 40
         const val ERROR_PAGE_PREFIX = "data:text/html;charset=utf-8;base64,"
         private const val DETACH_DEACTIVATE_DELAY_MS = 500L
+        private const val FIND_MENU_ID = 0x4C46
+        private const val FIND_MENU_ORDER = 100
+        private const val FIND_SELECTION_MAX_CHARS = 200
     }
 }

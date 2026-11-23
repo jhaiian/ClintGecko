@@ -8,7 +8,10 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.Icon
+import android.os.Build
 import android.os.SystemClock
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.preference.PreferenceManager
 import com.jhaiian.clint.R
@@ -135,7 +138,7 @@ internal object DownloadNotificationHelper {
         if (ClintDownloadManager.isRemoved(item.id)) return
         takeGlobalSlot(force = true)
         val nm = context.getSystemService(NotificationManager::class.java)
-        NotificationCompat.Builder(context, ClintDownloadManager.CHANNEL_ID)
+        val builder = NotificationCompat.Builder(context, ClintDownloadManager.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_24)
             .setContentTitle(item.filename)
             .setContentText(context.getString(R.string.download_status_queued))
@@ -144,9 +147,10 @@ internal object DownloadNotificationHelper {
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setProgress(0, 0, false)
-            .addAction(0, context.getString(R.string.action_pause), pausePendingIntent(context, item.id))
-            .build()
-            .let { nm.notify(item.id, it) }
+        if (appearance(context).notifActions) {
+            builder.addAction(0, context.getString(R.string.action_pause), pausePendingIntent(context, item.id))
+        }
+        nm.notify(item.id, builder.build())
     }
 
     fun showProgressNotification(context: Context, item: DownloadItem) {
@@ -157,6 +161,7 @@ internal object DownloadNotificationHelper {
 
     private fun postProgressNotification(context: Context, item: DownloadItem) {
         if (ClintDownloadManager.isRemoved(item.id)) return
+        val appearance = appearance(context)
         lastProgressPostAt[item.id] = SystemClock.elapsedRealtime()
         val nm = context.getSystemService(NotificationManager::class.java)
 
@@ -232,7 +237,7 @@ internal object DownloadNotificationHelper {
                 } else {
                     context.getString(R.string.download_status_progress_indeterminate, downloaded)
                 }
-                val speedEtaText = buildSpeedEtaText(context, item)
+                val speedEtaText = if (appearance.notifSpeed) buildSpeedEtaText(context, item) else null
                 val segmentText = if (item.segmentsTotal > 0) context.getString(R.string.download_status_segment_progress, item.segmentsCompleted, item.segmentsTotal) else null
                 val combinedMeta = listOfNotNull(streamStageLabel(context, item), segmentText, speedEtaText)
                 metaText = if (combinedMeta.isEmpty()) null else combinedMeta.joinToString("  \u2022  ")
@@ -251,6 +256,16 @@ internal object DownloadNotificationHelper {
         )
 
         val contentText = if (metaText != null) "$statusText  \u2022  $metaText" else statusText
+
+        if (appearance.notifLiveUpdate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA && nm.canPostPromotedNotifications()) {
+            postLiveProgressNotification(
+                context, nm, item, appearance,
+                statusText, metaText, contentText,
+                progress, indeterminate, showPause, downloadsPi
+            )
+            return
+        }
+
         val builder = NotificationCompat.Builder(context, ClintDownloadManager.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_24)
             .setContentTitle(item.filename)
@@ -259,11 +274,14 @@ internal object DownloadNotificationHelper {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
-            .setProgress(100, progress, indeterminate)
             .setGroup(DOWNLOAD_GROUP_KEY)
             .setContentIntent(downloadsPi)
 
-        if (showPause) {
+        if (appearance.notifProgress) {
+            builder.setProgress(100, progress, indeterminate)
+        }
+
+        if (showPause && appearance.notifActions) {
             builder.addAction(0, context.getString(R.string.action_pause), pausePendingIntent(context, item.id))
         }
 
@@ -405,7 +423,8 @@ internal object DownloadNotificationHelper {
         } else label
         val contentText = if (progressText != null) "$progressText  \u2022  $metaLabel" else metaLabel
 
-        NotificationCompat.Builder(context, ClintDownloadManager.CHANNEL_ID)
+        val appearance = appearance(context)
+        val builder = NotificationCompat.Builder(context, ClintDownloadManager.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_24)
             .setGroup(DOWNLOAD_GROUP_KEY)
             .setContentTitle(item.filename)
@@ -414,10 +433,13 @@ internal object DownloadNotificationHelper {
             .setOngoing(false)
             .setOnlyAlertOnce(true)
             .setSilent(true)
-            .setProgress(100, pct.coerceAtLeast(0), false)
-            .addAction(0, actionLabel, actionPendingIntent)
-            .build()
-            .let { notifyReplacing(nm, item, it) }
+        if (appearance.notifProgress) {
+            builder.setProgress(100, pct.coerceAtLeast(0), false)
+        }
+        if (appearance.notifActions) {
+            builder.addAction(0, actionLabel, actionPendingIntent)
+        }
+        notifyReplacing(nm, item, builder.build())
     }
 
     fun showCompleteNotification(context: Context, item: DownloadItem) {
@@ -449,7 +471,11 @@ internal object DownloadNotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        NotificationCompat.Builder(context, ClintDownloadManager.EVENT_CHANNEL_ID)
+        val appearance = appearance(context)
+        val builder = NotificationCompat.Builder(
+            context,
+            if (appearance.notifQuietComplete) ClintDownloadManager.CHANNEL_ID else ClintDownloadManager.EVENT_CHANNEL_ID
+        )
             .setSmallIcon(R.drawable.ic_notification_24)
             .setContentTitle(item.filename)
             .setContentText(context.getString(R.string.download_notification_complete))
@@ -458,12 +484,11 @@ internal object DownloadNotificationHelper {
             .setOngoing(false)
             .setOnlyAlertOnce(true)
             .setContentIntent(downloadsPi)
-            .addAction(0, context.getString(R.string.action_open), openPi)
-            .build()
-            .let {
-                takeGlobalSlot(force = true)
-                nm.notify(COMPLETE_TAG, item.id, it)
-            }
+        if (appearance.notifActions) {
+            builder.addAction(0, context.getString(R.string.action_open), openPi)
+        }
+        takeGlobalSlot(force = true)
+        nm.notify(COMPLETE_TAG, item.id, builder.build())
     }
 
     fun showFailedNotification(context: Context, item: DownloadItem) {
@@ -524,6 +549,69 @@ internal object DownloadNotificationHelper {
             }
     }
 
+    fun canPostLiveUpdates(context: Context): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+            context.getSystemService(NotificationManager::class.java).canPostPromotedNotifications()
+
+    @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+    private fun postLiveProgressNotification(
+        context: Context,
+        nm: NotificationManager,
+        item: DownloadItem,
+        appearance: DownloadAppearance,
+        statusText: String,
+        metaText: String?,
+        contentText: String,
+        progress: Int,
+        indeterminate: Boolean,
+        showPause: Boolean,
+        contentIntent: PendingIntent
+    ) {
+        val builder = Notification.Builder(context, ClintDownloadManager.CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification_24)
+            .setContentTitle(if (indeterminate) statusText else "$progress%")
+            .setContentText(item.filename)
+            .setSubText(if (indeterminate) metaText else contentText)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setCategory(Notification.CATEGORY_PROGRESS)
+            .setContentIntent(contentIntent)
+            .setRequestPromotedOngoing(true)
+
+        if (!indeterminate) {
+            builder.setShortCriticalText("$progress%")
+        }
+
+        if (appearance.notifProgress) {
+            builder.setStyle(
+                Notification.ProgressStyle()
+                    .setProgress(progress)
+                    .setProgressIndeterminate(indeterminate)
+            )
+        } else {
+            builder.setStyle(Notification.BigTextStyle().bigText(contentText))
+        }
+
+        if (appearance.notifActions) {
+            if (showPause) {
+                builder.addAction(
+                    liveAction(context, android.R.drawable.ic_media_pause, R.string.action_pause, pausePendingIntent(context, item.id))
+                )
+            }
+            builder.addAction(
+                liveAction(context, android.R.drawable.ic_menu_close_clear_cancel, R.string.action_cancel, cancelPendingIntent(context, item.id))
+            )
+        }
+
+        nm.notify(item.id, builder.build())
+    }
+
+    private fun liveAction(context: Context, iconRes: Int, labelRes: Int, intent: PendingIntent): Notification.Action =
+        Notification.Action.Builder(Icon.createWithResource(context, iconRes), context.getString(labelRes), intent).build()
+
+    private fun appearance(context: Context): DownloadAppearance =
+        DownloadAppearance.read(PreferenceManager.getDefaultSharedPreferences(context))
+
     private fun isPushEnabled(context: Context): Boolean =
         PreferenceManager.getDefaultSharedPreferences(context)
             .getBoolean(DownloadSettingsKeys.PREF_PUSH_NOTIFICATIONS, DownloadSettingsKeys.DEFAULT_PUSH_NOTIFICATIONS)
@@ -543,6 +631,16 @@ internal object DownloadNotificationHelper {
             context, id + 50000,
             Intent(context, DownloadActionReceiver::class.java).apply {
                 action = DownloadActionReceiver.ACTION_RESUME
+                putExtra(DownloadActionReceiver.EXTRA_ID, id)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+    private fun cancelPendingIntent(context: Context, id: Int): PendingIntent =
+        PendingIntent.getBroadcast(
+            context, id + 70000,
+            Intent(context, DownloadActionReceiver::class.java).apply {
+                action = DownloadActionReceiver.ACTION_CANCEL
                 putExtra(DownloadActionReceiver.EXTRA_ID, id)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

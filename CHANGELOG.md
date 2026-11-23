@@ -4,6 +4,542 @@ All notable changes to Clint Gecko are documented here.
 
 ---
 
+# v1.0.6
+
+## Announcement
+
+Today, November 24, 2026, marks the anniversary of the premiere of Hawkeye, my favorite show of all time. To celebrate, I'm introducing all of you to:
+
+- **[Kate](https://github.com/jhaiian/Kate)** – An open-source local music player with synced lyrics and customizable themes.
+- **[Lucky](https://github.com/jhaiian/Lucky)** – An Android video player built with Rust, featuring motion interpolation.
+
+I engineered both of them, and both support Clint themes!
+
+Lucky is still in early development, but frick it, I'm releasing it today as well.
+
+As for Clint, read the full changelog below!
+
+---
+
+## What's New
+
+### Video Player
+
+Clint now has its own video player! It works with videos on almost any website.
+
+- Tap a website's fullscreen button and the video opens in Clint's player instead. If you'd rather use the site's own player, turn off **Use for website fullscreen**.
+- A small floating bar shows up over videos with **Pop-up player**, **Fullscreen**, and a close button. You can use it to open any video in Clint's player, even when the site's fullscreen button doesn't work.
+- The player has a seek bar, play and pause, skip back and forward, playback speed from 0.25x to 3x, screen fit (Fit, Stretch, Zoom, Original, 16:9, and 4:3), lock controls, rotate screen, pop-up player, and play in background. Live streams show a **LIVE** badge.
+- Swipe the left side to change the brightness, the right side to change the volume, or across the screen to seek.
+- Double-tap the left or right side to skip back or forward, and press and hold to play at 2x until you let go.
+- If Media Capture found other qualities or audio tracks for the video, you can switch between them right from the player. Subtitles that come with the video can be turned on and off too.
+- Clint remembers the screen fit you picked.
+- The screen stays on while a video is playing.
+- **Auto picture-in-picture** keeps a fullscreen video playing in a small window when you leave the app. The window has skip back, play and pause, and skip forward buttons, and the video fills the whole window.
+- Switching to another tab closes the player.
+- The Media Capture video preview and the new **Play** button in the download dialog use the same player.
+
+#### Video Player Settings
+
+Everything is in the new **Video player** page in Settings › Browser.
+
+- Turn the player, **Use for website fullscreen**, **Floating video button**, and **Auto picture-in-picture** on or off.
+- Turn **Swipe gestures**, **Double-tap to skip**, and **Hold to speed up** on or off.
+- **Remember brightness and volume** brings back the levels you last set with swipe gestures when a video opens. It's off by default.
+- **Skip interval** can be 5, 10, or 30 seconds.
+- **Player buttons** lets you choose which buttons show in the player.
+- **Progress bar style** has Slider, Thin line, Thick bar, Squiggle, and Dots.
+- **Hide controls after** 2, 4, 6, or 10 seconds.
+- **Theme-colored icons** tints the player icons with your accent color instead of white.
+
+(Thanks to @Woallin, @xmiseggs, @meishah, and @gigisforza70 for suggesting this [#14](https://github.com/jhaiian/ClintGecko/issues/14) [#38](https://github.com/jhaiian/ClintGecko/issues/38) [#85](https://github.com/jhaiian/ClintGecko/issues/85) [#72](https://github.com/jhaiian/ClintBrowser/issues/72))
+
+---
+
+### Profiles
+
+Profiles are now fully separate from each other. Each one has its own tabs, cookies, site data, bookmarks, history, downloads, site permissions, and extensions, so you can keep things like Work and Personal apart.
+
+- Tap a profile to switch to it, or use **Switch profile** in the browser menu or the tab manager's ⋮ menu.
+- Tabs from every profile stay in your tab manager. Opening a tab from another profile switches you to that profile.
+- Each profile can have its own extensions turned on.
+- New **Temporary profile** option. Its tabs, data, and bookmarks are erased when its last tab closes or when you close the app.
+- New **Profile switcher** button for the address bar. Tap it to pick a profile, or long press it to switch to the next one. It's hidden by default, so turn it on in Customize Toolbar if you want it.
+- Each profile can also have its own homepage and favorites.
+- Deleting a profile now also deletes its bookmarks, history, and site permissions. Its downloads move to the Default profile.
+
+(Thanks to @Subbarao6338 for suggesting this [#71](https://github.com/jhaiian/ClintGecko/issues/71))
+
+---
+
+### A New Browser Menu
+
+The browser menu got a full redesign.
+
+- Items are now grouped into **Quick actions** (a grid of icon tiles), **Toggles** (on and off chips), and a **List** of full-width rows.
+- A page header at the top shows the site name and whether the connection is secure.
+- A navigation bar with Back, Forward, Reload, Bookmark, and Share. You can swap any of them for Home or New tab, or hide the bar completely.
+- New **Create Favorite** item. It opens the Add site dialog with the current page already filled in.
+- New **Find in page** item.
+- The extensions list in the menu can now be sorted by **Enabled first**, **Name (A–Z)**, **Recently used**, or **Custom order**. You set the custom order by dragging.
+- A **Customize** shortcut at the bottom of the menu.
+
+#### Customize Menu
+
+- Drag items between sections, or tap the section button on an item to move it. Items in **Hidden** won't show up in the menu.
+- New **Grid columns** (3, 4, or 5), **Density** (Comfortable or Compact), **Page header**, **Labels under icons**, and **Show navigation bar** options.
+- Tap a navigation bar button to swap it for another one.
+- A live preview of your menu at the top. Tap the arrows to see it fullscreen.
+- Your old order and hidden items carry over.
+
+(Thanks to @Subbarao6338 and @super585 for suggesting this [#69](https://github.com/jhaiian/ClintGecko/issues/69) [#81](https://github.com/jhaiian/ClintBrowser/issues/81))
+
+---
+
+### Customize Toolbar
+
+New **Customize Toolbar** page in Settings › Look and feel.
+
+- Reorder the buttons next to the address bar, or turn off the ones you don't use. That's Extensions, Media Capture, Profile switcher, and the tab counter. The menu button is always shown.
+- Pick 3 to 6 actions for the bottom bar and drag to reorder them. You can choose from Back, Forward, Home, Reload, Bookmark, Share, New tab, Tabs, Downloads, History, Find in page, and Menu.
+- Every bottom bar button can have its own long-press action. Tap the hand icon to pick one.
+(Thanks to @akshaymaurya26 for suggesting this [#27](https://github.com/jhaiian/ClintGecko/issues/27))
+- **Compact bars** makes the address bar and bottom bar shorter.
+(Thanks to @wibucter for suggesting this [#44](https://github.com/jhaiian/ClintGecko/issues/44))
+- **Button labels** shows a label under each bottom bar button.
+- **Also show at the bottom** adds the bottom bar buttons under the address bar when the address bar is at the bottom.
+- New **Progress bar** option for the page loading line. Keep **Classic** or switch to the new Material 3 **Squiggle**.
+(Thanks to @RENBOWS for suggesting this [#77](https://github.com/jhaiian/ClintGecko/issues/77))
+- **Search bar shape** moved here. It's used by the address bar, the search screen, and the homepage.
+
+Compact bars, button labels, and the bottom row need a restart. Clint asks first, and if you pick **Later** it restarts when you leave the page.
+
+---
+
+### Pinned Extensions
+
+- Pin an extension from the extensions panel in the menu or from its details page. Its icon and badge show up next to the address bar. Tap it to use the extension, or long press it to open its settings.
+- You can also pin an **Extensions** button. It opens the extensions panel as a popup.
+- How many fit depends on your screen. Phones show 2, medium screens show 4, and large screens show 6. Extra pinned extensions go to the top of the Extensions popup, and the Extensions button shows up on its own when there are extras.
+
+---
+
+### Homepage Customization
+
+Homepage settings now have their own page in Settings › Browser › Homepage, with a **Live Preview** at the top. Tap the arrows to see it fullscreen.
+
+#### Header
+
+- **Header Style** shows the logo and title, only the logo, only the title, or nothing.
+- **Custom Title** replaces the name on your homepage. Leave it empty to use the default.
+- **Show Greeting** adds a greeting above the title based on the time of day.
+
+#### Content
+
+- **Quick Action Buttons** lets you pick which buttons show. You can choose from Bookmarks, History, Downloads, Incognito switch, Settings, Extensions, and Profiles.
+- **Section Order** lets you rearrange the search bar, quick actions, favorites, recent sites, and widgets.
+- New widgets for a **Clock**, **Continue where you left off**, and **Active downloads**.
+- **Recent Sites Shown** from 1 to 10.
+- **Voice Search Button** to show or hide the microphone in the search bar.
+
+#### Tiles and Cards
+
+- **Favorites Columns** can be Auto or 3 to 6.
+- **Tile Shape** (rounded square, circle, or square), **Tile Size**, and **Tile Labels**.
+- **Folder Icon** can show a preview grid of the sites inside or a plain folder.
+- **Card Opacity** and **Card Corner Radius**.
+
+#### Background
+
+- New **Solid Color** design with any color you want.
+- New **Custom Gradient** design that blends two colors at any angle.
+- New **Image Dimming**, **Image Blur**, and **Parallax Scrolling** options for your own photo.
+- **Separate Dark Theme Image** lets you use a different photo while the dark theme is on.
+
+#### Profiles
+
+- **Customize For** lets each profile have its own homepage.
+- **Separate Favorites** gives a profile its own favorites instead of sharing the default ones.
+- **Reset to Default** removes a profile's own homepage settings.
+
+---
+
+### Search Suggestions
+
+Search suggestions are cleaner now and a lot more customizable.
+
+- New **Compact** style, now the default. It drops the boxed icons, card backgrounds, and dividers. The old style is still there as **Cards**.
+- Repeated history entries are merged, and history that just repeats what you typed is hidden.
+- New **Open tabs** section. Tap **Switch to tab** to jump to a tab you already have open.
+- Your homepage favorites show up when the search bar is empty.
+- A **Paste & Go** button opens a copied link or text right away.
+- Swipe a history suggestion to delete it. Long press a suggestion to fill it into the search bar or remove it.
+- The part of a search suggestion you haven't typed yet is now in bold.
+- New engine button inside the search field. Tap it to search once with a different engine without changing your settings. Web addresses still open directly.
+- The back arrow in the search field is gone, since the back gesture already closes the search screen.
+
+#### Suggestions Settings
+
+Suggestions now have their own page in Settings › Browser › Suggestions.
+
+- **Suggestion style**, **Section order** (Bookmarks first, History first, Web suggestions first, or Mixed), and **Text size**.
+- **Web addresses** shows only the domain, the full address, or nothing.
+- **Show section titles** and **Show fill arrow**.
+- **Bookmark suggestions shown** and **History suggestions shown**.
+- Switches for open tabs, favorites, Paste & Go, and the quick engine switch.
+
+#### Custom Search Engines
+
+- You can now add as many custom search engines and suggestion APIs as you want, instead of just one. They work for both normal browsing and Incognito.
+- Each one has a name, an optional description, and its URL. The description shows under the name in the pickers.
+- Search engines and suggestion APIs now have their own editors, and the `{query}` hint is only shown once.
+- Custom engines also show up in the one-time engine picker.
+- Your old custom search engine and suggestions API are moved into the list automatically.
+
+(Thanks to @xmiseggs for suggesting this [#62](https://github.com/jhaiian/ClintGecko/issues/62))
+
+---
+
+### Find in Page
+
+Clint now has Find in page!
+
+- Open it from the menu, the text selection menu, or the bottom bar if you add it there. When you type in the address bar, Clint also offers to find that text on the current page.
+- Every match is highlighted. The current one stands out, the others are amber, and small markers on the right edge show where the matches are on the page.
+- Search options for **Match case**, **Whole word**, **Links only**, and **Regex**.
+- **Results** shows every match in a list with the text around it. Tap one to jump to it.
+- Your recent searches show up when the bar is empty. You can also paste or search by voice.
+- With a keyboard, Ctrl+F opens it, F3 or Ctrl+G goes to the next match (add Shift to go back), and Esc closes it.
+
+#### Find in Page Settings
+
+New **Find in page** page in Settings › Browser.
+
+- **Show bar at the top** puts the find bar under the top toolbar instead of above the keyboard.
+- **Dim the page** darkens everything except the matches.
+- **Match markers on the edge**, **Remember search options**, and **Suggest in the address bar**.
+- **Save recent searches** and **Clear recent searches**. Nothing is saved in private tabs.
+
+(Thanks to @NielSync and @rayfonz for suggesting this [#90](https://github.com/jhaiian/ClintBrowser/issues/90) [#113](https://github.com/jhaiian/ClintBrowser/issues/113))
+
+(Thanks to @NielSync for the PR that started this [#103](https://github.com/jhaiian/ClintBrowser/pull/103))
+
+---
+
+### Tabs
+
+#### Pinned Tabs
+
+You can now pin tabs from the tab's menu in the tab manager or the tab strip.
+
+- Pinned tabs stay at the start of your tabs and show as a small icon in the tab strip.
+- **Close all tabs**, **Close other tabs**, closing duplicates, and auto-closing inactive tabs all skip pinned tabs.
+- Pinned tabs are kept loaded in the background longer than other tabs.
+- A pinned tab can't be in a group.
+
+#### Sort Tabs and Group by Site
+
+- New **Sort tabs** option in the tab manager's ⋮ menu. Sort by **Last used**, **Site**, or **Title**. Pinned tabs stay first and groups stay together.
+- New **Group by site** option. It puts every site that has 2 or more ungrouped tabs into its own group, with a name and color picked for you.
+
+#### Recently Closed
+
+New **Recently closed** list in the tab manager's ⋮ menu.
+
+- It keeps your last 25 closed tabs. Incognito tabs are never saved.
+- Tap one to reopen it, and it goes back into its group.
+- Remove tabs one by one or tap **Clear all**.
+- The list is cleared when you delete your browsing history or remove a profile.
+
+#### Close Tabs with Back
+
+New **Close Tabs with Back** setting in Settings › Look and feel.
+
+- **Tabs opened from links** (default) closes a tab opened from a link and takes you back to the tab that opened it.
+- **Any tab** closes the current tab and switches to the last tab you used. Pinned tabs stay open.
+- **Never** only goes back to the previous page.
+
+(Thanks to @Zarif321 and @Iconicspectre99 for suggesting this [#122](https://github.com/jhaiian/ClintBrowser/issues/122) [#114](https://github.com/jhaiian/ClintBrowser/issues/114))
+
+---
+
+### Custom Tabs
+
+Clint now supports Custom Tabs, so apps that open links in an in-app browser can use Clint for it.
+
+- Clint shows up as a Custom Tabs browser for apps that look for one.
+- Links open in a simple Clint window with a close button, the page title, and the site address.
+- The ⋮ menu has **Share**, **Copy link**, and **Open in Clint**.
+
+---
+
+### Download Manager
+
+#### View Modes
+
+The library now has 10 view modes to choose from, **Grid**, **Small grid**, **Extra small grid**, **Big list**, **Large list**, **List**, **Small list**, **Extra small list**, **Compact list**, and **List without images**.
+
+Pinch to zoom in or out to switch between them. The items morph smoothly from one layout to the next.
+
+(Inspired by Kate)
+
+#### Customize Downloads
+
+New **Customize downloads** page in Settings › Downloads, with a live preview of a download and its notification.
+
+- **Progress style** (Ring or Bar) and **Density** (Compact, Comfortable, or Spacious).
+- Show or hide **thumbnails**, **speed**, **time remaining**, **source site**, and the **parts bar**.
+- Show or hide the **live speed card**, the **download graph**, and the **total speed graph**. **Pause all** stays in the menu when the speed card is hidden.
+- **Default sorting** for the library.
+- **Tapping a finished download** can open the file, show its details, or share it.
+- **Details menu actions** lets you choose which actions show up in a download's details.
+- Notification options for **Action buttons**, **Speed and time left**, **Progress bar**, and **Quiet completion**.
+
+(Thanks to @iHarryPotter178 for suggesting this [#88](https://github.com/jhaiian/ClintBrowser/issues/88))
+
+#### Live Updates
+
+On Android 16 and newer, active downloads now show as a live update on the status bar, the lock screen, or the island on supported phones. It shows the percentage in the status bar and has Pause and Cancel buttons. It's on by default, and you can turn it off with **Live updates** in Customize downloads. If Android is blocking it for Clint, a shortcut takes you to the right system setting.
+
+#### Saved Locations
+
+You can now save several download folders in Settings › Downloads › **Saved locations** and pick where each download goes right from the download dialog. This works for links, manual downloads, and MEGA.
+
+#### Use Any Download Manager
+
+The **Download manager** setting has a new **Custom app** option, so you can send downloads to any download manager you have installed, like AB Download Manager.
+
+Third-party download managers now get the site's cookies, User-Agent, and referrer, so downloads that need your login keep working. Cookies can give full access to your account on that site, so Clint warns you about this at the top of the dialog. Only pick a download manager you trust.
+
+(Thanks to @TivyxLab and @pal246 for suggesting this [#18](https://github.com/jhaiian/ClintGecko/issues/18) [#80](https://github.com/jhaiian/ClintGecko/issues/80))
+
+#### Links From Other Apps
+
+When another app sends a link to Clint's download manager, only the download dialog shows up now, right on top of that app. Before, the whole Downloads screen opened. Clint also uses the cookies, User-Agent, referrer, and file name the other app sends with the link.
+
+(Thanks to @Subbarao6338 for reporting this [#67](https://github.com/jhaiian/ClintGecko/issues/67))
+
+#### Play Before You Download
+
+Video downloads now have a **Play** button in the download dialog. It opens the video in Clint's player with the same User-Agent, referrer, and cookies as the download, so you can check it before saving.
+
+#### More Reliable Downloads
+
+- Downloads that can't be resumed now wait up to an hour for a stalled connection to come back. Before, they failed after 60 seconds and started over from zero.
+- On Android 8 to 13, Clint keeps Wi-Fi awake while downloading so it doesn't go into power saving with the screen off.
+- If Android stops a download job, downloads that can't be resumed move to the foreground service instead of being stopped.
+- **Pause all**, bulk pause, and the notification's Pause button no longer pause a download that can't be resumed once it has started, since that would throw away its progress.
+- If a server starts refusing extra connections with a 403 error, Clint now uses fewer connections instead of failing, just like it already did for 429 errors. It also remembers the lower number for that server.
+- A connection that gets no data for 15 seconds now reconnects on its own.
+- Pausing now stops a download right away.
+- Changing the number of concurrent downloads now applies right away.
+- Queued downloads show their place in the queue and their details.
+
+---
+
+### Media Capture
+
+Media Capture got a redesign.
+
+- Media info now wraps onto more lines, so the size, codec, bitrate, and duration are never cut off.
+(Thanks to @anonymous-shanks for suggesting this [#40](https://github.com/jhaiian/ClintGecko/issues/40))
+- New **Select multiple** mode with **Select all** and **Deselect all**. The header shows how many you picked and their total size. Download them all at once from one dialog, or add them to Downloads paused.
+(Thanks to @anonymous-shanks for suggesting this [#39](https://github.com/jhaiian/ClintGecko/issues/39))
+- New **Hide small media** setting in the Media Capture settings. It hides anything smaller than the size you pick, in KB or MB, with a few presets. Subtitles and media with an unknown size always stay visible. A banner shows when the filter is on, with a **Show all** button and a "Showing X of Y" count.
+(Thanks to @anurag565 for suggesting this [#104](https://github.com/jhaiian/ClintBrowser/issues/104))
+- The sheet no longer goes under the navigation bar or the keyboard.
+
+---
+
+### Pop-ups and Sign-ins
+
+#### Let Extensions Handle Pop-ups
+
+New **Let extensions handle popups** setting in Settings › Look and feel. It's on by default.
+
+When you have a content blocker like uBlock Origin installed, it now decides which pop-ups to block. Blocked pop-ups disappear quietly, and the rest open without asking, just like in Firefox. Without a content blocker, you still get the popup alert like before. Turn it off if you want every pop-up to another site to ask first.
+
+(Thanks to @anonymous-shanks for reporting this [#79](https://github.com/jhaiian/ClintGecko/issues/79))
+
+#### Sign In With Google and Others
+
+Signing in with Google and other accounts that use a pop-up now works. Before, you'd pick your account and get stuck on a blank white page. Pop-ups now open in the window the website created, so the site that opened it can still talk to it.
+
+- If you decline a pop-up, the website now knows it was blocked.
+- When a pop-up closes itself, you go back to the tab that opened it.
+
+(Thanks to @fajarrasyid for reporting this [#84](https://github.com/jhaiian/ClintGecko/issues/84))
+
+---
+
+### Parental Controls
+
+New **Parental controls** page in Settings, under Protection.
+
+#### Parental Password
+
+- Set a password that only you know. It's separate from your phone's screen lock and needs at least 4 characters.
+- Once it's set, changes that could weaken your protection ask for it first.
+- The password is never saved as plain text.
+- After too many wrong tries, it locks you out for a while. Each lockout lasts longer, up to 30 minutes.
+- If you forget it, it can't be recovered.
+
+#### What It Protects
+
+You can turn protection on or off for each area. Turning one off needs the password.
+
+- **Website Blocker** asks for it before you turn the blocker off or delete its lists and websites.
+- **Extensions** asks for it before you open, turn off, or remove an extension, take away its private browsing or site access, or open extension pages like `about:addons`. Unlocking a page only works for that tab and that page.
+- **History** asks for it before you delete history entries, clear all history, remove search suggestions, delete browsing data that includes history, or turn on clearing history on exit.
+- **Backup restore** asks for it before you restore a backup.
+
+#### Harder to Turn Off Website Blocker
+
+Even without a password, Website Blocker is now harder to turn off on a whim. Turning off the blocker, an active category, or Additional Websites, or resetting or deleting protected lists, now makes you wait 30 seconds and then type a random 6-character code. The toggle in the browser menu no longer turns it off in one tap either. If you set a parental password, it replaces the wait and the code.
+
+(Thanks to UnbeatenPlayzYT from Discord for suggesting this)
+
+---
+
+### Performance Boost
+
+New **Performance boost** page in Settings, under Advanced. Turn these on if pages lag or Clint crashes on heavy sites. Each switch tells you what you gain and what you give up.
+
+- **Reduce blur effects** skips the frosted glass blur behind headers, menus, and cards.
+- **Turn off WebGL** stops sites from using 3D graphics, which saves a lot of GPU memory.
+- **Limit to 30 frames per second** makes the GPU and battery work less.
+- **Reduce animations** asks sites to skip transitions and other moving effects.
+- **Stop animated images** shows GIFs as still pictures.
+
+Changes apply to pages you open next, so reload your open tabs to feel the difference.
+
+---
+
+### Website Colors
+
+New **Website colors** option in Settings › Accessibility.
+
+- **Original colors** shows websites the way they are.
+- **Grayscale** replaces all colors with shades of gray.
+- **Sepia** gives pages warm brown tones, like an old photo.
+- **Black and white** uses only black and white for the strongest contrast.
+- **Monochrome** uses shades of a single color that matches your theme.
+
+It applies to all your open tabs right away, no reload needed.
+
+(Thanks to UnbeatenPlayzYT from Discord for suggesting this)
+
+---
+
+### A New Setup
+
+The first-time setup has been redesigned from scratch, with an animated picture for every step and a step counter at the top.
+
+- The welcome screen shows what Clint can do before you agree to the terms.
+- **Look** has your theme, accent color, and the pure background option. Only a few accent colors show at first. Tap **Show all colors** to see the rest.
+- **Layout** has the address bar position, menu style, and **Hide toolbars while scrolling**.
+- **Search** lets you pick your search engine, now with each engine's icon and a preview.
+- **Privacy** has Enhanced Tracking Protection, cookie protection, fingerprinting protection, removing tracking parameters, Global Privacy Control, and Do Not Track.
+- **Security** has HTTPS-Only Mode, Secure DNS, WebRTC protection, clear data on exit, and screenshot blocking.
+- **Add superpowers** recommends uBlock Origin, Dark Reader, Bitwarden, SponsorBlock, I still don't care about cookies, and Violentmonkey, and you can add any of them in one tap. They're only downloaded from addons.mozilla.org if you tap **Add**.
+- **Notifications** (Android 13 and newer) and **Default browser** steps, then you're all set.
+
+---
+
+### Faster Startup
+
+- Fixed the first page sometimes staying blank for up to 8 seconds after opening the app. Clint and GeckoView kept waiting on each other at startup.
+- Your tabs now start loading right away instead of waiting for Clint's built-in extension to be ready.
+- Clint now saves its built-in scripts, so they're ready the moment GeckoView starts.
+- GeckoView now starts as soon as you open the app, while the window is still being created, just like Firefox does.
+- The address bar no longer goes blank while Clint is starting.
+- Coming back to Clint is faster. The tab you were on stays active while the app is in the background, so the page shows right away instead of being redrawn.
+- Fixed taps and scrolls not working right after coming back to Clint and then being applied all at once.
+(Thanks to @xmiseggs for reporting this [#37](https://github.com/jhaiian/ClintGecko/issues/37))
+
+---
+
+### New Languages
+
+Clint is now available in:
+
+- **Simplified Chinese** (简体中文)
+- **Vietnamese** (Tiếng Việt)
+- **French** (Français)
+- **German** (Deutsch)
+- **Arabic** (العربية)
+
+(Thanks to @Linyesantan for the Simplified Chinese translation [#116](https://github.com/jhaiian/ClintBrowser/pull/116))
+
+---
+
+## Improvements
+
+- New **Strip HTTP/HTTPS/WWW from URLs** setting in Settings › Look and feel. It hides `http://`, `https://`, and `www.` in the address bar and the tab tray. It's on by default.
+- Hiding the toolbars while scrolling no longer resizes the page, so the page doesn't jump around or reflow.
+(Thanks to Wibu CTer from Discord for suggesting this)
+- The toolbars now follow your finger when they hide on scroll and settle when you let go. Before, they snapped after you scrolled a certain distance, which made them jump back and forth on slow scrolls.
+- Long pressing an image now finds it even when it's under another layer. It also works with background images, `<picture>` images, lazy loaded images, SVGs, and canvases, and picks the largest version of the image.
+(Thanks to @HatoGreyrat for suggesting this [#74](https://github.com/jhaiian/ClintBrowser/issues/74))
+- Long pressing a linked image now shows the image actions too, like **Download image**, **Preview image**, **Open image in new tab**, **Copy image**, and **Share image**.
+- Opening a MEGA link now shows a floating **Download from MEGA** button instead of opening the download dialog right away.
+(Thanks to @Zarif321 for suggesting this [#109](https://github.com/jhaiian/ClintBrowser/issues/109))
+- History now keeps everything until you clear it. Before, only your last 50 sites were kept.
+(Thanks to @Iconicspectre99 for reporting this [#114](https://github.com/jhaiian/ClintBrowser/issues/114))
+- You can now swipe snackbars away instead of waiting for them to disappear.
+(Thanks to @anonymous-shanks and @NielSync for suggesting this [#78](https://github.com/jhaiian/ClintGecko/issues/78) [#90](https://github.com/jhaiian/ClintBrowser/issues/90), and to @NielSync for the PR that started this [#101](https://github.com/jhaiian/ClintBrowser/pull/101))
+- The notification icon is bigger now, so it's the same size as other apps.
+(Thanks to @RENBOWS for suggesting this [#76](https://github.com/jhaiian/ClintGecko/issues/76))
+- Every finished download now shows up in your gallery and other apps right away, including images saved from blob and data links and Media Capture streams.
+(Thanks to @Linyesantan for the fix [#117](https://github.com/jhaiian/ClintBrowser/pull/117))
+- New **Bookmarks** entry in Settings › Browser.
+- About now has a **More apps by the developer** section with Kate, Lucky, and Clint Browser.
+
+---
+
+## Other Changes
+
+- Updated Privacy Policy and Terms of Service.
+
+I added profiles, parental controls, the video player, Custom Tabs, pop-ups, recently closed tabs, Find in page, and the new download options to the Privacy Policy. The big one is third-party download managers. They now get the site's cookies so downloads that need your login keep working, so I explained what that means and why you should only pick one you trust. I also added that finished downloads now show up in your gallery, that the add-on icons in setup are loaded from Mozilla, and the new live update permission. The Terms of Service now has sections for the video player, third-party download managers, and parental controls. As always, nothing leaves your device except what each feature needs to work.
+
+- The store listings are now translated into Vietnamese, French, German, and Arabic too.
+
+---
+
+## Dependency Updates
+
+- Bumped GeckoView from `159.0.20261022150525` to `160.0.20261116130455`.
+- Bumped Android Gradle Plugin from `9.5.0` to `9.5.1`.
+- Bumped Gradle from `9.8.2` to `9.9.1`.
+- Bumped BouncyCastle from `1.86` to `1.87`.
+- Added AndroidX Browser `1.10.0` for Custom Tabs.
+
+---
+
+## Bug Fixes
+
+- Fixed links opened in a new tab from an Incognito tab opening in a normal tab. They now stay in Incognito, and so do images opened in a new tab.
+(Thanks to @NielSync for reporting and fixing this [#90](https://github.com/jhaiian/ClintBrowser/issues/90) [#100](https://github.com/jhaiian/ClintBrowser/pull/100))
+- Fixed resuming a download after its link expired marking it as complete. Some servers send a playlist or a page instead of the file, and Clint deleted the part you already had and saved that instead. Now it keeps your progress and tells you the link expired.
+(Thanks to @DarkHorse313 for reporting this [#86](https://github.com/jhaiian/ClintGecko/issues/86))
+- Fixed downloads doing nothing on sites that remove the file link right after you tap Download, like the **Download** button for raw files on GitHub.
+(Thanks to @cabinz3q for reporting this [#48](https://github.com/jhaiian/ClintGecko/issues/48))
+- Fixed pausing and quickly resuming a multi-part download starting every part over from the beginning.
+- Fixed the link long-press sheet showing "null" instead of the link's text, and showing a different address than the real link.
+- Fixed bottom sheets closing on their own after a quick scroll.
+- Fixed the browser menu flickering when dragged to the top of the screen.
+
+---
+
+## Donation
+
+Thank you to **Stefan Zipperer** for donating $5.28 through PayPal!
+
+Every bit of support helps me keep working on Clint. Thank you so much!
+
+---
+
 # v1.0.5
 
 ## What's New
@@ -479,8 +1015,6 @@ Two new settings in Settings › Look and feel › Layout, **Tab Strip Position*
 - New **search** button that filters your tabs by title or URL.
 - New **Show as list** option in the menu that switches to compact rows with the favicon, title, site, and profile. On wide screens, the list uses multiple columns.
 
-(Thanks to Daniel Rioja for suggesting this)
-
 - New **Close duplicate tabs** option. It only shows up when you actually have duplicates, and it keeps the tab you're on.
 - Swipe the address bar to open the tab menu, just like Firefox. Swipe down when the address bar is at the top, or up when it's at the bottom. Swiping sideways still switches tabs.
 
@@ -671,8 +1205,6 @@ A new **Total Speed Limit** setting (Download Settings › Speed Limit) caps the
 - Removed Trim Referer. It caused broken sites.
 - Fixed Dimensions Detector not working on DOM players.
 
-(Thanks to Daniel Rioja for reporting this.)
-
 - Fixed Upload and Download not working on extensions.
 
 (Thanks to @phanimitravadlamani for reporting this [#15](https://github.com/jhaiian/ClintGecko/issues/15))
@@ -694,8 +1226,6 @@ A new **Total Speed Limit** setting (Download Settings › Speed Limit) caps the
 ### Custom Theme
 
 Added a custom theme editor that allows users to individually customize all colors used throughout the app. Include a real-time preview that updates instantly as colors are changed, so users can see the results before applying the theme. Allow users to save, rename, edit, apply, and reuse their custom themes.
-
-Thank you to Daniel Rioja for suggesting this.
 
 ---
 
@@ -823,15 +1353,9 @@ Enter a custom DNS-over-HTTPS endpoint URL.
 
 Don't play around on this because it can cause a severe crash that can break your device.
 
-Thank you to Daniel Rioja for suggesting this.
-
 - Added ability to hide quick actions on the homepage.
 
-Thank you to Daniel Rioja for suggesting this.
-
 - Added ability to add a custom URL for the homepage.
-
-Thank you to Daniel Rioja for suggesting this.
 
 - Improved nested scroll.
 - Increased all bottom sheet sizes to max 80%. I can't set this to 100 percent because there's a glitch when you scroll too fast, it will glitch.

@@ -1,0 +1,83 @@
+Clint Gecko là trình duyệt mã nguồn mở dựa trên Firefox, tích hợp sẵn ADM (Advanced Download Manager – Trình quản lý tải xuống nâng cao) và Media Capture (Thu thập phương tiện). Mục tiêu của Clint Gecko là trở thành trình duyệt đa năng tốt nhất dành cho bạn, đồng thời vẫn dễ chịu khi sử dụng và có khả năng tùy biến cao. Sau mỗi bản cập nhật, Clint Gecko lại tiến gần hơn đến mục tiêu đó.
+
+Hệ sinh thái Jhaiian mang đến tới 500 tổ hợp giao diện, cho phép bạn cá nhân hóa trải nghiệm duyệt web theo đúng ý mình.
+
+Quyền riêng tư cũng là một ưu tiên. Clint Gecko được cấu hình để từ chối gửi dữ liệu đo từ xa của GeckoView và Mozilla, nên không có dữ liệu đo từ xa nào được gửi đến Mozilla qua các dịch vụ đó. Bản thân Clint không thu thập dữ liệu cá nhân của bạn vì không có máy chủ backend, phân tích hay thu thập dữ liệu. Mọi thứ đều được thiết kế để hoạt động trực tiếp trên thiết bị của bạn.
+
+Đây là bản fork chính thức của Clint Browser (github.com/jhaiian/ClintBrowser). Nếu bạn muốn một phiên bản nhẹ hơn, xây dựng trên Android WebView, hãy xem Clint Browser gốc.
+
+Được xây dựng và duy trì bởi @jhaiian, một nhà phát triển đơn lẻ đến từ Philippines.
+
+<b>CÔNG CỤ GECKO</b>
+• Chạy trên GeckoView, công cụ của Firefox
+• Đã từ chối dữ liệu đo từ xa của GeckoView và Mozilla
+
+<b>TIỆN ÍCH MỞ RỘNG</b>
+• Cài đặt tiện ích mở rộng Firefox ngay trong trình duyệt
+• Duyệt kho tiện ích bổ sung của Firefox hoặc mở tệp .xpi
+• Chọn xem tiện ích mở rộng có được chạy trong thẻ ẩn danh hay không
+• Mở trang tùy chọn của tiện ích mở rộng từ trình quản lý tiện ích mở rộng
+
+<b>PHÁT NỀN</b>
+• Giữ âm thanh và video tiếp tục phát khi bạn chuyển ứng dụng hoặc khóa màn hình
+• Điều khiển phát từ thông báo phương tiện
+• Có thể bật hoặc tắt trong cài đặt trình duyệt
+
+<b>MEDIA CAPTURE (THU THẬP PHƯƠNG TIỆN)</b>
+• Phát hiện luồng video, âm thanh và phụ đề trên các trang web bạn truy cập
+• Hỗ trợ video thường, luồng HLS/M3U8 và DASH
+• Tải xuống phương tiện đã phát hiện trực tiếp từ trình duyệt
+
+<b>ADM (TRÌNH QUẢN LÝ TẢI XUỐNG NÂNG CAO)</b>
+• Tải xuống đa luồng và nhiều phần
+• Tạm dừng và tiếp tục
+• Lên lịch tải xuống
+• Giới hạn tốc độ
+• Vị trí tải xuống tùy chỉnh
+
+<b>GIAO DIỆN VÀ TÙY BIẾN</b>
+Clint Gecko được xây dựng bằng Material 3 và Jetpack Compose, với giao diện có khả năng tùy biến cao.
+• 50 màu nhấn
+• Chủ đề Sáng và Tối
+• 5 mức độ đậm của bề mặt
+• Tổng cộng 500 tổ hợp chủ đề
+
+<b>QUYỀN RIÊNG TƯ VÀ BẢO MẬT</b>
+• Chống theo dõi nâng cao và Bảo vệ cookie toàn diện
+• Chống theo dõi: loại bỏ tham số theo dõi, chống nhận dạng dấu vân tay, Global Privacy Control và chống rò rỉ WebRTC
+• DNS bảo mật qua HTTPS (Cloudflare, Google, Quad9 hoặc tùy chỉnh)
+• Khóa ứng dụng bằng vân tay, khuôn mặt hoặc khóa màn hình
+• Chặn chụp màn hình và bàn phím ẩn danh
+• Tự động xóa bộ nhớ tạm và xóa dữ liệu khi thoát
+• Kiểm tra chứng chỉ nghiêm ngặt
+• Không có backend, phân tích hay thu thập dữ liệu
+
+<b>TRÌNH CHẶN TRANG WEB</b>
+• Chặn nội dung khiêu dâm, cờ bạc và các danh mục không mong muốn khác
+• Danh sách bộ lọc theo danh mục (lạm dụng, quảng cáo, tiền mã hóa, ma túy, gian lận, cờ bạc và nhiều hơn nữa)
+• Thêm các trang web tùy chỉnh của riêng bạn để chặn
+
+<b>HỒ SƠ</b>
+• Duy trì đăng nhập nhiều tài khoản trên cùng một trang web cùng lúc
+• Mỗi hồ sơ có cookie, thông tin đăng nhập và dữ liệu trang web riêng
+• Chọn hồ sơ khi mở thẻ mới
+• Đặt tên và màu riêng cho từng hồ sơ
+
+<b>LỐI TẮT</b>
+• Thêm bất kỳ trang web nào vào màn hình chính với tên và biểu tượng tùy chỉnh
+• Chế độ không khung ẩn thanh tìm kiếm và thanh dưới cùng để có cảm giác như một ứng dụng
+• Quản lý tất cả lối tắt ở một nơi với Trình quản lý lối tắt tích hợp
+
+<b>TRÌNH DUYỆT</b>
+• Duyệt nhiều thẻ
+• Nhóm thẻ
+• Chế độ ẩn danh
+• Chế độ đọc
+• Chế độ máy tính
+• Bảo vệ cửa sổ bật lên
+• Tiết kiệm dữ liệu
+• Dịch trang ngay trên thiết bị
+
+Chỉ cần tải ứng dụng về và tự mình khám phá.
+
+Yêu cầu Android 8.0 (API 26) trở lên.

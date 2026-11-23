@@ -7,6 +7,7 @@ import com.jhaiian.clint.browser.webview.ClintGecko
 import com.jhaiian.clint.history.SearchHistoryManager
 import com.jhaiian.clint.settings.datasaver.DataSaverSiteException
 import com.jhaiian.clint.settings.sitepermissions.SitePermissionManager
+import com.jhaiian.clint.tabs.TabSessionManager
 import com.jhaiian.clint.util.registeredDomain
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -134,6 +135,7 @@ object BrowsingDataCleaner {
                 runCatching {
                     if (allTime) SearchHistoryManager.clear(app)
                     else SearchHistoryManager.deleteSince(app, since)
+                    if (allTime) TabSessionManager.clearClosed(app) else TabSessionManager.deleteClosedSince(app, since)
                 }
             }
         }

@@ -2,33 +2,21 @@ package com.jhaiian.clint.setup
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Restore
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.outlined.Restore
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.jhaiian.clint.R
 import com.jhaiian.clint.backup.AuthGateResult
 import com.jhaiian.clint.backup.BackupAuthGate
@@ -37,23 +25,22 @@ import com.jhaiian.clint.backup.StageResult
 import com.jhaiian.clint.backup.UnlockResult
 import com.jhaiian.clint.settings.backuprestore.BackupRestoreStage
 import com.jhaiian.clint.settings.backuprestore.BackupRestoreUiState
-import com.jhaiian.clint.settings.backuprestore.CategoryCheckboxRow
 import com.jhaiian.clint.settings.backuprestore.ProgressDialog
 import com.jhaiian.clint.settings.backuprestore.RestoreCategoryDialog
 import com.jhaiian.clint.settings.backuprestore.RestorePasswordDialog
 import com.jhaiian.clint.ui.listscreen.ConfirmDialogConfig
 import com.jhaiian.clint.ui.listscreen.ConfirmDialogHost
-import com.jhaiian.clint.ui.theme.LocalClintColors
 import kotlinx.coroutines.launch
 
 @Composable
-fun SetupRestorePage(
+internal fun SetupRestorePage(
     activity: SetupActivity,
+    metrics: PageMetrics,
+    scrollState: ScrollState,
     hideStatusBar: Boolean, hideSystemNavigation: Boolean,
-    onSkip: () -> Unit,
     onRestoreComplete: () -> Unit
 ) {
-    val colors = LocalClintColors.current
+    val haptics = rememberSetupHaptics()
     val scope = rememberCoroutineScope()
     val uiState = remember { BackupRestoreUiState(hideStatusBar, hideSystemNavigation) }
 
@@ -242,39 +229,25 @@ fun SetupRestorePage(
         )
     }
 
-    Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 28.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        SetupPageHeader(
-            title = stringResource(R.string.setup_restore_title),
-            subtitle = stringResource(R.string.setup_restore_subtitle)
+    SetupPage(metrics, scrollState, hero = { FloatingIconsHero(Icons.Outlined.Restore, RestoreSatellites, it) }) {
+        PageHeader(stringResource(R.string.setup_restore_title), stringResource(R.string.setup_restore_subtitle), metrics)
+        Spacer(Modifier.height(24.dp))
+        SetupActionButton(
+            label = stringResource(R.string.setup_restore_button),
+            icon = Icons.Outlined.Restore,
+            minHeight = 52.dp,
+            onClick = {
+                haptics.click()
+                startRestoreFlow()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .rise(2)
         )
-
-        Card(
-            Modifier.fillMaxWidth().padding(bottom = 24.dp),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = colors.cardBackground)
-        ) {
-            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Restore, null, tint = colors.primary, modifier = Modifier.size(36.dp))
-                Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                    Text(stringResource(R.string.setup_restore_card_title), color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                    Text(stringResource(R.string.setup_restore_card_desc), color = colors.secondaryText, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-                }
-            }
-        }
-
-        SetupPrimaryButton(
-            text = stringResource(R.string.setup_restore_button),
-            onClick = { startRestoreFlow() },
-            backgroundColor = colors.buttonBackground
-        )
-        SetupPrimaryButton(
-            text = stringResource(R.string.setup_restore_skip),
-            onClick = onSkip,
-            backgroundColor = colors.buttonBackground,
-            modifier = Modifier.padding(top = 10.dp, bottom = 24.dp)
+        SetupCaptionText(
+            text = stringResource(R.string.setup_restore_card_desc),
+            metrics = metrics,
+            modifier = Modifier.rise(3)
         )
     }
 }

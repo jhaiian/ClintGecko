@@ -3,6 +3,13 @@ package com.jhaiian.clint.mediacapture
 const val MEDIA_CAPTURE_ENABLED_PREF = "media_capture_enabled"
 const val MEDIA_CAPTURE_CONVERT_TS_TO_MP4_PREF = "media_capture_convert_ts_to_mp4"
 const val MEDIA_CAPTURE_CONVERT_TS_TO_MP4_DEFAULT = true
+const val MEDIA_CAPTURE_MIN_SIZE_ENABLED_PREF = "media_capture_min_size_enabled"
+const val MEDIA_CAPTURE_MIN_SIZE_AMOUNT_PREF = "media_capture_min_size_amount"
+const val MEDIA_CAPTURE_MIN_SIZE_UNIT_PREF = "media_capture_min_size_unit"
+const val MEDIA_CAPTURE_MIN_SIZE_UNIT_KB = "kb"
+const val MEDIA_CAPTURE_MIN_SIZE_UNIT_MB = "mb"
+const val MEDIA_CAPTURE_MIN_SIZE_DEFAULT_AMOUNT = 500
+const val MEDIA_CAPTURE_MIN_SIZE_MAX_AMOUNT = 99999
 
 enum class MediaKind { VIDEO, AUDIO, SUBTITLE }
 

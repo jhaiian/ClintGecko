@@ -1,5 +1,11 @@
 package com.jhaiian.clint.ui
 
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,8 +24,15 @@ import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -30,6 +43,7 @@ import androidx.lifecycle.lifecycleScope
 import com.jhaiian.clint.ui.theme.LocalClintColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 interface SnackbarHostActivity {
     val snackbarHostState: SnackbarHostState
@@ -118,19 +132,63 @@ fun <T> T.showClintDestinationSnackbar(
     message: String,
     destination: String,
     actionLabel: String,
-    onAction: () -> Unit
+    onAction: () -> Unit,
+    onDismissed: () -> Unit = {}
 ) where T : SnackbarHostActivity, T : LifecycleOwner {
     lifecycleScope.launch {
-        snackbarHostState.currentSnackbarData?.dismiss()
-        val timeout = launch {
-            delay(DESTINATION_SNACKBAR_TIMEOUT_MS)
+        var acted = false
+        try {
             snackbarHostState.currentSnackbarData?.dismiss()
+            val timeout = launch {
+                delay(DESTINATION_SNACKBAR_TIMEOUT_MS)
+                snackbarHostState.currentSnackbarData?.dismiss()
+            }
+            val result = snackbarHostState.showSnackbar(
+                ClintDestinationSnackbarVisuals(message, destination, actionLabel)
+            )
+            timeout.cancel()
+            if (result == SnackbarResult.ActionPerformed) {
+                acted = true
+                onAction()
+            }
+        } finally {
+            if (!acted) onDismissed()
         }
-        val result = snackbarHostState.showSnackbar(
-            ClintDestinationSnackbarVisuals(message, destination, actionLabel)
-        )
-        timeout.cancel()
-        if (result == SnackbarResult.ActionPerformed) onAction()
+    }
+}
+
+@Composable
+private fun SwipeToDismissSnackbar(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var widthPx by remember { mutableFloatStateOf(0f) }
+    val flingVelocityPx = with(LocalDensity.current) { 500.dp.toPx() }
+    Box(
+        modifier = Modifier
+            .onSizeChanged { widthPx = it.width.toFloat() }
+            .graphicsLayer {
+                translationX = offsetX
+                alpha = if (widthPx > 0f) (1f - abs(offsetX) / widthPx).coerceIn(0f, 1f) else 1f
+            }
+            .draggable(
+                orientation = Orientation.Horizontal,
+                state = rememberDraggableState { delta -> offsetX += delta },
+                onDragStopped = { velocity ->
+                    val shouldDismiss = abs(offsetX) > widthPx * 0.35f ||
+                        (abs(velocity) > flingVelocityPx && velocity * offsetX > 0f)
+                    if (shouldDismiss) {
+                        val target = if (offsetX >= 0f) widthPx else -widthPx
+                        try {
+                            animate(offsetX, target, animationSpec = tween(150)) { value, _ -> offsetX = value }
+                        } finally {
+                            onDismiss()
+                        }
+                    } else {
+                        animate(offsetX, 0f, animationSpec = spring()) { value, _ -> offsetX = value }
+                    }
+                }
+            )
+    ) {
+        content()
     }
 }
 
@@ -146,56 +204,58 @@ fun ClintSnackbarHost(hostState: SnackbarHostState) {
     ) {
         SnackbarHost(hostState) { data ->
             val visuals = data.visuals
-            if (visuals is ClintDestinationSnackbarVisuals) {
-                Snackbar(
-                    action = {
-                        TextButton(onClick = { data.performAction() }) {
-                            Text(visuals.actionLabel, color = colors.primary, fontWeight = FontWeight.Medium)
-                        }
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    containerColor = colors.popupBackground,
-                    contentColor = colors.popupText
-                ) {
-                    Column {
-                        Text(visuals.message, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(
-                            visuals.destination,
-                            color = colors.primary,
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
-                }
-            } else if (visuals is ClintTwoActionSnackbarVisuals) {
-                Snackbar(
-                    action = {
-                        Row {
-                            TextButton(onClick = { data.dismiss(); visuals.onSecondaryAction() }) {
-                                Text(visuals.secondaryActionLabel, color = colors.primary, fontWeight = FontWeight.Medium)
-                            }
+            SwipeToDismissSnackbar(onDismiss = { data.dismiss() }) {
+                if (visuals is ClintDestinationSnackbarVisuals) {
+                    Snackbar(
+                        action = {
                             TextButton(onClick = { data.performAction() }) {
                                 Text(visuals.actionLabel, color = colors.primary, fontWeight = FontWeight.Medium)
                             }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        containerColor = colors.popupBackground,
+                        contentColor = colors.popupText
+                    ) {
+                        Column {
+                            Text(visuals.message, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                visuals.destination,
+                                color = colors.primary,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
                         }
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    containerColor = colors.popupBackground,
-                    contentColor = colors.popupText
-                ) {
-                    Text(visuals.message, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                } else if (visuals is ClintTwoActionSnackbarVisuals) {
+                    Snackbar(
+                        action = {
+                            Row {
+                                TextButton(onClick = { data.dismiss(); visuals.onSecondaryAction() }) {
+                                    Text(visuals.secondaryActionLabel, color = colors.primary, fontWeight = FontWeight.Medium)
+                                }
+                                TextButton(onClick = { data.performAction() }) {
+                                    Text(visuals.actionLabel, color = colors.primary, fontWeight = FontWeight.Medium)
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        containerColor = colors.popupBackground,
+                        contentColor = colors.popupText
+                    ) {
+                        Text(visuals.message, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                } else {
+                    Snackbar(
+                        snackbarData = data,
+                        shape = RoundedCornerShape(12.dp),
+                        containerColor = colors.popupBackground,
+                        contentColor = colors.popupText,
+                        actionColor = colors.primary
+                    )
                 }
-            } else {
-                Snackbar(
-                    snackbarData = data,
-                    shape = RoundedCornerShape(12.dp),
-                    containerColor = colors.popupBackground,
-                    contentColor = colors.popupText,
-                    actionColor = colors.primary
-                )
             }
         }
     }

@@ -8,7 +8,9 @@ import com.jhaiian.clint.ui.ClintOutlinedTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import com.jhaiian.clint.browser.home.HOMEPAGE_DESIGN_CUSTOM_GRADIENT
 import com.jhaiian.clint.browser.home.HOMEPAGE_DESIGN_GRADIENT
+import com.jhaiian.clint.browser.home.HOMEPAGE_DESIGN_SOLID
 import com.jhaiian.clint.browser.home.HOMEPAGE_DESIGN_IMAGE
 import com.jhaiian.clint.browser.home.HOMEPAGE_DESIGN_PLAIN
 
@@ -17,7 +19,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.filled.Edit
 import com.jhaiian.clint.ui.ClintRadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -59,28 +60,30 @@ private fun SameAsNormalOption(selected: Boolean, descRes: Int, onClick: () -> U
 @Composable
 fun SearchEngineDialog(
     current: String,
-    customName: String,
-    customUrl: String,
     hideStatusBar: Boolean, hideSystemNavigation: Boolean,
     onConfirm: (String) -> Unit,
-    onCustomSearchEngineSaved: (name: String, url: String) -> Unit,
     onDismiss: () -> Unit,
     titleRes: Int = R.string.choose_search_engine,
     showSameAsNormal: Boolean = false
 ) {
     val colors = LocalClintColors.current
     var selected by remember(current) { mutableStateOf(current) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { androidx.preference.PreferenceManager.getDefaultSharedPreferences(context) }
+    var customEngines by remember { mutableStateOf(com.jhaiian.clint.browser.customSearchEngines(prefs)) }
+    var editorTarget by remember { mutableStateOf<com.jhaiian.clint.browser.CustomSearchEngine?>(null) }
     var customEditorOpen by remember { mutableStateOf(false) }
-    val hasCustomEngine = customName.isNotBlank() && customUrl.isNotBlank()
+    val fallback = if (showSameAsNormal) com.jhaiian.clint.browser.SameAsNormalMode else com.jhaiian.clint.browser.DefaultSearchEngine
 
     if (customEditorOpen) {
-        com.jhaiian.clint.ui.CustomSearchEngineDialog(
-            initialName = customName,
-            initialUrl = customUrl,
+        CustomEngineEditorDialog(
+            initial = editorTarget,
+            forSuggestions = false,
             hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
-            onConfirm = { name, url ->
-                onCustomSearchEngineSaved(name, url)
-                selected = "custom"
+            onSave = { engine ->
+                com.jhaiian.clint.browser.saveCustomSearchEngine(prefs, engine)
+                customEngines = com.jhaiian.clint.browser.customSearchEngines(prefs)
+                selected = engine.key
                 customEditorOpen = false
             },
             onDismiss = { customEditorOpen = false }
@@ -130,62 +133,49 @@ fun SearchEngineDialog(
                 if (option.showDefault && !showSameAsNormal) DefaultChip(stringResource(R.string.default_label), colors.primary)
             }
         }
-        val customSel = selected == "custom"
-        SelectableCard(
-            selected = customSel,
-            onClick = { if (hasCustomEngine) selected = "custom" else customEditorOpen = true },
-            cardBackground = colors.surfaceVariant, primary = colors.primary,
-            contentPadding = SettingsPickerOptionContentPadding, bottomSpacing = SettingsPickerOptionBottomSpacing
-        ) {
-            ClintRadioButton(selected = customSel)
-            Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
-                Text(
-                    if (hasCustomEngine) customName else stringResource(R.string.engine_custom),
-                    color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium
-                )
-                Text(
-                    if (hasCustomEngine) customUrl else stringResource(R.string.engine_custom_desc),
-                    color = colors.secondaryText, fontSize = 13.sp, maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-            }
-            androidx.compose.material3.IconButton(onClick = { customEditorOpen = true }) {
-                androidx.compose.material3.Icon(
-                    androidx.compose.material.icons.Icons.Filled.Edit,
-                    contentDescription = stringResource(R.string.action_edit),
-                    tint = colors.iconTint
-                )
-            }
-        }
+        CustomEngineOptions(
+            engines = customEngines.filter { it.hasSearch },
+            selected = selected,
+            forSuggestions = false,
+            onSelect = { selected = it },
+            onEdit = { editorTarget = it; customEditorOpen = true },
+            onDelete = { engine ->
+                com.jhaiian.clint.browser.removeCustomSearchEngineRole(prefs, engine, suggestions = false)
+                customEngines = com.jhaiian.clint.browser.customSearchEngines(prefs)
+                if (selected == engine.key) selected = fallback
+            },
+            onAdd = { editorTarget = null; customEditorOpen = true }
+        )
     }
 }
 
 @Composable
 fun SearchSuggestionsApiDialog(
     current: String,
-    customName: String,
-    customUrl: String,
     hideStatusBar: Boolean, hideSystemNavigation: Boolean,
     onConfirm: (String) -> Unit,
-    onCustomSearchSuggestionsApiSaved: (name: String, url: String) -> Unit,
     onDismiss: () -> Unit,
     titleRes: Int = R.string.choose_search_suggestions_api,
     showSameAsNormal: Boolean = false
 ) {
     val colors = LocalClintColors.current
     var selected by remember(current) { mutableStateOf(current) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { androidx.preference.PreferenceManager.getDefaultSharedPreferences(context) }
+    var customEngines by remember { mutableStateOf(com.jhaiian.clint.browser.customSearchEngines(prefs)) }
+    var editorTarget by remember { mutableStateOf<com.jhaiian.clint.browser.CustomSearchEngine?>(null) }
     var customEditorOpen by remember { mutableStateOf(false) }
-    val hasCustomApi = customName.isNotBlank() && customUrl.isNotBlank()
+    val fallback = if (showSameAsNormal) com.jhaiian.clint.browser.SameAsNormalMode else com.jhaiian.clint.browser.DefaultSearchSuggestionsApi
 
     if (customEditorOpen) {
-        com.jhaiian.clint.ui.CustomSearchSuggestionsApiDialog(
-            initialName = customName,
-            initialUrl = customUrl,
+        CustomEngineEditorDialog(
+            initial = editorTarget,
+            forSuggestions = true,
             hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
-            onConfirm = { name, url ->
-                onCustomSearchSuggestionsApiSaved(name, url)
-                selected = "custom"
+            onSave = { engine ->
+                com.jhaiian.clint.browser.saveCustomSearchEngine(prefs, engine)
+                customEngines = com.jhaiian.clint.browser.customSearchEngines(prefs)
+                selected = engine.key
                 customEditorOpen = false
             },
             onDismiss = { customEditorOpen = false }
@@ -234,34 +224,19 @@ fun SearchSuggestionsApiDialog(
                 if (option.showDefault && !showSameAsNormal) DefaultChip(stringResource(R.string.default_label), colors.primary)
             }
         }
-        val customSel = selected == "custom"
-        SelectableCard(
-            selected = customSel,
-            onClick = { if (hasCustomApi) selected = "custom" else customEditorOpen = true },
-            cardBackground = colors.surfaceVariant, primary = colors.primary,
-            contentPadding = SettingsPickerOptionContentPadding, bottomSpacing = SettingsPickerOptionBottomSpacing
-        ) {
-            ClintRadioButton(selected = customSel)
-            Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
-                Text(
-                    if (hasCustomApi) customName else stringResource(R.string.engine_custom),
-                    color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium
-                )
-                Text(
-                    if (hasCustomApi) customUrl else stringResource(R.string.suggestions_api_custom_desc),
-                    color = colors.secondaryText, fontSize = 13.sp, maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-            }
-            androidx.compose.material3.IconButton(onClick = { customEditorOpen = true }) {
-                androidx.compose.material3.Icon(
-                    androidx.compose.material.icons.Icons.Filled.Edit,
-                    contentDescription = stringResource(R.string.action_edit),
-                    tint = colors.iconTint
-                )
-            }
-        }
+        CustomEngineOptions(
+            engines = customEngines.filter { it.hasSuggestions },
+            selected = selected,
+            forSuggestions = true,
+            onSelect = { selected = it },
+            onEdit = { editorTarget = it; customEditorOpen = true },
+            onDelete = { engine ->
+                com.jhaiian.clint.browser.removeCustomSearchEngineRole(prefs, engine, suggestions = true)
+                customEngines = com.jhaiian.clint.browser.customSearchEngines(prefs)
+                if (selected == engine.key) selected = fallback
+            },
+            onAdd = { editorTarget = null; customEditorOpen = true }
+        )
     }
 }
 
@@ -338,6 +313,133 @@ fun HomepageDialog(
                     },
                     modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, bottom = 8.dp)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun VideoSkipDialog(
+    current: Int,
+    hideStatusBar: Boolean, hideSystemNavigation: Boolean,
+    onConfirm: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = LocalClintColors.current
+    var selected by remember(current) { mutableStateOf(current) }
+
+    ClintDialog(
+        title = stringResource(R.string.video_player_skip_title),
+        hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
+        onDismiss = onDismiss,
+        footer = {
+            Row(Modifier.fillMaxWidth().padding(end = 12.dp, bottom = 8.dp), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(android.R.string.cancel), color = colors.primary, fontWeight = FontWeight.Medium)
+                }
+                TextButton(onClick = { onConfirm(selected) }) {
+                    Text(stringResource(android.R.string.ok), color = colors.primary, fontWeight = FontWeight.Medium)
+                }
+            }
+        }
+    ) {
+        com.jhaiian.clint.browser.video.VideoPlayerSettings.SKIP_OPTIONS.forEach { seconds ->
+            val sel = selected == seconds
+            SelectableCard(
+                selected = sel, onClick = { selected = seconds },
+                cardBackground = colors.surfaceVariant, primary = colors.primary,
+                contentPadding = SettingsPickerOptionContentPadding, bottomSpacing = SettingsPickerOptionBottomSpacing
+            ) {
+                ClintRadioButton(selected = sel)
+                Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
+                    Text(stringResource(R.string.video_player_skip_value, seconds), color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                }
+                if (seconds == com.jhaiian.clint.browser.video.VideoPlayerSettings.DEFAULT_SKIP_SECONDS) DefaultChip(stringResource(R.string.default_label), colors.primary)
+            }
+        }
+    }
+}
+
+@Composable
+fun VideoButtonsDialog(
+    current: Set<String>,
+    hideStatusBar: Boolean, hideSystemNavigation: Boolean,
+    onConfirm: (Set<String>) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = LocalClintColors.current
+    var selected by remember(current) { mutableStateOf(current) }
+
+    ClintDialog(
+        title = stringResource(R.string.video_player_buttons_title),
+        hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
+        onDismiss = onDismiss,
+        footer = {
+            Row(Modifier.fillMaxWidth().padding(end = 12.dp, bottom = 8.dp), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(android.R.string.cancel), color = colors.primary, fontWeight = FontWeight.Medium)
+                }
+                TextButton(onClick = { onConfirm(selected) }) {
+                    Text(stringResource(android.R.string.ok), color = colors.primary, fontWeight = FontWeight.Medium)
+                }
+            }
+        }
+    ) {
+        com.jhaiian.clint.browser.video.VideoButton.entries.forEach { button ->
+            val shown = button.key !in selected
+            val toggle = { selected = if (shown) selected + button.key else selected - button.key }
+            SelectableCard(
+                selected = shown, onClick = toggle,
+                cardBackground = colors.surfaceVariant, primary = colors.primary,
+                contentPadding = SettingsPickerOptionContentPadding, bottomSpacing = SettingsPickerOptionBottomSpacing
+            ) {
+                com.jhaiian.clint.ui.ClintCheckbox(checked = shown, onCheckedChange = { toggle() })
+                Text(stringResource(button.label), color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f).padding(start = 12.dp, end = 8.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun VideoChoiceDialog(
+    title: String,
+    options: List<Pair<String, String>>,
+    defaultKey: String,
+    current: String,
+    hideStatusBar: Boolean, hideSystemNavigation: Boolean,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = LocalClintColors.current
+    var selected by remember(current) { mutableStateOf(current) }
+
+    ClintDialog(
+        title = title,
+        hideStatusBar = hideStatusBar, hideSystemNavigation = hideSystemNavigation,
+        onDismiss = onDismiss,
+        footer = {
+            Row(Modifier.fillMaxWidth().padding(end = 12.dp, bottom = 8.dp), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(android.R.string.cancel), color = colors.primary, fontWeight = FontWeight.Medium)
+                }
+                TextButton(onClick = { onConfirm(selected) }) {
+                    Text(stringResource(android.R.string.ok), color = colors.primary, fontWeight = FontWeight.Medium)
+                }
+            }
+        }
+    ) {
+        options.forEach { (key, label) ->
+            val sel = selected == key
+            SelectableCard(
+                selected = sel, onClick = { selected = key },
+                cardBackground = colors.surfaceVariant, primary = colors.primary,
+                contentPadding = SettingsPickerOptionContentPadding, bottomSpacing = SettingsPickerOptionBottomSpacing
+            ) {
+                ClintRadioButton(selected = sel)
+                Column(Modifier.weight(1f).padding(start = 12.dp, end = 8.dp)) {
+                    Text(label, color = colors.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                }
+                if (key == defaultKey) DefaultChip(stringResource(R.string.default_label), colors.primary)
             }
         }
     }
@@ -425,6 +527,8 @@ fun HomepageDesignDialog(
         listOf(
             DesignOption(HOMEPAGE_DESIGN_PLAIN, R.string.homepage_design_plain, R.string.homepage_design_plain_desc, true),
             DesignOption(HOMEPAGE_DESIGN_GRADIENT, R.string.homepage_design_gradient, R.string.homepage_design_gradient_desc, false),
+            DesignOption(HOMEPAGE_DESIGN_SOLID, R.string.homepage_design_solid, R.string.homepage_design_solid_desc, false),
+            DesignOption(HOMEPAGE_DESIGN_CUSTOM_GRADIENT, R.string.homepage_design_custom_gradient, R.string.homepage_design_custom_gradient_desc, false),
             DesignOption(HOMEPAGE_DESIGN_IMAGE, R.string.homepage_design_image, R.string.homepage_design_image_desc, false)
         ).forEach { option ->
             val sel = selected == option.key

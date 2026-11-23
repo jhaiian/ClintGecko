@@ -19,10 +19,26 @@ internal class TabDatabase(context: Context) :
                 $COL_SHORTCUT_ID TEXT,
                 $COL_LAST_ACTIVE INTEGER NOT NULL DEFAULT 0,
                 $COL_PROFILE_ID TEXT NOT NULL DEFAULT 'default',
-                $COL_GROUP_ID TEXT
+                $COL_GROUP_ID TEXT,
+                $COL_PINNED INTEGER NOT NULL DEFAULT 0
             )"""
         )
         createGroupsTable(db)
+        createClosedTable(db)
+    }
+
+    private fun createClosedTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """CREATE TABLE IF NOT EXISTS $CLOSED_TABLE (
+                $COL_ID               INTEGER PRIMARY KEY AUTOINCREMENT,
+                $COL_URL              TEXT    NOT NULL,
+                $COL_TITLE            TEXT    NOT NULL DEFAULT '',
+                $COL_PROFILE_ID       TEXT    NOT NULL DEFAULT 'default',
+                $COL_CLOSED_GROUP_NAME  TEXT,
+                $COL_CLOSED_GROUP_COLOR INTEGER,
+                $COL_CLOSED_AT        INTEGER NOT NULL
+            )"""
+        )
     }
 
     private fun createGroupsTable(db: SQLiteDatabase) {
@@ -55,6 +71,12 @@ internal class TabDatabase(context: Context) :
             addColumnIfMissing(db, COL_GROUP_ID, "TEXT")
             createGroupsTable(db)
         }
+        if (oldVersion < 8) {
+            createClosedTable(db)
+        }
+        if (oldVersion < 9) {
+            addColumnIfMissing(db, COL_PINNED, "INTEGER NOT NULL DEFAULT 0")
+        }
     }
 
     private fun addColumnIfMissing(db: SQLiteDatabase, column: String, definition: String) {
@@ -69,7 +91,7 @@ internal class TabDatabase(context: Context) :
 
     companion object {
         const val DB_NAME    = "clint_tabs.db"
-        const val DB_VERSION = 7
+        const val DB_VERSION = 9
         const val TABLE      = "tabs"
         const val COL_ID       = "id"
         const val COL_POSITION = "position"
@@ -81,10 +103,15 @@ internal class TabDatabase(context: Context) :
         const val COL_LAST_ACTIVE = "last_active"
         const val COL_PROFILE_ID = "profile_id"
         const val COL_GROUP_ID = "group_id"
+        const val COL_PINNED = "pinned"
         const val GROUPS_TABLE = "tab_groups"
         const val COL_GROUP_POSITION = "position"
         const val COL_GROUP_NAME = "name"
         const val COL_GROUP_COLOR = "color"
         const val COL_GROUP_COLLAPSED = "collapsed"
+        const val CLOSED_TABLE = "closed_tabs"
+        const val COL_CLOSED_GROUP_NAME = "group_name"
+        const val COL_CLOSED_GROUP_COLOR = "group_color"
+        const val COL_CLOSED_AT = "closed_at"
     }
 }

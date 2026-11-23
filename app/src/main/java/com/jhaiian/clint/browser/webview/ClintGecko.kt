@@ -154,11 +154,14 @@ object ClintGecko {
         runCatching { com.jhaiian.clint.backup.CookieBackup.applyPending(appContext) }
         runtimeRef = GeckoRuntime.create(appContext, settings)
         disableTelemetry()
+        applyFindColors()
         applyFontSize(appContext)
         applyForceZoom(appContext)
+        applyColorFilter(appContext)
         com.jhaiian.clint.translation.ClintTranslations.applyPrefs(appContext)
         SecureDns.apply(appContext)
         com.jhaiian.clint.privacy.PrivacyPrefs.applyGeckoPrefs(appContext)
+        PerformancePrefs.applyGeckoPrefs(appContext)
         applyTrackingProtection(appContext)
         com.jhaiian.clint.privacy.PrivacyGuard.onRuntimeReady(appContext)
         com.jhaiian.clint.extensions.ClintExtensions.init(appContext, runtime)
@@ -202,6 +205,18 @@ object ClintGecko {
         "datareporting.healthreport.about.reportUrl" to ""
     )
 
+    private val findColorPrefs = mapOf(
+        "ui.textHighlightBackground" to "#%06x".format(com.jhaiian.clint.browser.find.FIND_MATCH_RGB),
+        "ui.textHighlightForeground" to "#000000",
+        "ui.textSelectAttentionBackground" to "#%06x".format(com.jhaiian.clint.browser.find.FIND_CURRENT_RGB)
+    )
+
+    private fun applyFindColors() {
+        findColorPrefs.forEach { (pref, value) ->
+            runCatching { GeckoPreferenceController.setGeckoPref(pref, value, GeckoPreferenceController.PREF_BRANCH_USER) }
+        }
+    }
+
     private fun disableTelemetry() {
         telemetryOffBooleans.forEach { pref ->
             runCatching { GeckoPreferenceController.setGeckoPref(pref, false, GeckoPreferenceController.PREF_BRANCH_USER) }
@@ -233,9 +248,8 @@ object ClintGecko {
                     extension = ext
                     ext.setMessageDelegate(backgroundDelegate, BG_APP)
                     synchronized(views) { views.values.toList() }.forEach { it.get()?.attachExtension(ext) }
-                } else {
-                    markReady()
                 }
+                markReady()
             },
             { markReady() }
         )
@@ -556,6 +570,7 @@ object ClintGecko {
             SitePermissionManager.getAllByType(appContext, SitePermissionDatabase.TYPE_DATA_SAVER_EXCEPTION).forEach { dsx.put(it.first) }
         }
         cfg.put("dsx", dsx)
+        colorFilter?.let { cfg.put("cfx", JSONObject(it.toString())) }
 
         val list = JSONArray()
         synchronized(scripts) {
@@ -584,6 +599,23 @@ object ClintGecko {
         payload?.keys()?.forEach { key -> msg.put(key, payload.get(key)) }
         postToBackground(msg)
         main.postDelayed({ cookieOpWaiters.remove(id)?.invoke(null) }, COOKIE_OP_TIMEOUT_MS)
+    }
+
+    fun allowScriptedFullscreen(action: () -> Unit) {
+        val pref = "full-screen-api.allow-trusted-requests-only"
+        val done = java.util.concurrent.atomic.AtomicBoolean(false)
+        val run = { if (done.compareAndSet(false, true)) action() }
+        main.removeCallbacks(restoreFullscreenGate)
+        runCatching {
+            GeckoPreferenceController.setGeckoPref(pref, false, GeckoPreferenceController.PREF_BRANCH_USER)
+                .accept({ main.post(run) }, { main.post(run) })
+        }.onFailure { main.post(run) }
+        main.postDelayed(run, 600)
+        main.postDelayed(restoreFullscreenGate, 2000)
+    }
+
+    private val restoreFullscreenGate = Runnable {
+        runCatching { GeckoPreferenceController.clearGeckoUserPref("full-screen-api.allow-trusted-requests-only") }
     }
 
     fun installUnsignedAsync(path: String, callback: (JSONObject?) -> Unit) {
@@ -734,6 +766,42 @@ object ClintGecko {
         val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
         val enabled = com.jhaiian.clint.settings.accessibility.AccessibilityPrefs.forceZoom(prefs)
         runCatching { rt.settings.setForceUserScalableEnabled(enabled) }
+    }
+
+    @Volatile
+    private var colorFilter: JSONObject? = null
+
+    fun applyColorFilter(context: Context) {
+        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        val mode = com.jhaiian.clint.settings.accessibility.AccessibilityPrefs.colorFilter(prefs)
+        val next = if (mode == com.jhaiian.clint.settings.accessibility.AccessibilityPrefs.COLOR_FILTER_OFF) null else {
+            JSONObject().put("m", mode).also {
+                if (mode == com.jhaiian.clint.settings.accessibility.AccessibilityPrefs.COLOR_FILTER_MONOCHROME) {
+                    it.put("t", colorFilterTint(context, prefs))
+                }
+            }
+        }
+        if (next?.toString() == colorFilter?.toString()) return
+        colorFilter = next
+        scheduleBundle()
+        val message = next ?: JSONObject()
+        synchronized(views) { views.values.toList() }.forEach { it.get()?.applyColorFilter(message) }
+    }
+
+    private fun colorFilterTint(context: Context, prefs: android.content.SharedPreferences): JSONArray {
+        val theme = prefs.getString("app_theme", "system") ?: "system"
+        val primary = runCatching {
+            com.jhaiian.clint.customtheme.resolveThemeChrome(
+                context,
+                if (com.jhaiian.clint.ui.theme.ThemeMode.isLight(theme)) "light" else "dark",
+                prefs.getString("accent_color", "material_you") ?: "material_you",
+                prefs.getString("surface_intensity", "soft_tint") ?: "soft_tint"
+            ).primary
+        }.getOrDefault(0xFF3F6FD8.toInt())
+        return JSONArray()
+            .put(android.graphics.Color.red(primary) / 255.0)
+            .put(android.graphics.Color.green(primary) / 255.0)
+            .put(android.graphics.Color.blue(primary) / 255.0)
     }
 
     fun setDarkMode(mode: Int) {

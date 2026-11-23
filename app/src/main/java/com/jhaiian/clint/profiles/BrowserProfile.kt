@@ -4,7 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import java.util.UUID
 
-data class BrowserProfile(val id: String, val name: String, val color: Int)
+data class BrowserProfile(val id: String, val name: String, val color: Int, val temporary: Boolean = false)
 
 object ProfileRepository {
 
@@ -27,12 +27,12 @@ object ProfileRepository {
         val result = mutableListOf<BrowserProfile>()
         database(context).readableDatabase.query(
             ProfileDatabase.TABLE,
-            arrayOf(ProfileDatabase.COL_ID, ProfileDatabase.COL_NAME, ProfileDatabase.COL_COLOR),
+            arrayOf(ProfileDatabase.COL_ID, ProfileDatabase.COL_NAME, ProfileDatabase.COL_COLOR, ProfileDatabase.COL_TEMPORARY),
             null, null, null, null,
             "${ProfileDatabase.COL_POSITION} ASC"
         ).use { cursor ->
             while (cursor.moveToNext()) {
-                result.add(BrowserProfile(cursor.getString(0), cursor.getString(1), cursor.getInt(2)))
+                result.add(BrowserProfile(cursor.getString(0), cursor.getString(1), cursor.getInt(2), cursor.getInt(3) != 0))
             }
         }
         return result
@@ -40,21 +40,23 @@ object ProfileRepository {
 
     fun get(context: Context, id: String): BrowserProfile? = all(context).firstOrNull { it.id == id }
 
-    fun create(context: Context, name: String, color: Int): BrowserProfile {
-        val profile = BrowserProfile("p" + UUID.randomUUID().toString().replace("-", "").take(12), name, color)
+    fun create(context: Context, name: String, color: Int, temporary: Boolean = false): BrowserProfile {
+        val profile = BrowserProfile("p" + UUID.randomUUID().toString().replace("-", "").take(12), name, color, temporary)
         val values = ContentValues().apply {
             put(ProfileDatabase.COL_ID, profile.id)
             put(ProfileDatabase.COL_NAME, profile.name)
             put(ProfileDatabase.COL_COLOR, profile.color)
+            put(ProfileDatabase.COL_TEMPORARY, if (temporary) 1 else 0)
         }
         database(context).writableDatabase.insert(ProfileDatabase.TABLE, null, values)
         return profile
     }
 
-    fun update(context: Context, id: String, name: String, color: Int) {
+    fun update(context: Context, id: String, name: String, color: Int, temporary: Boolean) {
         val values = ContentValues().apply {
             put(ProfileDatabase.COL_NAME, name)
             put(ProfileDatabase.COL_COLOR, color)
+            put(ProfileDatabase.COL_TEMPORARY, if (temporary) 1 else 0)
         }
         database(context).writableDatabase.update(ProfileDatabase.TABLE, values, "${ProfileDatabase.COL_ID} = ?", arrayOf(id))
     }

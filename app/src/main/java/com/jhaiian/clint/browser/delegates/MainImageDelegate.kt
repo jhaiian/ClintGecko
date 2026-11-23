@@ -54,7 +54,7 @@ internal fun MainActivity.showImageLongPressSheet(imageUrl: String, pageTitle: S
 }
 
 internal fun MainActivity.handleImageOpenInNewTab(imageUrl: String) {
-    openNewTab(isIncognito = false, url = imageUrl, profileId = activeProfileId())
+    handleLinkOpenInNewTab(imageUrl)
 }
 
 internal fun MainActivity.handleImagePreview(imageUrl: String) {

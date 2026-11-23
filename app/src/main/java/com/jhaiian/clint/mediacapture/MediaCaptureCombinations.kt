@@ -40,9 +40,11 @@ fun optionEstimatedBytes(option: MediaCaptureOption): Long? {
     return video + audio
 }
 
-fun audioTrackName(audio: DetectedMedia): String? {
-    val label = audio.label?.takeIf { it.isNotBlank() }
-    val tag = audio.language?.takeIf { it.isNotBlank() }
+fun audioTrackName(audio: DetectedMedia): String? = trackLanguageName(audio.label, audio.language)
+
+fun trackLanguageName(rawLabel: String?, rawLanguage: String?): String? {
+    val label = rawLabel?.takeIf { it.isNotBlank() }
+    val tag = rawLanguage?.takeIf { it.isNotBlank() && !it.equals("und", ignoreCase = true) }
     val locale = tag?.let { Locale.forLanguageTag(it.replace('_', '-')) }
     val languageName = locale?.getDisplayName(Locale.getDefault())
         ?.takeIf { name -> name.isNotBlank() && !name.equals(tag, ignoreCase = true) }

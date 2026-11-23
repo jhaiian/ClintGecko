@@ -103,6 +103,15 @@ class DownloadTransferJobService : JobService() {
             if (!stoppedByUser) ClintDownloadManager.timeoutPausedIds.add(it.id)
             ClintDownloadManager.pause(applicationContext, it.id)
         }
+        val keepUnresumable = !stoppedByUser && DownloadForegroundService.hasUnresumableTransfer()
+        if (keepUnresumable) {
+            val handedOff = DownloadForegroundService.startService(applicationContext)
+            DownloadLog.w(DownloadLog.GLOBAL_ID, "SYSTEM") {
+                if (handedOff) "Moved downloads that cannot resume to the foreground service so they keep running"
+                else "Could not start the foreground service; downloads that cannot resume will continue in a background job"
+            }
+            if (!handedOff) DownloadBackgroundJobService.schedule(applicationContext)
+        }
         if (!stoppedByUser && paused.isNotEmpty()) DownloadBackgroundJobService.schedule(applicationContext)
         return false
     }

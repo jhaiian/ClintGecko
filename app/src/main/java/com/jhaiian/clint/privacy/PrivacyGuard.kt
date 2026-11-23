@@ -164,7 +164,7 @@ object PrivacyGuard {
             }
         }
         Thread {
-            if (history) runCatching { SearchHistoryManager.clear(context) }
+            if (history) runCatching { SearchHistoryManager.clearAllProfiles(context) }
             finished()
         }.start()
         if (cookies) {

@@ -13,6 +13,7 @@ import com.jhaiian.clint.browser.dialogs.HttpsOnlyRequest
 import com.jhaiian.clint.browser.dialogs.SslWarningRequest
 import com.jhaiian.clint.blocker.engine.WebsiteBlockerEngine
 import com.jhaiian.clint.blocker.engine.WebsiteBlockerWebIntegration
+import com.jhaiian.clint.extensions.ClintExtensions
 import com.jhaiian.clint.mediacapture.MediaCaptureDetector
 import com.jhaiian.clint.mediacapture.MediaCaptureStore
 import com.jhaiian.clint.settings.sitepermissions.SitePermissionActivity
@@ -100,6 +101,10 @@ class ClintWebViewClient(
         if (isActive()) onPageFinishedCallback(url) else if (!view.isMediaPlaying) view.evaluateJavascript(TabMediaControl.PAUSE_SCRIPT, null)
     }
 
+    fun onTabUrlRestored(view: ClintWebView, url: String) {
+        onTabUrlUpdatedCallback(view, url)
+    }
+
     fun doUpdateVisitedHistory(view: ClintWebView, url: String) {
         val changed = cachedPageUrl?.substringBefore('#') != url.substringBefore('#')
         cachedPageUrl = url
@@ -110,6 +115,15 @@ class ClintWebViewClient(
 
     fun shouldOverrideUrlLoading(view: ClintWebView, uri: Uri, isRedirect: Boolean): Boolean {
         val scheme = uri.scheme?.lowercase() ?: return true
+
+        if (ClintExtensions.parentalControlsActive()) {
+            if (ClintExtensions.isExtensionPageUrl(uri)) {
+                if (ClintExtensions.isPageApproved(view, uri)) return false
+                ClintExtensions.requestPageAccess(view, uri)
+                return true
+            }
+            ClintExtensions.clearPageApproval(view)
+        }
 
         if (scheme in internalSchemes) return false
 

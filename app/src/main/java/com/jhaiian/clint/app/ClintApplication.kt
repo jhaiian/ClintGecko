@@ -37,6 +37,9 @@ class ClintApplication : Application() {
         com.jhaiian.clint.privacy.PrivacyGuard.install(this)
         MediaPlaybackController.init(this)
         com.jhaiian.clint.downloads.ClintDownloadManager.init(this)
+        if (isForegroundLaunch() && PreferenceManager.getDefaultSharedPreferences(this).getBoolean("setup_complete", false)) {
+            runCatching { ClintGecko.init(this) }
+        }
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
             override fun onActivityStarted(activity: Activity) {
@@ -62,6 +65,11 @@ class ClintApplication : Application() {
         super.onTrimMemory(level)
         if (mainProcess) ClintGecko.trimMemory(level)
     }
+
+    private fun isForegroundLaunch(): Boolean = runCatching {
+        ActivityManager.RunningAppProcessInfo().also { ActivityManager.getMyMemoryState(it) }.importance ==
+            ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+    }.getOrDefault(false)
 
     private fun isMainProcess(): Boolean {
         val name = if (Build.VERSION.SDK_INT >= 28) {

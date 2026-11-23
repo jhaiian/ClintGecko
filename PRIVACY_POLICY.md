@@ -1,6 +1,6 @@
 # Privacy Policy for Clint Gecko
 
-*Last updated: October 30, 2026*
+*Last updated: November 24, 2026*
 
 ## Overview
 
@@ -22,6 +22,7 @@ Because GeckoView handles page rendering, JavaScript execution, and much of the 
 - **`about:config` is off by default, and remote debugging is disabled.** Nobody can attach a debugger from outside the app. You can choose to turn on `about:config` in Settings. While it's on, you can change any engine setting, including privacy-related ones such as telemetry, and a wrong change can cause severe crashes. Leave it off unless you know exactly what you're doing.
 - **Incognito tabs use Gecko's private mode.** Cookies, cache, and site storage from incognito tabs aren't saved to disk.
 - **Website isolation is off by default.** You can turn it on in Settings under Privacy and Security. It runs each site in its own process, which makes it harder for one site to get at another site's data. It doesn't send anything anywhere, and the app needs to restart before the change takes effect.
+- **Performance boost is off by default.** Its switches (reduce blur effects, turn off WebGL, limit to 30 frames per second, reduce animations, and stop animated images) only change engine settings on your device. Websites may be able to tell when some of them are on, for example that WebGL isn't available or that you prefer reduced motion, the same as with any browser that has these settings. Nothing is sent to the developer.
 - **Clint Gecko adds its own tracking protection settings on top of the engine.** These are described in the Tracking Protection section below. Clint Gecko adds no Safe Browsing controls of its own. Any such features that are part of the GeckoView version you have installed are governed by Mozilla's engine defaults, and may involve the engine contacting Mozilla or its partners' servers to update lists. See Mozilla's privacy notices for details.
 
 ---
@@ -34,17 +35,19 @@ Clint Gecko does not collect, store, transmit, or share any personal data. There
 
 ## Browsing Data
 
-All browsing data, including history, cookies, cached content, and site storage, is stored locally on your device only. You can clear this data at any time through your device's app settings. Incognito tabs do not save cookies, cached content, or browsing history to your device. Downloads you finish in Incognito tabs still show up in your Downloads list unless you turn that off, as explained in the Downloads section below.
+All browsing data, including history, cookies, cached content, and site storage, is stored locally on your device only. Your browsing history has no size limit and is kept until you delete it. You can clear this data at any time through your device's app settings. Incognito tabs do not save cookies, cached content, or browsing history to your device. Downloads you finish in Incognito tabs still show up in your Downloads list unless you turn that off, as explained in the Downloads section below.
 
 **Incognito notification.** While Incognito tabs are open, Clint Gecko shows a notification. Tapping it closes all of your Incognito tabs without opening the app. The notification is handled by your device and nothing is sent anywhere.
 
 **Remember browsing mode.** This is off by default. When you turn it on, Clint Gecko remembers whether you were last using Incognito or normal mode and opens in that mode next time. Only that choice is saved on your device. Your Incognito tabs are not saved.
 
-**Copy and paste in the address bar.** When you long press the address bar, you can copy the page link or paste from your clipboard. Clint Gecko only reads your clipboard when you tap Paste or Paste & Go.
+**Copy and paste.** When you long press the address bar, you can copy the page link or paste from your clipboard. The search screen and the find bar can also show a Paste or Paste & Go button. To decide whether to show it, Clint Gecko only checks whether your clipboard has text in it. It only reads what's in your clipboard when you tap Paste or Paste & Go.
 
-**Tab groups.** Group names, colors, and which tabs belong to each group are stored locally on your device along with your open tabs. Incognito groups are kept in memory only and are gone when you close the app.
+**Tab groups and pinned tabs.** Group names, colors, which tabs belong to each group, and which tabs are pinned are stored locally on your device along with your open tabs. Incognito groups are kept in memory only and are gone when you close the app.
 
-**Undo for closed tabs.** When you close tabs, Clint Gecko briefly keeps them in memory so you can tap Undo and bring them back. Nothing is written to storage for this. Incognito tabs are never kept for undo.
+**Recently closed tabs.** When you close tabs, Clint Gecko briefly keeps them in memory so you can tap Undo and bring them back. Your last 25 closed tabs are also saved on your device so you can reopen them from Recently closed in the tab manager. Only each tab's address, title, profile, group, position, and whether it was pinned are saved. The list is cleared when you delete your browsing history or remove a profile, and you can clear it yourself at any time. Incognito tabs are never kept for undo or saved to the list.
+
+**Find in page.** What you search for with Find in page is matched on your device and never sent anywhere. Your recent searches are saved on your device so they show up when the find bar is empty. Nothing is saved from private tabs. You can turn saving off or clear the list in the Find in page settings under Browser.
 
 **Delete browsing data.** You can delete your browsing history, cookies and site data, cached images and files, open tabs, and site settings from History or from Settings under Privacy and Security. Everything you pick is deleted only for the time range you choose. Browsing history and cookies from that range are removed. Any site you visited in that range has its cached files and stored data removed completely. Site settings you changed in that range are removed, and only tabs you used in that range are closed. Deleted data can't be recovered, except for closed tabs, which you can bring back with Undo right after. The time range and items you pick are remembered on your device.
 
@@ -88,6 +91,8 @@ These optional settings help protect your data on your device. All of them are l
 - **Auto-clear clipboard.** Clears the clipboard after the delay you choose (30 seconds, 1 minute, or 5 minutes). Clipboard contents are not sent anywhere.
 - **Clear data on exit.** Deletes the data you select when you close the app. You can choose any of browsing history, cookies and site data, cache, and open tabs. Open tabs is off by default. When it's on, your saved tabs and their thumbnails are deleted when you exit. If the app is closed another way, such as being swiped away from recent apps, they're deleted the next time you open Clint Gecko. Deleted data can't be recovered.
 - **Strict certificate checking.** Never lets you continue to a site with an invalid security certificate.
+- **Parental controls.** You can set a parental password that has to be entered before Website Blocker, extensions, history, or backup restore can be changed in ways that weaken your protection. The password is never stored as plain text. Only a salted, one-way hash of it is kept on your device, along with a count of wrong attempts so Clint Gecko can lock you out for a while after too many. The password isn't included in backups, it's never sent anywhere, and the developer can't recover it if you forget it.
+- **Website Blocker protection.** Without a parental password, turning off Website Blocker or deleting its protected lists asks you to wait 30 seconds and type a random code. The code is made on your device and isn't sent anywhere.
 
 ---
 
@@ -116,13 +121,18 @@ You can review Cloudflare's privacy information at https://developers.cloudflare
 
 ## Profiles
 
-Profiles let you keep separate browsing identities, each with its own cookies and site storage. A profile's name and color are stored locally in a SQLite database on your device. Profiles are never uploaded or synced anywhere. Deleting a profile removes the data kept for it inside the app.
+Profiles let you keep separate browsing identities on one device. Each profile has its own tabs, cookies, site storage, bookmarks, history, downloads list, site permissions, and set of turned-on extensions, and it can have its own homepage and favorites. A profile's name, color, and settings are stored locally on your device. Profiles are never uploaded or synced anywhere.
+
+- **Switching profiles happens on your device.** Websites only see the cookies and site storage of the profile you're using.
+- **Extensions are installed once for the whole app.** Each profile only decides which of them are turned on, so the data an extension stores may be shared between profiles.
+- **Temporary profiles are erased.** A temporary profile's tabs, cookies, site data, bookmarks, history, and downloads list are deleted when its last tab closes or when you close the app. If the app is closed another way, they're deleted the next time you open Clint Gecko. Files you already downloaded stay on your device.
+- **Deleting a profile** removes its tabs, cookies, site data, bookmarks, history, site permissions, and shortcuts. Its downloads move to the Default profile so you don't lose track of the files.
 
 ---
 
 ## Search History
 
-When you perform searches in the address or search bar, Clint Gecko saves your search history locally to improve your experience. **All search history data is stored exclusively on your local device using SQLite**, a lightweight file-based database. This data never leaves your device. It is not uploaded to any server, shared with any third party, or transmitted anywhere else.
+When you perform searches in the address or search bar, Clint Gecko saves your search history locally to improve your experience. Each profile has its own history. **All search history data is stored exclusively on your local device using SQLite**, a lightweight file-based database. This data never leaves your device. It is not uploaded to any server, shared with any third party, or transmitted anywhere else.
 
 You can clear your search history at any time through the app's settings or by clearing the app's storage from your device settings.
 
@@ -136,11 +146,13 @@ You can choose which search engine handles the searches you type in the address 
 - **Brave Search**
 - **Ecosia**
 - **Google**
-- **Custom**, a URL template you enter yourself
+- **Custom**, any number of URL templates you add yourself
 
 When you search, your query is sent as part of the request URL to whichever engine you've selected. If you configure a custom engine, your query is sent to whatever URL you entered, since the app has no way to know what that service does with it. Review that service's own privacy policy before using it.
 
 **Incognito search engine.** You can pick a different search engine for Incognito tabs. By default Incognito uses the same engine as normal browsing. If you pick a different one, your Incognito searches go to that engine instead.
+
+**Searching once with another engine.** The engine button in the search field lets you send a single search to a different engine, including your custom ones. That search goes only to the engine you picked, and your default engine stays the same.
 
 ---
 
@@ -152,10 +164,11 @@ You can choose which provider these suggestions come from in Settings:
 
 - **DuckDuckGo** (default), fetched from `https://duckduckgo.com/ac/?q=`
 - **Google**, fetched from `https://www.google.com/complete/search?client=firefox&q=`
-- **Custom**, a URL template you enter yourself
+- **Custom**, any number of URL templates you add yourself
 
 **What this means for your privacy:**
 - The text you type is sent only to whichever suggestion provider you've selected, and only to retrieve suggestion results
+- Suggestions from your history, bookmarks, open tabs, and homepage favorites are found on your device and never sent anywhere
 - No search history, cookies, or personal identifiers from Clint Gecko are included
 - Neither provider receives requests associated with your Clint Gecko identity, since the app has none to send
 - If you configure a custom suggestions provider, each keystroke you type may be sent to that URL as you type, so only point this at a service you trust
@@ -219,6 +232,10 @@ Clint Gecko supports browser extensions through Gecko's WebExtensions system. Ex
 
 **Where extension data lives.** Installed extensions and the data they store (such as their settings) are kept locally on your device. Clint Gecko does not upload or sync them.
 
+**Different extensions for each profile.** Each profile can have its own set of extensions turned on. This only changes which extensions are active. An extension is installed once, and the data it stores may be shared between profiles.
+
+**Add-on suggestions in setup.** The add-ons step in setup suggests a few popular add-ons from Mozilla's Add-ons site. To show their icons, Clint Gecko loads them from `addons.mozilla.org` when you reach that step and keeps them in the app's cache. An add-on is only downloaded and installed if you tap Add. Your IP address is visible to Mozilla for these requests, the same as visiting any website. No browsing history or identifiers from Clint Gecko are sent along with them.
+
 **Clint Engine Bridge.** Clint Gecko includes one built-in extension, the Clint Engine Bridge, that is part of the app itself. It connects the Gecko engine to Clint Gecko's own features, including Media Capture, Website Blocker, Data Saver, Do Not Track, and popup handling. Because those features need to see page requests, it has broad access to the pages you load, but it only communicates with the app on your device. It does not send anything to the developer or to any server.
 
 ---
@@ -231,7 +248,11 @@ The custom theme editor lets you change the colors used throughout the app. Your
 
 ## Homepage
 
-You can set a custom URL as your homepage and choose whether to show quick actions on it. These choices are stored locally on your device.
+You can set a custom URL as your homepage, or customize how the Clint homepage looks, including its header, greeting, quick actions, widgets, tiles, and background. Each profile can have its own homepage settings and favorites. These choices are stored locally on your device.
+
+**Background images.** If you pick your own photo, or a separate photo for the dark theme, Android's photo picker gives Clint Gecko only the image you chose, and a copy is saved inside the app.
+
+**Widgets.** The clock uses your device's time, Continue where you left off shows a tab you already have open, and Active downloads shows your own downloads. They only use data already on your device and make no network requests.
 
 **Favorites.** The tiles and folders in the homepage's Favorites section, their order, and any custom images you pick for them are stored locally on your device. When you pick a custom image, Android's photo picker gives Clint Gecko only the image you chose, and a copy is saved inside the app. Favorites are never uploaded or synced, and they are only included in a backup if you create one yourself. How tile icons are fetched is described in the Favicons section above.
 
@@ -247,7 +268,7 @@ Long Shot is a small game on the offline page and at `clint://longshot`. It runs
 
 ## Bookmarks
 
-Bookmarks are stored locally on your device only using SQLite. They are never synced, uploaded, or shared. You can delete them at any time through the app or by clearing app storage.
+Bookmarks are stored locally on your device only using SQLite. Each profile has its own bookmarks. They are never synced, uploaded, or shared. You can delete them at any time through the app or by clearing app storage.
 
 ---
 
@@ -280,11 +301,23 @@ The download manager can split a download into segments, such as the pieces of a
 
 **Download page.** Each download remembers the page it was started from, so you can go back there later if you need a fresh link. This is saved on your device with the rest of your download history. When you update a download's link, Clint Gecko checks the new link using the same browser details, Referer, and cookies the download already uses. The website sees that request the same way it saw the original download.
 
+**Saved locations.** The download folders you save are remembered on your device, along with the access Android gave Clint Gecko to write to them.
+
+**Gallery and other apps.** When a download finishes, Clint Gecko asks Android to add it to the device's media index, the same as other apps that save files. This makes pictures, videos, and music show up in your gallery and in other apps that are allowed to see your media. This also applies to downloads from Incognito tabs. If you don't want a file to show up there, move or delete it after it finishes.
+
+**Notifications and live updates.** Download notifications can show the file name and progress. On Android 16 and newer, active downloads can also show as a live update in the status bar, on the lock screen, or in the island on supported phones. What shows on your lock screen depends on your phone's lock screen notification settings. You can turn live updates off in Customize downloads.
+
+**Playing a video before you download it.** The Play button in the download dialog streams the video from the website using the same browser details, Referer, and cookies as the download. The website sees that request the same way it would see the download.
+
+**Links from other apps.** When another app sends a link to Clint Gecko's download manager, it can include cookies, a browser User-Agent, a Referer, and a file name. Clint Gecko uses them only to download that file from its website and saves them with the download, like any other download.
+
+**Third-party download managers.** You can choose to send downloads to another download manager app instead, such as 1DM or ADM, or any app you pick with Custom app. When you do, Clint Gecko passes that app the link along with the website's cookies, your browser's User-Agent, and the Referer, so downloads that need your login keep working. Cookies can give full access to your account on that website. Once they're passed on, what that app does with them is covered by that app's own privacy policy, not this one. Clint Gecko warns you about this when you pick a download manager, so only choose one you trust. The built-in download manager is the default and doesn't share anything with other apps.
+
 ---
 
 ## MEGA Downloads
 
-When you open a MEGA file or folder link, Clint Gecko can offer to download it for you. This is on by default, and you can turn it off with Detect MEGA links in the download settings.
+When you open a MEGA file or folder link, Clint Gecko shows a Download from MEGA button. Nothing is sent to MEGA until you tap it. This is on by default, and you can turn it off with Detect MEGA links in the download settings.
 
 - **What MEGA sees.** To read the link, Clint Gecko asks MEGA's servers (`g.api.mega.co.nz`) for the file or folder details using the ID in the link. The files are then downloaded from MEGA's storage servers. MEGA can see your IP address and which file or folder you're getting, the same as when you open the link on their website.
 - **The key stays on your device.** The key at the end of a MEGA link is what unlocks the files. It's never sent to MEGA or anywhere else. File names and file contents are decrypted on your device.
@@ -300,9 +333,40 @@ Media Capture detects media resources used by websites, such as video, audio, su
 
 **YouTube.** YouTube protects its videos in a way Media Capture can't save. If you open Media Capture on a YouTube page and the YTDLnis app is installed, Clint Gecko sends the page link to YTDLnis so you can download the video there. Only the link is shared, and what YTDLnis does with it is covered by that app's own privacy policy. If YTDLnis isn't installed, Clint Gecko explains why and can open the YTDLnis download page on GitHub.
 
-All of this detection happens locally on your device. Clint Gecko does not intentionally upload captured media, browsing data, or any information about detected media to an external server.
+All of this detection happens locally on your device, and so does the size filter. Selecting several items and downloading them at once works the same as downloading them one by one. Clint Gecko does not intentionally upload captured media, browsing data, or any information about detected media to an external server.
 
 That said, this privacy statement is not an absolute guarantee of privacy or security. Media Capture works by interacting with webpage content, network requests, Android, the Gecko engine, and other components outside Clint Gecko's control. Websites may use their own tracking, DRM, authentication, or other technologies that affect how Media Capture behaves. Media Capture is provided as-is, and Clint Gecko does not guarantee that it will detect every type of media, prevent websites from tracking you, or provide complete privacy or security while using the feature.
+
+---
+
+## Video Player
+
+Clint Gecko's video player shows its own controls over videos on websites.
+
+- **The video still comes from the website.** The player works with the video the page is already playing. It doesn't record, copy, or upload it.
+- **Switching quality or audio.** If Media Capture found other versions of a video, picking one loads that stream straight from the website. The website sees that request the same way it would see the page loading it.
+- **Your settings stay on your device.** Your player settings, the screen fit you picked, and the brightness and volume you last set (if you turn on Remember brightness and volume) are stored locally.
+- **Picture-in-picture uses Android's own feature.** Its controls are handled by your device, and nothing is sent anywhere.
+
+---
+
+## Custom Tabs
+
+Other apps can ask Clint Gecko to open a link inside the app you're using, through Android's Custom Tabs.
+
+- **The page loads like a normal tab.** It uses your Default profile's cookies and site data. It isn't Incognito.
+- **Nothing is sent back to the other app.** Clint Gecko doesn't preload links an app says you might open, and it doesn't send the app any information about the pages you visit.
+- **The other app knows the link it opened**, since it's the one that sent it to Clint Gecko.
+
+---
+
+## Pop-ups
+
+When a website tries to open a pop-up to another site, Clint Gecko can ask you first with the popup alert.
+
+- **Let extensions handle popups** is on by default. If you have an extension that can block web requests installed, such as uBlock Origin, a pop-up to another site starts loading in the background first so the extension can decide whether to block it. If it isn't blocked, it opens without asking. This means the pop-up's website can be contacted before you see it, the same as in Firefox.
+- **Without such an extension, or with this setting off,** the popup alert asks you first, and nothing loads until you allow it.
+- **Pop-ups open in the window the website created,** so the page that opened a pop-up can still talk to it. This is how sign-in pop-ups like Sign in with Google work, and it's the normal behavior of web browsers.
 
 ---
 
@@ -321,7 +385,7 @@ Background playback keeps audio and video playing when you leave Clint Gecko, sw
 
 To save battery and memory, Clint Gecko pauses pages when you switch to another app or turn off the screen, and resumes them when you return. Tabs that are playing audio or video stay active so playback continues, and they pause again when the media finishes.
 
-- **Tabs may be hibernated.** When your device is low on memory, background tabs, and in severe cases the active tab while the app is in the background, are put into hibernation to free memory. A hibernated tab reloads when you return to it, so the website may be contacted again at that point.
+- **Tabs may be hibernated.** When your device is low on memory, background tabs, and in severe cases the active tab while the app is in the background, are put into hibernation to free memory. Pinned tabs are kept loaded longer than other tabs. A hibernated tab reloads when you return to it, so the website may be contacted again at that point.
 - **Tabs load when you open them.** Tabs you haven't opened since the app started don't load in the background at startup. No requests are made for them until you open them.
 - **Cached images may be cleared.** When memory becomes critically low, cached images are cleared.
 - **All of this happens on your device.** Nothing about your tabs or memory use is sent to the developer or to any server.
@@ -398,6 +462,7 @@ You can define site-specific exceptions that override the default behavior.
 - Each website can have its own permission rule
 - These overrides take priority over global settings
 - If you select "Don't ask again" when responding to a prompt, the website is automatically added to Site Exceptions
+- Each profile keeps its own site exceptions
 
 You can manage or remove these exceptions anytime from Site Settings or from the site information sheet.
 
@@ -414,6 +479,7 @@ Clint Gecko requests the following permissions:
 ## Storage & Downloads
 - **WRITE_EXTERNAL_STORAGE** – Saves downloaded files to your Downloads folder. *(Android 9 and below only)*
 - **POST_NOTIFICATIONS** – Shows download progress, completion, and failure alerts, the media controls for background playback, and the notification that closes your Incognito tabs, in your notification bar.
+- **POST_PROMOTED_NOTIFICATIONS** – Lets active downloads show as a live update in the status bar, on the lock screen, or in the island on Android 16 and newer.
 - **REQUEST_INSTALL_PACKAGES** – Installs APK files downloaded from the download screen and installing updates from GitHub.
 - **SCHEDULE_EXACT_ALARM** – Download Scheduler
 - **MANAGE_EXTERNAL_STORAGE** – Allow the download manager to write directly to a custom location without requiring SAF (exclusively available in the GitHub Release).
@@ -428,7 +494,7 @@ Clint Gecko requests the following permissions:
 - **ACCESS_COARSE_LOCATION** – Same as above, but used as a fallback when only approximate location is available.
 
 ## App & System Integration
-- **QUERY_ALL_PACKAGES** – Detects which apps on your device can handle special links, like opening a phone number in your dialer or a store link in the Play Store.
+- **QUERY_ALL_PACKAGES** – Detects which apps on your device can handle special links, like opening a phone number in your dialer or a store link in the Play Store, and finds download manager apps you can send downloads to.
 - **FOREGROUND_SERVICE** – Keeps downloading files and playing media even when you switch to another app.
 - **FOREGROUND_SERVICE_DATA_SYNC** – Works with `FOREGROUND_SERVICE` to tell Android the background activity is a file download.
 - **FOREGROUND_SERVICE_MEDIA_PROCESSING** – Works with `FOREGROUND_SERVICE` to tell Android the background activity is processing a downloaded video stream, such as combining its segments into a single file.
@@ -455,7 +521,7 @@ If the app crashes, Clint Gecko saves a crash log on your device so you can look
 
 ## Data Retention and Deletion
 
-Since no personal data is collected by the developer, there is nothing to delete on our servers. All local data (history, bookmarks, downloads, extensions and their data, etc.) is stored on your device. This includes your custom themes, homepage choices, and privacy settings. You can delete any or all of it at any time through the app's settings, with Delete browsing data, with Clear data on exit, or by clearing the app's storage in your device settings.
+Since no personal data is collected by the developer, there is nothing to delete on our servers. All local data (history, bookmarks, downloads, extensions and their data, etc.) is stored on your device. This includes your custom themes, homepage choices, privacy settings, recently closed tabs, recent Find in page searches, and parental controls settings. You can delete any or all of it at any time through the app's settings, with Delete browsing data, with Clear data on exit, or by clearing the app's storage in your device settings.
 
 ---
 
@@ -478,6 +544,9 @@ However, the search engine or services you choose (such as DuckDuckGo, Brave Sea
 - The tracker lists used by Enhanced Tracking Protection may be updated from Mozilla's servers, as described above.
 - Website Blocker list downloads and update checks are fetched from GitHub, as described above.
 - MEGA downloads contact MEGA's servers, as described above.
+- If you choose a third-party download manager, it receives the link, cookies, User-Agent, and Referer for each download you send it, as described above. That app has its own privacy policy.
+- The add-ons step in setup loads add-on icons from Mozilla's Add-ons site, as described above.
+- Apps that open links in Clint Gecko through Custom Tabs know which link they sent, as described above.
 - On YouTube pages, Media Capture can pass the page link to the YTDLnis app, which has its own privacy policy.
 - Extensions you install, and Mozilla's Add-ons site when you browse it, are run by third parties with their own privacy policies.
 - The GeckoView engine is developed by Mozilla and may contact Mozilla's servers for engine features Clint Gecko doesn't disable, as described above.

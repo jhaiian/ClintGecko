@@ -44,6 +44,7 @@ internal fun CompactManualDownloadContent(
     onLocationModeSelected: (String) -> Unit,
     customUri: Uri?,
     onPickFolder: () -> Unit,
+    onSelectFolder: (Uri) -> Unit,
     categorizeEnabled: Boolean,
     onCategorizeToggle: () -> Unit,
     destinationPreviewText: String?,
@@ -115,17 +116,7 @@ internal fun CompactManualDownloadContent(
 
         CompactLocationRow(mode = locationMode, onModeSelected = onLocationModeSelected)
         if (locationMode == DownloadSettingsKeys.MODE_CUSTOM) {
-            Row(
-                Modifier.fillMaxWidth().clickable { onPickFolder() }.padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Filled.Folder, contentDescription = null, tint = colors.iconTint, modifier = Modifier.size(16.dp))
-                Text(
-                    customUri?.let { uriToDisplayPath(it) } ?: stringResource(R.string.download_location_tap_to_choose),
-                    color = colors.onSurface, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.MiddleEllipsis,
-                    modifier = Modifier.weight(1f).padding(start = 8.dp)
-                )
-            }
+            SavedLocationFolderRow(customUri = customUri, compact = true, onSelect = onSelectFolder, onAddNew = onPickFolder)
         }
         CompactToggleRow(stringResource(R.string.download_categorize_title), categorizeEnabled, onCategorizeToggle)
         destinationPreviewText?.let {

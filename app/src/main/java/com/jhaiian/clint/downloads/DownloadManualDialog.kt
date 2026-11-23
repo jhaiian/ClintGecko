@@ -98,8 +98,17 @@ data class ManualDownloadSubmission(
     val estimatedTotalBytes: Long = 0L,
     val concurrentSegments: Int = DownloadAutoTuner.AUTO,
     val convertTsToMp4: Boolean = false,
-    val startPaused: Boolean = false
+    val startPaused: Boolean = false,
+    val userAgent: String = "",
+    val referer: String = "",
+    val cookies: String = ""
 )
+
+private fun okhttp3.Request.Builder.sessionHeaders(userAgent: String, referer: String, cookies: String): okhttp3.Request.Builder = apply {
+    header("User-Agent", userAgent)
+    if (referer.isNotEmpty()) header("Referer", referer)
+    if (cookies.isNotEmpty()) header("Cookie", cookies)
+}
 
 private data class ManualStreamPlan(
     val format: StreamContainerFormat,
@@ -135,15 +144,15 @@ private fun manualManifestTypeFromContentType(contentType: String?): ManifestTyp
     }
 }
 
-private fun manualHeadContentType(url: String, userAgent: String): String? = try {
-    val request = okhttp3.Request.Builder().url(url).head().header("User-Agent", userAgent).build()
+private fun manualHeadContentType(url: String, userAgent: String, referer: String, cookies: String): String? = try {
+    val request = okhttp3.Request.Builder().url(url).head().sessionHeaders(userAgent, referer, cookies).build()
     ClintDownloadManager.httpClient.newCall(request).execute().use { resp ->
         if (!resp.isSuccessful && resp.code != 405) null else resp.header("Content-Type")
     }
 } catch (_: Exception) { null }
 
-private fun fetchManualManifestText(url: String, userAgent: String): String? = try {
-    val request = okhttp3.Request.Builder().url(url).header("User-Agent", userAgent).build()
+private fun fetchManualManifestText(url: String, userAgent: String, referer: String, cookies: String): String? = try {
+    val request = okhttp3.Request.Builder().url(url).sessionHeaders(userAgent, referer, cookies).build()
     ClintDownloadManager.httpClient.newCall(request).execute().use { resp ->
         if (!resp.isSuccessful) null
         else resp.body.byteStream().bufferedReader().use { reader ->
@@ -161,8 +170,8 @@ private fun fetchManualManifestText(url: String, userAgent: String): String? = t
     }
 } catch (_: Exception) { null }
 
-private fun resolveManualHlsPlan(url: String, userAgent: String, convertTsToMp4Pref: Boolean): ManualStreamPlan? {
-    val text = fetchManualManifestText(url, userAgent) ?: return null
+private fun resolveManualHlsPlan(url: String, userAgent: String, referer: String, cookies: String, convertTsToMp4Pref: Boolean): ManualStreamPlan? {
+    val text = fetchManualManifestText(url, userAgent, referer, cookies) ?: return null
     val entries = MediaManifestParser.parseHls(text, url)
     if (entries.isEmpty()) return null
     val isLeaf = entries.size == 1 && entries[0].groupUrl == null
@@ -179,7 +188,7 @@ private fun resolveManualHlsPlan(url: String, userAgent: String, convertTsToMp4P
     if (chosen == null) return null
     val primaryIsAudio = chosen.kind == MediaKind.AUDIO
     val trackKind = if (primaryIsAudio) TrackKind.AUDIO else TrackKind.VIDEO
-    val track = HlsPlaylistFetcher.fetch(chosen.url, "", "", userAgent, trackKind) ?: return null
+    val track = HlsPlaylistFetcher.fetch(chosen.url, referer, cookies, userAgent, trackKind) ?: return null
     val estimatedBytes = HlsSegmentEstimator.estimate(chosen, track, url).estimatedBytes ?: 0L
     val hasAudio = pairedAudio != null
     val convertTsToMp4 = convertTsToMp4Pref
@@ -208,8 +217,8 @@ private fun resolveManualHlsPlan(url: String, userAgent: String, convertTsToMp4P
     )
 }
 
-private fun resolveManualDashPlan(url: String, userAgent: String): ManualStreamPlan? {
-    val text = fetchManualManifestText(url, userAgent) ?: return null
+private fun resolveManualDashPlan(url: String, userAgent: String, referer: String, cookies: String): ManualStreamPlan? {
+    val text = fetchManualManifestText(url, userAgent, referer, cookies) ?: return null
     val entries = MediaManifestParser.parseDash(text, url)
     if (entries.isEmpty()) return null
     val videoCandidate = entries.filter { it.kind == MediaKind.VIDEO }.maxByOrNull { it.bandwidthBitsPerSec ?: 0L }
@@ -237,11 +246,11 @@ private fun resolveManualDashPlan(url: String, userAgent: String): ManualStreamP
     )
 }
 
-private fun resolveManualStreamPlan(url: String, userAgent: String, convertTsToMp4Pref: Boolean): ManualStreamPlan? {
-    val type = manualManifestTypeFromExtension(url) ?: manualManifestTypeFromContentType(manualHeadContentType(url, userAgent))
+private fun resolveManualStreamPlan(url: String, userAgent: String, referer: String, cookies: String, convertTsToMp4Pref: Boolean): ManualStreamPlan? {
+    val type = manualManifestTypeFromExtension(url) ?: manualManifestTypeFromContentType(manualHeadContentType(url, userAgent, referer, cookies))
     return when (type) {
-        ManifestType.HLS -> resolveManualHlsPlan(url, userAgent, convertTsToMp4Pref)
-        ManifestType.DASH -> resolveManualDashPlan(url, userAgent)
+        ManifestType.HLS -> resolveManualHlsPlan(url, userAgent, referer, cookies, convertTsToMp4Pref)
+        ManifestType.DASH -> resolveManualDashPlan(url, userAgent, referer, cookies)
         null -> null
     }
 }
@@ -250,6 +259,7 @@ private fun resolveManualStreamPlan(url: String, userAgent: String, convertTsToM
 fun DownloadManualDialog(
     hideStatusBar: Boolean, hideSystemNavigation: Boolean,
     prefillUrl: String? = null,
+    session: IncomingDownloadSession? = null,
     onDismiss: () -> Unit,
     onSubmit: (ManualDownloadSubmission, onDismiss: () -> Unit, onRename: () -> Unit) -> Unit
 ) {
@@ -303,6 +313,9 @@ fun DownloadManualDialog(
     var scheduleEnabled by remember { mutableStateOf(false) }
     var scheduledMillis by remember { mutableStateOf(0L) }
     var blockingError by remember { mutableStateOf<ConfirmDialogConfig?>(null) }
+    var fetchedUserAgent by remember { mutableStateOf("") }
+    var fetchedReferer by remember { mutableStateOf("") }
+    var fetchedCookies by remember { mutableStateOf("") }
 
     fun doFetch() {
         val typed = url.trim()
@@ -312,10 +325,19 @@ fun DownloadManualDialog(
         }
         urlError = null
         isFetching = true
+        val activeSession = session?.takeIf {
+            val prefillHost = prefillUrl?.let { p -> Uri.parse(p.trim()).host }
+            prefillHost != null && prefillHost.equals(Uri.parse(typed).host, ignoreCase = true)
+        }
         scope.launch {
-            val ua = com.jhaiian.clint.browser.webview.ClintGecko.defaultUserAgent()
+            val ua = activeSession?.userAgent?.takeIf { it.isNotBlank() } ?: com.jhaiian.clint.browser.webview.ClintGecko.defaultUserAgent()
+            val referer = activeSession?.referer.orEmpty()
+            val cookies = activeSession?.cookies.orEmpty()
+            fetchedUserAgent = ua
+            fetchedReferer = referer
+            fetchedCookies = cookies
             val convertTsToMp4Pref = prefs.getBoolean(MEDIA_CAPTURE_CONVERT_TS_TO_MP4_PREF, MEDIA_CAPTURE_CONVERT_TS_TO_MP4_DEFAULT)
-            val plan = withContext(Dispatchers.IO) { resolveManualStreamPlan(typed, ua, convertTsToMp4Pref) }
+            val plan = withContext(Dispatchers.IO) { resolveManualStreamPlan(typed, ua, referer, cookies, convertTsToMp4Pref) }
             if (plan != null) {
                 isFetching = false
                 isFetched = true
@@ -332,7 +354,7 @@ fun DownloadManualDialog(
             streamPlan = null
             val result = withContext(Dispatchers.IO) {
                 try {
-                    val headRequest = okhttp3.Request.Builder().url(typed).head().header("User-Agent", ua).build()
+                    val headRequest = okhttp3.Request.Builder().url(typed).head().sessionHeaders(ua, referer, cookies).build()
                     val headResponse = ClintDownloadManager.httpClient.newCall(headRequest).execute()
                     headResponse.use { resp ->
                         if (!resp.isSuccessful && resp.code != 405) return@withContext null
@@ -342,7 +364,7 @@ fun DownloadManualDialog(
                         if (contentLength <= 0L) {
                             try {
                                 val rangeRequest = okhttp3.Request.Builder().url(typed).get()
-                                    .header("User-Agent", ua).header("Range", "bytes=0-0").build()
+                                    .sessionHeaders(ua, referer, cookies).header("Range", "bytes=0-0").build()
                                 val rangeResponse = ClintDownloadManager.httpClient.newCall(rangeRequest).execute()
                                 contentLength = rangeResponse.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull()
                                     ?: rangeResponse.header("Content-Length")?.toLongOrNull() ?: -1L
@@ -358,7 +380,8 @@ fun DownloadManualDialog(
                 urlError = context.getString(R.string.download_manual_error_network)
                 return@launch
             }
-            val (resolvedName, contentLength) = result
+            val (headName, contentLength) = result
+            val resolvedName = activeSession?.filename?.takeIf { it.isNotBlank() } ?: headName
             isFetched = true
             fetchedContentLength = contentLength
             val dot = resolvedName.lastIndexOf('.')
@@ -448,7 +471,10 @@ fun DownloadManualDialog(
             estimatedTotalBytes = plan?.estimatedTotalBytes ?: 0L,
             concurrentSegments = concurrentSegments,
             convertTsToMp4 = plan?.convertTsToMp4 ?: false,
-            startPaused = startPaused
+            startPaused = startPaused,
+            userAgent = fetchedUserAgent,
+            referer = fetchedReferer,
+            cookies = fetchedCookies
         )
         onSubmit(submission, onDismiss) {}
     }
@@ -501,7 +527,7 @@ fun DownloadManualDialog(
         if (compact) {
             fun pickFolder() {
                 activity.launchManualFolderPicker { uri ->
-                    prefs.edit().putString(DownloadSettingsKeys.PREF_DOWNLOAD_CUSTOM_URI, uri.toString()).apply()
+                    DownloadSavedLocations.add(context, uri)
                     customUri = uri
                 }
             }
@@ -514,9 +540,9 @@ fun DownloadManualDialog(
                 locationMode = locationMode,
                 onLocationModeSelected = {
                     locationMode = it
-                    if (it == DownloadSettingsKeys.MODE_CUSTOM) pickFolder()
+                    if (it == DownloadSettingsKeys.MODE_CUSTOM && customUri == null) pickFolder()
                 },
-                customUri = customUri, onPickFolder = { pickFolder() },
+                customUri = customUri, onPickFolder = { pickFolder() }, onSelectFolder = { customUri = it },
                 categorizeEnabled = categorizeEnabled, onCategorizeToggle = { categorizeEnabled = !categorizeEnabled },
                 destinationPreviewText = destinationPreviewText,
                 retryEnabled = retryEnabled, onRetryToggle = { retryEnabled = !retryEnabled },
@@ -604,29 +630,26 @@ fun DownloadManualDialog(
                             })
                             DropdownMenuItem(text = { Text(stringResource(R.string.download_location_option_custom), color = colors.onSurface) }, onClick = {
                                 locationMode = DownloadSettingsKeys.MODE_CUSTOM; locationMenuOpen = false
-                                activity.launchManualFolderPicker { uri ->
-                                    prefs.edit().putString(DownloadSettingsKeys.PREF_DOWNLOAD_CUSTOM_URI, uri.toString()).apply()
-                                    customUri = uri
+                                if (customUri == null) {
+                                    activity.launchManualFolderPicker { uri ->
+                                        DownloadSavedLocations.add(context, uri)
+                                        customUri = uri
+                                    }
                                 }
                             })
                         }
                     }
                     if (locationMode == DownloadSettingsKeys.MODE_CUSTOM) {
-                        Row(
-                            Modifier.fillMaxWidth().clickable {
+                        SavedLocationFolderRow(
+                            customUri = customUri, compact = false,
+                            onSelect = { customUri = it },
+                            onAddNew = {
                                 activity.launchManualFolderPicker { uri ->
-                                    prefs.edit().putString(DownloadSettingsKeys.PREF_DOWNLOAD_CUSTOM_URI, uri.toString()).apply()
+                                    DownloadSavedLocations.add(context, uri)
                                     customUri = uri
                                 }
-                            }.padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(androidx.compose.material.icons.Icons.Filled.Folder, contentDescription = null, tint = colors.iconTint, modifier = Modifier.size(20.dp))
-                            Text(
-                                customUri?.let { uriToDisplayPath(it) } ?: stringResource(R.string.download_location_tap_to_choose),
-                                color = colors.onSurface, fontSize = 13.sp, modifier = Modifier.padding(start = 10.dp)
-                            )
-                        }
+                            }
+                        )
                     }
                     Row(
                         Modifier.fillMaxWidth().clickable {

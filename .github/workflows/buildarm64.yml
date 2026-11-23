@@ -52,7 +52,7 @@ jobs:
         run: printf '%s\n' "${{ secrets.LOCAL_PROPERTIES }}" > local.properties
 
       - name: Build GitHub Release APKs
-        run: ./gradlew assembleGithubRelease
+        run: ./gradlew assembleGithubRelease -PonlyAbi=arm64-v8a -PskipMinify -x lintVitalGithubRelease
 
       - name: List generated APKs
         run: find app/build/outputs/apk/github/release -name "*.apk" | sort

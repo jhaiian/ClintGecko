@@ -1,0 +1,11 @@
+• Téléchargement de fichiers et de dossiers MEGA
+• Ajout de téléchargements en pause, gestion des fichiers en double
+• GeckoView plus léger et plus rapide, changement d'onglet plus fluide
+• Meilleure détection des flux dans la capture de médias
+• Moteur de recherche et suggestions distincts pour la navigation privée
+• Notification pour fermer tous les onglets de navigation privée
+• Paramètres d'accessibilité pour la taille du texte et le zoom
+• Installation d'extensions non signées par Mozilla
+• La suppression des données de navigation suit la période choisie
+• Copier, Coller et Coller et aller dans la barre d'adresse
+• GeckoView 159 et corrections des raccourcis

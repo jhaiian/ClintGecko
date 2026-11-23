@@ -1,6 +1,6 @@
 # Terms of Service for Clint Gecko
 
-*Last updated: October 30, 2026*
+*Last updated: November 24, 2026*
 
 ## 1. What These Terms Cover
 
@@ -15,6 +15,10 @@ Clint Gecko is a **free, open‑source Android browser** built around privacy, p
 - No backend servers, everything runs on your device.
 - Install and manage browser extensions, including from Mozilla's Add-ons site.
 - Keep audio and video playing in the background with media controls.
+- Play videos in Clint Gecko's own video player.
+- Keep separate profiles, each with its own data.
+- Protect your settings with a parental password.
+- Send downloads to the built-in download manager or to another download manager app you choose.
 - Block entire categories of sites at the domain level with Website Blocker.
 - Download files and folders from MEGA links.
 - Translate web pages on your device with the translation engine built into GeckoView.
@@ -56,11 +60,13 @@ Clint Gecko lets you create backup files of your browsing data, optionally prote
 
 Backup files are saved wherever you choose to save them, using your device's own file picker. A backup can include things like cookies, history, and installed extensions with their data. Once a backup file exists, keeping it safe (backing it up further, not losing the storage device it's on, not sharing it carelessly) is up to you. We're not responsible for backup files that are lost, deleted, corrupted, or accessed by someone else after they leave the app.
 
+If you've set a parental password and Backup restore is protected, you'll also need that password to restore a backup. The parental password itself isn't saved in your backups.
+
 Before you can back up or restore, the app will also ask you to unlock it with your fingerprint, face unlock, or your device's own PIN/pattern/password. This check happens entirely on your device through Android's own security system; we never see or receive it. It exists so that someone who picks up your unlocked phone can't export or overwrite your data without your say-so. If your device has no lock screen or biometrics set up at all, Backup & Restore won't be available until you set one up in your device settings, since there's simply nothing for Android to check against.
 
 ## 7. Custom Search Engines and Search Suggestions
 
-Clint Gecko lets you configure your own custom search engine and your own custom search suggestions provider, each pointed at any URL you enter.
+Clint Gecko lets you add your own custom search engines and custom search suggestions providers, each pointed at any URL you enter.
 
 These features send your data (search queries or suggestion text) to whatever destination you configure, whether that's a built in provider or one you typed in yourself. The developer does not run, host, review, or vet any of these destinations. You are solely responsible for what you point them at.
 
@@ -79,13 +85,21 @@ By installing an extension, you understand and agree that:
 
 Clint Gecko also lets you install extensions that Mozilla hasn't reviewed or signed. Nobody has checked what these extensions do, and they never update on their own. If you install one, you do so entirely at your own risk, and keeping it up to date or removing it is up to you.
 
+During setup, Clint Gecko suggests a few popular add-ons from Mozilla's Add-ons site. These are suggestions to help you get started, not a promise that they're safe, private, or right for you. They're still third-party software covered by everything above, and they're only installed if you choose to add them.
+
+Each profile can have its own set of extensions turned on. This only changes which extensions are active. An extension is installed once, and the data it stores may be shared between profiles.
+
 ## 9. Background Playback
 
 Clint Gecko can keep audio and video playing when you leave the app or turn off the screen, and shows a media notification with controls while it does. You can turn this on or off in Settings.
 
 Background playback relies on Android's foreground service and media session features, and on what each website allows. Some websites, devices, or battery settings may stop or limit playback, and the developer does not guarantee that playback will continue without interruption. Playback may use data, battery, and a notification slot on your device. You are responsible for the content you play and for making sure your use follows the terms of the websites you visit and any applicable laws.
 
-## 10. Media Capture
+## 10. Video Player
+
+Clint Gecko's video player plays videos from websites with its own controls. It relies on what each website allows and doesn't work with every video, for example videos protected with DRM. The developer doesn't guarantee that it will work on every website or keep working when a website changes. You are responsible for the content you play and for making sure your use follows the terms of the websites you visit and any applicable laws.
+
+## 11. Media Capture
 
 Clint Gecko includes Media Capture, a feature that detects media resources used by websites, such as video, audio, subtitles, and streaming formats like HLS/M3U8 and DASH, and lets you download them directly. Where a website provides video and audio as separate streams, Media Capture can, where supported, combine them.
 
@@ -95,33 +109,51 @@ You are responsible for making sure your use of Media Capture, including any con
 
 Media Capture can't save YouTube videos. On YouTube pages it can send the page link to YTDLnis, a separate app made by someone else. The developer of Clint Gecko doesn't make, control, or support YTDLnis, and your use of it is covered by its own terms.
 
-## 11. MEGA Downloads
+## 12. MEGA Downloads
 
 Clint Gecko can download files and folders from MEGA links. MEGA is a separate service, and Clint Gecko isn't affiliated with it. Using MEGA links also means following MEGA's own terms. The developer doesn't control MEGA's servers and doesn't guarantee that MEGA downloads will always work, for example if MEGA changes how its service works or limits how much you can download. You are responsible for making sure you have the right to download what you get from MEGA.
 
-## 12. Website Blocker
+## 13. Third-Party Download Managers
 
-Website Blocker blocks categories of websites at the domain level, using lists the app downloads from third-party sources on GitHub, plus any sites you add yourself. These lists are maintained by others. The developer does not guarantee that they are complete, accurate, or up to date, that a site in a category really belongs there, or that any site you want blocked will be blocked. Website Blocker is not a replacement for parental controls, security software, or other protection.
+Clint Gecko can hand downloads to another download manager app you choose, including any app you pick with Custom app. When you do, Clint Gecko passes that app the link along with the website's cookies, your browser's User-Agent, and the Referer, so downloads that need your login keep working. Cookies can give whoever has them full access to your account on that website.
 
-## 13. Translations
+These apps are made by third parties. The developer doesn't make, review, or control them, and isn't responsible for what they do with that information or for downloads that fail in them. Only choose a download manager you trust.
+
+## 14. Website Blocker
+
+Website Blocker blocks categories of websites at the domain level, using lists the app downloads from third-party sources on GitHub, plus any sites you add yourself. These lists are maintained by others. The developer does not guarantee that they are complete, accurate, or up to date, that a site in a category really belongs there, or that any site you want blocked will be blocked. Website Blocker is not a replacement for security software or other protection.
+
+## 15. Parental Controls
+
+Clint Gecko lets you set a parental password that has to be entered before Website Blocker, extensions, history, or backup restore can be changed in ways that weaken your protection. Without a password, turning off Website Blocker asks for a short wait and a typed code instead.
+
+These features make it harder to undo your protection on a whim, but they can't make it impossible. Someone with access to the device can still, for example, clear the app's data, uninstall the app, or use another browser. They are not a replacement for your device's own parental control or security tools.
+
+The parental password can't be recovered. If you forget it, the developer can't reset it for you, and the only way to remove it is to clear Clint Gecko's data, which also deletes everything else in the app.
+
+## 16. Translations
 
 Clint Gecko can translate web pages using the translation engine built into GeckoView. Translations are made by a machine and can be wrong, incomplete, or miss the meaning of the original. Don't rely on a translation for anything important, such as legal, medical, financial, or safety information. Check the original page or ask a qualified translator instead.
 
 The translation engine and its language files are made by Mozilla. Not every language or page is supported, and the developer doesn't guarantee that translation will work on your device or that language files will always be available to download.
 
-## 14. Privacy and Security Features
+## 17. Privacy and Security Features
 
 Clint Gecko includes features such as Enhanced Tracking Protection, Cookie protection, fingerprinting protection, Secure DNS, and Website isolation. They make tracking and attacks harder, but they can't stop all of them. Tracker lists are maintained by others, so they may miss some trackers or block things that aren't trackers. Stricter settings can make some websites stop working. If that happens, you can turn protection off for that site or change the setting.
 
 Website isolation is a Gecko engine feature that is off by default. Turning it on may use more memory and may make the app less stable on some devices.
 
-Delete browsing data and Clear data on exit permanently delete the data you choose. Delete browsing data only removes what falls in the time range you pick. Make sure you've picked the right data and time range before you use them.
+Delete browsing data and Clear data on exit permanently delete the data you choose. Delete browsing data only removes what falls in the time range you pick. Make sure you've picked the right data and time range before you use them. Temporary profiles erase their data on their own, as described in the app.
 
-## 15. Gecko Engine and Third-Party Components
+Let extensions handle popups lets your content blocker decide which pop-ups open, and the ones it doesn't block open without asking. The developer doesn't guarantee that an extension will catch every unwanted pop-up.
+
+Performance boost settings change how the Gecko engine draws pages. They can make some websites look different or stop working, for example 3D maps and browser games when WebGL is off. If that happens, turn the setting back off.
+
+## 18. Gecko Engine and Third-Party Components
 
 Clint Gecko renders web pages with GeckoView, which is made by Mozilla and licensed under the Mozilla Public License 2.0, and relies on other third-party components. Clint Gecko is an independent project. It is not affiliated with, endorsed by, or sponsored by Mozilla. "Mozilla" and "Firefox" are trademarks of the Mozilla Foundation, and are used here only to describe the engine Clint Gecko is built on. The developer doesn't control how they work, and they may contain bugs or security flaws. Browser engines need frequent security updates. We aim to update GeckoView regularly, but we can't promise how quickly a fix will reach you, and you may be exposed to known issues until you update. Keep Clint Gecko up to date.
 
-## 16. No Warranty
+## 19. No Warranty
 
 Clint Gecko is provided **"as is"** and **"as available"**. To the maximum extent permitted by law, the developer disclaims all warranties, express or implied, including:
 
@@ -132,7 +164,7 @@ Clint Gecko is provided **"as is"** and **"as available"**. To the maximum exten
 
 You use the app entirely at your own risk.
 
-## 17. Limitation of Liability
+## 20. Limitation of Liability
 
 In no event shall the developer be liable for any damages arising from your use of Clint Gecko, including but not limited to:
 
@@ -141,12 +173,13 @@ In no event shall the developer be liable for any damages arising from your use 
 - Security breaches caused by websites you visit
 - Harm caused by extensions you install
 - Mistakes in machine translations
-- Issues with third‑party services or apps (such as search engines, search suggestions providers, block list sources, MEGA, or YTDLnis)
+- Losing access to settings or data because a parental password was forgotten
+- Issues with third‑party services or apps (such as search engines, search suggestions providers, block list sources, MEGA, YTDLnis, or download manager apps)
 - Any indirect, incidental, or consequential damages
 
 Some jurisdictions do not allow certain liability exclusions. In those cases, this limitation applies to the fullest extent permitted by law.
 
-## 18. Third‑Party Content
+## 21. Third‑Party Content
 
 Clint Gecko is a **browser**, it renders content from websites, search engines, extensions, and online services that are completely outside the developer's control. We do not:
 
@@ -155,15 +188,15 @@ Clint Gecko is a **browser**, it renders content from websites, search engines, 
 
 You are responsible for your own browsing choices.
 
-## 19. Changes to These Terms
+## 22. Changes to These Terms
 
 These Terms may be updated occasionally. Changes will be posted on the GitHub repository. The app will always link to the latest version. If you continue using Clint Gecko after an update, you accept the new Terms.
 
-## 20. Governing Law
+## 23. Governing Law
 
 These Terms are governed by the laws of the Philippines. If you live elsewhere, your local consumer rights may also apply.
 
-## 21. Contact
+## 24. Contact
 
 For questions or permission requests:
 
