@@ -135,8 +135,26 @@ internal fun MainActivity.handleLinkOpenIncognito(url: String) {
     openNewTab(isIncognito = true, url = url)
 }
 
+internal fun MainActivity.handleLinkOpenInNormalTab(url: String) {
+    openNewTab(isIncognito = false, url = url, profileId = activeProfileId())
+}
+
 internal fun MainActivity.handleLinkOpenNewTabBackground(url: String) {
     openNewTabInBackground(url)
+}
+
+internal fun MainActivity.handleLinkOpenInNewTabInGroup(url: String) {
+    val sourceTab = tabManager.activeTab
+    val tab = openNewTabInBackground(url)
+    if (sourceTab != null && tab.groupId == null) {
+        val members = if (sourceTab.isPinned) listOf(tab.id) else listOf(sourceTab.id, tab.id)
+        tabManager.createGroup(
+            com.jhaiian.clint.tabs.suggestGroupName(listOf(sourceTab.url, url)),
+            com.jhaiian.clint.tabs.TabGroupColor.next(tabManager.groups.map { it.color }),
+            members
+        )
+    }
+    onTabGroupsChanged()
 }
 
 internal fun MainActivity.handleLinkPreviewPage(url: String) {

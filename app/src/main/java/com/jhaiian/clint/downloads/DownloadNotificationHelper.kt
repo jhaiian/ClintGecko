@@ -11,6 +11,7 @@ import android.content.Intent
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.SystemClock
+import androidx.annotation.ChecksSdkIntAtLeast
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.preference.PreferenceManager
@@ -257,13 +258,15 @@ internal object DownloadNotificationHelper {
 
         val contentText = if (metaText != null) "$statusText  \u2022  $metaText" else statusText
 
-        if (appearance.notifLiveUpdate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA && nm.canPostPromotedNotifications()) {
-            postLiveProgressNotification(
-                context, nm, item, appearance,
-                statusText, metaText, contentText,
-                progress, indeterminate, showPause, downloadsPi
-            )
-            return
+        if (appearance.notifLiveUpdate && canPostLiveUpdates(context)) {
+            val posted = runCatching {
+                postLiveProgressNotification(
+                    context, nm, item, appearance,
+                    statusText, metaText, contentText,
+                    progress, indeterminate, showPause, downloadsPi
+                )
+            }.isSuccess
+            if (posted) return
         }
 
         val builder = NotificationCompat.Builder(context, ClintDownloadManager.CHANNEL_ID)
@@ -549,9 +552,20 @@ internal object DownloadNotificationHelper {
             }
     }
 
+    @ChecksSdkIntAtLeast(api = Build.VERSION_CODES.BAKLAVA)
+    fun supportsLiveUpdates(): Boolean = when {
+        Build.VERSION.SDK_INT > Build.VERSION_CODES.BAKLAVA -> true
+        Build.VERSION.SDK_INT == Build.VERSION_CODES.BAKLAVA -> sdkIntFull() >= Build.VERSION_CODES_FULL.BAKLAVA_1
+        else -> false
+    }
+
+    @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+    private fun sdkIntFull(): Int = runCatching { Build.VERSION.SDK_INT_FULL }.getOrDefault(0)
+
+    @ChecksSdkIntAtLeast(api = Build.VERSION_CODES.BAKLAVA)
     fun canPostLiveUpdates(context: Context): Boolean =
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
-            context.getSystemService(NotificationManager::class.java).canPostPromotedNotifications()
+        supportsLiveUpdates() &&
+            runCatching { context.getSystemService(NotificationManager::class.java).canPostPromotedNotifications() }.getOrDefault(false)
 
     @RequiresApi(Build.VERSION_CODES.BAKLAVA)
     private fun postLiveProgressNotification(

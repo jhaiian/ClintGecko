@@ -1375,6 +1375,7 @@
 
     <string name="image_open_in_new_tab">Открыть изображение в новой вкладке</string>
     <string name="image_open_incognito">Открыть изображение в инкогнито</string>
+    <string name="image_open_in_normal_tab">Открыть изображение в обычной вкладке</string>
     <string name="image_open_in_current_tab">Открыть изображение в текущей вкладке</string>
     <string name="image_preview">Просмотреть изображение</string>
     <string name="image_copy">Скопировать изображение</string>
@@ -1386,7 +1387,9 @@
 
     <string name="link_open_in_new_tab">Открыть в новой вкладке</string>
     <string name="link_open_new_tab_background">Открыть новую вкладку в фоне</string>
+    <string name="link_open_in_new_tab_in_group">Открыть в новой вкладке в группе</string>
     <string name="link_open_incognito">Открыть в инкогнито</string>
+    <string name="link_open_in_normal_tab">Открыть в обычной вкладке</string>
     <string name="link_preview_page">Просмотреть страницу</string>
     <string name="preview_link_open_in_current_tab">Открыть в текущей вкладке</string>
     <string name="link_copy_address">Скопировать адрес ссылки</string>

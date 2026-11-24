@@ -1339,6 +1339,7 @@
     <string name="exit_dialog_confirm">Quitter</string>
     <string name="image_open_in_new_tab">Ouvrir l\'image dans un nouvel onglet</string>
     <string name="image_open_incognito">Ouvrir l\'image en navigation privée</string>
+    <string name="image_open_in_normal_tab">Ouvrir l\'image dans un onglet normal</string>
     <string name="image_open_in_current_tab">Ouvrir l\'image dans l\'onglet actuel</string>
     <string name="image_preview">Aperçu de l\'image</string>
     <string name="image_copy">Copier l\'image</string>
@@ -1349,7 +1350,9 @@
     <string name="image_embedded_title">Image intégrée</string>
     <string name="link_open_in_new_tab">Ouvrir dans un nouvel onglet</string>
     <string name="link_open_new_tab_background">Ouvrir un nouvel onglet en arrière-plan</string>
+    <string name="link_open_in_new_tab_in_group">Ouvrir dans un nouvel onglet du groupe</string>
     <string name="link_open_incognito">Ouvrir en navigation privée</string>
+    <string name="link_open_in_normal_tab">Ouvrir dans un onglet normal</string>
     <string name="link_preview_page">Aperçu de la page</string>
     <string name="preview_link_open_in_current_tab">Ouvrir dans l\'onglet actuel</string>
     <string name="link_copy_address">Copier l\'adresse du lien</string>

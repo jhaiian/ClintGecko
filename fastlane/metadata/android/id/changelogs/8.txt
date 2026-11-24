@@ -1,0 +1,4 @@
+• Memperbaiki crash saat mengunduh di beberapa ponsel Android 16
+• Pop-up kini langsung terbuka saat diatur oleh pemblokir konten
+• Baru di menu tautan: Buka di tab baru dalam grup
+• Buka di tab biasa saat Anda berada di mode Penyamaran

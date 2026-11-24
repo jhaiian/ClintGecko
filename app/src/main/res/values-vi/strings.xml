@@ -1330,6 +1330,7 @@
     <string name="exit_dialog_confirm">Thoát</string>
     <string name="image_open_in_new_tab">Mở ảnh trong thẻ mới</string>
     <string name="image_open_incognito">Mở ảnh ở chế độ ẩn danh</string>
+    <string name="image_open_in_normal_tab">Mở ảnh trong thẻ thường</string>
     <string name="image_open_in_current_tab">Mở ảnh trong thẻ hiện tại</string>
     <string name="image_preview">Xem trước ảnh</string>
     <string name="image_copy">Sao chép ảnh</string>
@@ -1340,7 +1341,9 @@
     <string name="image_embedded_title">Ảnh nhúng</string>
     <string name="link_open_in_new_tab">Mở trong thẻ mới</string>
     <string name="link_open_new_tab_background">Mở thẻ mới ở nền</string>
+    <string name="link_open_in_new_tab_in_group">Mở trong thẻ mới trong nhóm</string>
     <string name="link_open_incognito">Mở ở chế độ ẩn danh</string>
+    <string name="link_open_in_normal_tab">Mở trong thẻ thường</string>
     <string name="link_preview_page">Xem trước trang</string>
     <string name="preview_link_open_in_current_tab">Mở trong thẻ hiện tại</string>
     <string name="link_copy_address">Sao chép địa chỉ liên kết</string>

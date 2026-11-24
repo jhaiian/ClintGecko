@@ -1,0 +1,4 @@
+• Inayos ang crash sa pag-download sa ilang Android 16 na phone
+• Agad nang bumubukas ang mga pop-up kapag content blocker ang humahawak sa mga ito
+• Bago sa link menu: Buksan sa bagong tab sa grupo
+• Buksan sa normal na tab kapag nasa Incognito ka

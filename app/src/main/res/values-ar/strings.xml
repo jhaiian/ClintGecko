@@ -1375,6 +1375,7 @@
     <string name="exit_dialog_confirm">خروج</string>
     <string name="image_open_in_new_tab">فتح الصورة في علامة تبويب جديدة</string>
     <string name="image_open_incognito">فتح الصورة في التصفح المتخفي</string>
+    <string name="image_open_in_normal_tab">فتح الصورة في علامة تبويب عادية</string>
     <string name="image_open_in_current_tab">فتح الصورة في علامة التبويب الحالية</string>
     <string name="image_preview">معاينة الصورة</string>
     <string name="image_copy">نسخ الصورة</string>
@@ -1385,7 +1386,9 @@
     <string name="image_embedded_title">صورة مضمّنة</string>
     <string name="link_open_in_new_tab">فتح في علامة تبويب جديدة</string>
     <string name="link_open_new_tab_background">فتح علامة تبويب جديدة في الخلفية</string>
+    <string name="link_open_in_new_tab_in_group">فتح في علامة تبويب جديدة ضمن المجموعة</string>
     <string name="link_open_incognito">فتح في التصفح المتخفي</string>
+    <string name="link_open_in_normal_tab">فتح في علامة تبويب عادية</string>
     <string name="link_preview_page">معاينة الصفحة</string>
     <string name="preview_link_open_in_current_tab">فتح في علامة التبويب الحالية</string>
     <string name="link_copy_address">نسخ عنوان الرابط</string>

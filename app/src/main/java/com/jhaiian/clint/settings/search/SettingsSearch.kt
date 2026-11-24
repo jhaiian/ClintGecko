@@ -178,6 +178,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jhaiian.clint.BuildConfig
 import com.jhaiian.clint.R
+import com.jhaiian.clint.downloads.DownloadNotificationHelper
 import com.jhaiian.clint.browser.webview.ClintAutofill
 import com.jhaiian.clint.settings.DEST_ABOUT
 import com.jhaiian.clint.settings.DEST_ACCESSIBILITY
@@ -659,7 +660,7 @@ internal fun buildSettingsSearchEntries(context: Context): List<SettingsSearchEn
         item(R.string.download_appearance_notif_speed_title, R.string.download_appearance_notif_speed_summary, R.string.download_section_notifications, icon = Icons.Filled.Speed)
         item(R.string.download_appearance_notif_progress_title, R.string.download_appearance_notif_progress_summary, R.string.download_section_notifications, icon = Icons.Filled.LinearScale)
         item(R.string.download_appearance_notif_quiet_title, R.string.download_appearance_notif_quiet_summary, R.string.download_section_notifications, icon = Icons.Filled.NotificationsOff)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+        if (DownloadNotificationHelper.supportsLiveUpdates()) {
             item(R.string.download_appearance_notif_live_title, R.string.download_appearance_notif_live_summary, R.string.download_section_notifications, icon = Icons.Filled.Bolt)
         }
     }

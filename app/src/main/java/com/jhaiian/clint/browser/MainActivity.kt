@@ -1151,6 +1151,7 @@ td,th{border:1px solid $secondaryColor;padding:6px 8px;}
 
     fun onImageOpenInNewTab(imageUrl: String) { handleImageOpenInNewTab(imageUrl) }
     fun onImageOpenIncognito(imageUrl: String) { openNewTab(isIncognito = true, url = imageUrl) }
+    fun onImageOpenInNormalTab(imageUrl: String) { handleLinkOpenInNormalTab(imageUrl) }
     fun onImageOpenInCurrentTab(imageUrl: String) { dismissContentPreview(); loadUrl(imageUrl) }
     fun onImagePreview(imageUrl: String) { handleImagePreview(imageUrl) }
     fun onImageCopy(imageUrl: String) { handleImageCopy(imageUrl) }
@@ -1159,7 +1160,11 @@ td,th{border:1px solid $secondaryColor;padding:6px 8px;}
 
     fun onLinkOpenInNewTab(url: String) { handleLinkOpenInNewTab(url) }
     fun onLinkOpenIncognito(url: String) { handleLinkOpenIncognito(url) }
+    fun onLinkOpenInNormalTab(url: String) { handleLinkOpenInNormalTab(url) }
     fun onLinkOpenNewTabBackground(url: String) { handleLinkOpenNewTabBackground(url) }
+    fun onLinkOpenInNewTabInGroup(url: String) { handleLinkOpenInNewTabInGroup(url) }
+    fun isIncognitoActive(): Boolean = tabManager.activeTab?.isIncognito == true
+    fun isTabGroupsEnabled(): Boolean = com.jhaiian.clint.tabs.TabGroupPrefs.isEnabled(prefs)
     fun onLinkPreviewPage(url: String) { handleLinkPreviewPage(url) }
     fun onLinkCopyAddress(url: String) { handleLinkCopyAddress(url) }
     fun onLinkCopyText(url: String, text: String) { handleLinkCopyText(text) }
@@ -1169,6 +1174,7 @@ td,th{border:1px solid $secondaryColor;padding:6px 8px;}
 
     fun onPreviewLinkOpenInNewTab(url: String) { dismissContentPreview(); handleLinkOpenInNewTab(url) }
     fun onPreviewLinkOpenIncognito(url: String) { dismissContentPreview(); handleLinkOpenIncognito(url) }
+    fun onPreviewLinkOpenInNormalTab(url: String) { dismissContentPreview(); handleLinkOpenInNormalTab(url) }
     fun onPreviewLinkOpenInCurrentTab(url: String) { dismissContentPreview(); loadUrl(url) }
     fun onPreviewLinkCopyAddress(url: String) { handleLinkCopyAddress(url) }
     fun onPreviewLinkCopyText(url: String, text: String) { handleLinkCopyText(text) }

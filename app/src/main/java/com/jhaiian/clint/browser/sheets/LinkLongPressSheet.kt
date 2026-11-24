@@ -4,7 +4,9 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tab
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Workspaces
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Image
@@ -79,6 +81,8 @@ internal fun LinkLongPressSheet(request: LinkLongPressRequest, activity: MainAct
     }
 
     val hasLinkText = request.linkText.isNotEmpty() && request.linkText != request.url
+    val incognito = remember { activity.isIncognitoActive() }
+    val groupsEnabled = remember { activity.isTabGroupsEnabled() }
     val listState = rememberLazyListState()
     val configuration = LocalConfiguration.current
 
@@ -122,8 +126,19 @@ internal fun LinkLongPressSheet(request: LinkLongPressRequest, activity: MainAct
             LongPressActionRow(androidx.compose.material.icons.Icons.Filled.Tab, stringResource(R.string.link_open_new_tab_background)) {
                 dismissAnd { activity.onLinkOpenNewTabBackground(request.url) }
             }
-            LongPressActionRow(androidx.compose.material.icons.Icons.Filled.VisibilityOff, stringResource(R.string.link_open_incognito)) {
-                dismissAnd { activity.onLinkOpenIncognito(request.url) }
+            if (groupsEnabled) {
+                LongPressActionRow(androidx.compose.material.icons.Icons.Filled.Workspaces, stringResource(R.string.link_open_in_new_tab_in_group)) {
+                    dismissAnd { activity.onLinkOpenInNewTabInGroup(request.url) }
+                }
+            }
+            if (incognito) {
+                LongPressActionRow(androidx.compose.material.icons.Icons.Filled.Visibility, stringResource(R.string.link_open_in_normal_tab)) {
+                    dismissAnd { activity.onLinkOpenInNormalTab(request.url) }
+                }
+            } else {
+                LongPressActionRow(androidx.compose.material.icons.Icons.Filled.VisibilityOff, stringResource(R.string.link_open_incognito)) {
+                    dismissAnd { activity.onLinkOpenIncognito(request.url) }
+                }
             }
             LongPressActionRow(androidx.compose.material.icons.Icons.Filled.ZoomIn, stringResource(R.string.link_preview_page)) {
                 dismissAnd { activity.onLinkPreviewPage(request.url) }

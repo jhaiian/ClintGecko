@@ -1339,6 +1339,7 @@
     <string name="exit_dialog_confirm">Beenden</string>
     <string name="image_open_in_new_tab">Bild in neuem Tab öffnen</string>
     <string name="image_open_incognito">Bild im Inkognito-Modus öffnen</string>
+    <string name="image_open_in_normal_tab">Bild in normalem Tab öffnen</string>
     <string name="image_open_in_current_tab">Bild im aktuellen Tab öffnen</string>
     <string name="image_preview">Bildvorschau</string>
     <string name="image_copy">Bild kopieren</string>
@@ -1349,7 +1350,9 @@
     <string name="image_embedded_title">Eingebettetes Bild</string>
     <string name="link_open_in_new_tab">In neuem Tab öffnen</string>
     <string name="link_open_new_tab_background">Neuen Tab im Hintergrund öffnen</string>
+    <string name="link_open_in_new_tab_in_group">In neuem Tab in der Gruppe öffnen</string>
     <string name="link_open_incognito">Im Inkognito-Modus öffnen</string>
+    <string name="link_open_in_normal_tab">In normalem Tab öffnen</string>
     <string name="link_preview_page">Seitenvorschau</string>
     <string name="preview_link_open_in_current_tab">Im aktuellen Tab öffnen</string>
     <string name="link_copy_address">Linkadresse kopieren</string>

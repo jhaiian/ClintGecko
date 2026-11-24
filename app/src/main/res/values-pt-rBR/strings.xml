@@ -1357,6 +1357,7 @@
 
     <string name="image_open_in_new_tab">Abrir imagem em nova aba</string>
     <string name="image_open_incognito">Abrir imagem em aba anônima</string>
+    <string name="image_open_in_normal_tab">Abrir imagem em aba normal</string>
     <string name="image_open_in_current_tab">Abrir imagem nesta aba</string>
     <string name="image_preview">Visualizar imagem</string>
     <string name="image_copy">Copiar imagem</string>
@@ -1368,7 +1369,9 @@
 
     <string name="link_open_in_new_tab">Abrir em nova aba</string>
     <string name="link_open_new_tab_background">Abrir nova aba em segundo plano</string>
+    <string name="link_open_in_new_tab_in_group">Abrir em nova aba no grupo</string>
     <string name="link_open_incognito">Abrir em aba anônima</string>
+    <string name="link_open_in_normal_tab">Abrir em aba normal</string>
     <string name="link_preview_page">Visualizar página</string>
     <string name="preview_link_open_in_current_tab">Abrir nesta aba</string>
     <string name="link_copy_address">Copiar endereço do link</string>

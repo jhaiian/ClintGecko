@@ -1348,6 +1348,7 @@
 
     <string name="image_open_in_new_tab">Buka gambar di tab baru</string>
     <string name="image_open_incognito">Buka gambar di tab Samaran</string>
+    <string name="image_open_in_normal_tab">Buka gambar di tab biasa</string>
     <string name="image_open_in_current_tab">Buka gambar di tab ini</string>
     <string name="image_preview">Pratinjau gambar</string>
     <string name="image_copy">Salin gambar</string>
@@ -1359,7 +1360,9 @@
 
     <string name="link_open_in_new_tab">Buka di tab baru</string>
     <string name="link_open_new_tab_background">Buka tab baru di latar belakang</string>
+    <string name="link_open_in_new_tab_in_group">Buka di tab baru dalam grup</string>
     <string name="link_open_incognito">Buka di tab Samaran</string>
+    <string name="link_open_in_normal_tab">Buka di tab biasa</string>
     <string name="link_preview_page">Pratinjau halaman</string>
     <string name="preview_link_open_in_current_tab">Buka di tab ini</string>
     <string name="link_copy_address">Salin alamat link</string>

@@ -1330,6 +1330,7 @@
     <string name="exit_dialog_confirm">退出</string>
     <string name="image_open_in_new_tab">在新标签页中打开图片</string>
     <string name="image_open_incognito">在无痕标签页中打开图片</string>
+    <string name="image_open_in_normal_tab">在普通标签页中打开图片</string>
     <string name="image_open_in_current_tab">在当前标签页中打开图片</string>
     <string name="image_preview">预览图片</string>
     <string name="image_copy">复制图片</string>
@@ -1340,7 +1341,9 @@
     <string name="image_embedded_title">内嵌图片</string>
     <string name="link_open_in_new_tab">在新标签页中打开</string>
     <string name="link_open_new_tab_background">在后台打开新标签页</string>
+    <string name="link_open_in_new_tab_in_group">在分组的新标签页中打开</string>
     <string name="link_open_incognito">在无痕标签页中打开</string>
+    <string name="link_open_in_normal_tab">在普通标签页中打开</string>
     <string name="link_preview_page">预览网页</string>
     <string name="preview_link_open_in_current_tab">在当前标签页中打开</string>
     <string name="link_copy_address">复制链接地址</string>

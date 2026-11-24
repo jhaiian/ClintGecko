@@ -4,6 +4,7 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tab
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 
 import androidx.compose.foundation.layout.Column
@@ -68,8 +69,14 @@ internal fun PreviewLinkLongPressSheet(request: PreviewLinkLongPressRequest, act
                 dismissAnd { activity.onPreviewLinkOpenInNewTab(request.url) }
             }
             ActionSheetDivider()
-            ActionSheetRow(androidx.compose.material.icons.Icons.Filled.VisibilityOff, stringResource(R.string.link_open_incognito)) {
-                dismissAnd { activity.onPreviewLinkOpenIncognito(request.url) }
+            if (activity.isIncognitoActive()) {
+                ActionSheetRow(androidx.compose.material.icons.Icons.Filled.Visibility, stringResource(R.string.link_open_in_normal_tab)) {
+                    dismissAnd { activity.onPreviewLinkOpenInNormalTab(request.url) }
+                }
+            } else {
+                ActionSheetRow(androidx.compose.material.icons.Icons.Filled.VisibilityOff, stringResource(R.string.link_open_incognito)) {
+                    dismissAnd { activity.onPreviewLinkOpenIncognito(request.url) }
+                }
             }
             ActionSheetDivider()
             ActionSheetRow(androidx.compose.material.icons.Icons.Filled.Tab, stringResource(R.string.preview_link_open_in_current_tab)) {

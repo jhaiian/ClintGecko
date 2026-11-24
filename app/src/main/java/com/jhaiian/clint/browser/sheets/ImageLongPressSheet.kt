@@ -5,6 +5,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tab
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -147,8 +148,14 @@ internal fun ImageLongPressSheet(request: ImageLongPressRequest, activity: MainA
                 LongPressActionRow(androidx.compose.material.icons.Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.image_open_in_new_tab)) {
                     dismissAnd { activity.onImageOpenInNewTab(request.imageUrl) }
                 }
-                LongPressActionRow(androidx.compose.material.icons.Icons.Filled.VisibilityOff, stringResource(R.string.image_open_incognito)) {
-                    dismissAnd { activity.onImageOpenIncognito(request.imageUrl) }
+                if (activity.isIncognitoActive()) {
+                    LongPressActionRow(androidx.compose.material.icons.Icons.Filled.Visibility, stringResource(R.string.image_open_in_normal_tab)) {
+                        dismissAnd { activity.onImageOpenInNormalTab(request.imageUrl) }
+                    }
+                } else {
+                    LongPressActionRow(androidx.compose.material.icons.Icons.Filled.VisibilityOff, stringResource(R.string.image_open_incognito)) {
+                        dismissAnd { activity.onImageOpenIncognito(request.imageUrl) }
+                    }
                 }
             }
             LongPressActionRow(androidx.compose.material.icons.Icons.Filled.Download, stringResource(R.string.image_download)) {

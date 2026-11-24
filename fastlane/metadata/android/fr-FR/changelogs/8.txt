@@ -1,0 +1,4 @@
+• Correction d'un plantage lors des téléchargements sur certains téléphones Android 16
+• Les pop-ups s'ouvrent tout de suite quand un bloqueur de contenu s'en occupe
+• Nouveau dans le menu des liens : Ouvrir dans un nouvel onglet du groupe
+• Ouvrir dans un onglet normal depuis la navigation privée

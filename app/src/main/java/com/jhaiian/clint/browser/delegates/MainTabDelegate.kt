@@ -241,7 +241,7 @@ internal fun MainActivity.openNewTabSilent(
     }
 }
 
-internal fun MainActivity.openNewTabInBackground(url: String, openerTabId: String? = null) {
+internal fun MainActivity.openNewTabInBackground(url: String, openerTabId: String? = null): BrowserTab {
     val sourceTab = openerTabId?.let { id -> tabManager.tabs.firstOrNull { it.id == id } } ?: tabManager.activeTab
     val isIncognito = sourceTab?.isIncognito == true
     val sourceProfile = sourceTab?.takeIf { !it.isIncognito }?.profileId ?: tabManager.activeProfileId
@@ -288,6 +288,7 @@ internal fun MainActivity.openNewTabInBackground(url: String, openerTabId: Strin
     )
     webView.loadUrl(url)
     updateTabCount()
+    return tab
 }
 
 internal fun MainActivity.activeProfileId(): String = tabManager.activeProfileId

@@ -1357,6 +1357,7 @@
 
     <string name="image_open_in_new_tab">इमेज नए टैब में खोलें</string>
     <string name="image_open_incognito">इमेज गुप्त टैब में खोलें</string>
+    <string name="image_open_in_normal_tab">इमेज सामान्य टैब में खोलें</string>
     <string name="image_open_in_current_tab">इमेज इसी टैब में खोलें</string>
     <string name="image_preview">इमेज की झलक देखें</string>
     <string name="image_copy">इमेज कॉपी करें</string>
@@ -1368,7 +1369,9 @@
 
     <string name="link_open_in_new_tab">नए टैब में खोलें</string>
     <string name="link_open_new_tab_background">बैकग्राउंड में नए टैब में खोलें</string>
+    <string name="link_open_in_new_tab_in_group">ग्रुप में नए टैब में खोलें</string>
     <string name="link_open_incognito">गुप्त टैब में खोलें</string>
+    <string name="link_open_in_normal_tab">सामान्य टैब में खोलें</string>
     <string name="link_preview_page">पेज की झलक देखें</string>
     <string name="preview_link_open_in_current_tab">इसी टैब में खोलें</string>
     <string name="link_copy_address">लिंक का पता कॉपी करें</string>

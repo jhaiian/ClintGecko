@@ -1,0 +1,4 @@
+• Sửa lỗi ứng dụng bị đóng đột ngột khi tải xuống trên một số điện thoại Android 16
+• Cửa sổ bật lên giờ mở ngay khi trình chặn nội dung xử lý chúng
+• Mới trong menu liên kết: Mở trong thẻ mới trong nhóm
+• Mở trong thẻ thường khi bạn đang ở chế độ ẩn danh

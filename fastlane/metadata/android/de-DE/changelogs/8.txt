@@ -1,0 +1,4 @@
+• Absturz beim Download auf manchen Android-16-Geräten behoben
+• Pop-ups öffnen sich sofort, wenn ein Inhaltsblocker sie verwaltet
+• Neu im Linkmenü: In neuem Tab in der Gruppe öffnen
+• In normalem Tab öffnen, wenn du im Inkognito-Modus bist

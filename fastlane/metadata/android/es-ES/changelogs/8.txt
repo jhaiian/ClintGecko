@@ -1,0 +1,4 @@
+• Corregido un cierre inesperado al descargar en algunos móviles con Android 16
+• Las ventanas emergentes se abren al instante cuando un bloqueador de contenido las gestiona
+• Novedad en el menú de enlaces: Abrir en una pestaña nueva del grupo
+• Abrir en una pestaña normal desde incógnito

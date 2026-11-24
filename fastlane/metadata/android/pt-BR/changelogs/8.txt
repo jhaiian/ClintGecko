@@ -1,0 +1,4 @@
+• Corrigido um travamento ao baixar em alguns celulares com Android 16
+• Pop-ups agora abrem na hora quando um bloqueador de conteúdo cuida deles
+• Novo no menu de links: Abrir em nova aba no grupo
+• Abrir em aba normal quando você está no modo anônimo

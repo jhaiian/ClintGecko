@@ -3,7 +3,6 @@ package com.jhaiian.clint.settings.downloads
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -236,7 +235,7 @@ fun DownloadAppearancePane(activity: SettingsActivity) {
         prefs.getBoolean(DownloadSettingsKeys.PREF_PUSH_NOTIFICATIONS, DownloadSettingsKeys.DEFAULT_PUSH_NOTIFICATIONS)
     }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+    if (DownloadNotificationHelper.supportsLiveUpdates()) {
         DisposableEffect(activity) {
             val observer = LifecycleEventObserver { _, event ->
                 if (event == Lifecycle.Event.ON_RESUME) version++
@@ -492,7 +491,7 @@ fun DownloadAppearancePane(activity: SettingsActivity) {
                 onClick = { flip(DownloadAppearanceKeys.NOTIF_QUIET_COMPLETE, appearance.notifQuietComplete) },
                 trailing = { ClintSwitch(checked = appearance.notifQuietComplete) }
             )
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+            if (DownloadNotificationHelper.supportsLiveUpdates()) {
                 RowDivider(colors.divider)
                 SettingsRow(
                     icon = Icons.Filled.Bolt,

@@ -171,7 +171,6 @@ class ClintWebView(
     private val queuedEvals = ArrayList<JSONObject>()
     private var topPort: WebExtension.Port? = null
     private val ports = ArrayList<WebExtension.Port>()
-    private val popupProbes = ArrayList<ClintPopupProbe>()
     private val pendingPopups = ArrayList<ClintPopupWindow>()
 
     fun attachExtension(ext: WebExtension) {
@@ -624,8 +623,6 @@ class ClintWebView(
         ClintGecko.main.removeCallbacks(detachDeactivateRunnable)
         pendingEval.clear()
         queuedEvals.clear()
-        popupProbes.toList().forEach { it.cancel() }
-        popupProbes.clear()
         pendingPopups.toList().forEach { it.decline() }
         pendingPopups.clear()
         ports.clear()
@@ -844,22 +841,10 @@ class ClintWebView(
             if (destroyed || !chrome.acceptsNewWindow(uri)) return GeckoResult.fromValue(null)
             val extensionsFirst = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
                 .getBoolean("popup_extensions_first", true)
-            if (!extensionsFirst || isSameOriginUrl(currentUrl, uri) ||
-                !com.jhaiian.clint.extensions.ClintExtensions.hasRequestBlocker(isPrivate)
-            ) {
-                val (popup, result) = createPopupWindow(uri)
-                chrome.onPopupWindow(popup)
-                return result
-            }
-            val probe = ClintPopupProbe(isPrivate, profileId, uri) { finished, target, adoptable ->
-                popupProbes.remove(finished)
-                if (target == null) return@ClintPopupProbe
-                val popup = createProbedPopup(finished, target, adoptable)
-                val client = webChromeClient
-                if (destroyed || client == null) popup.decline() else client.onPopupWindow(popup)
-            }
-            popupProbes.add(probe)
-            return GeckoResult.fromValue(probe.session)
+            val trusted = extensionsFirst && com.jhaiian.clint.extensions.ClintExtensions.hasRequestBlocker(isPrivate)
+            val (popup, result) = createPopupWindow(uri, skipPrompt = trusted)
+            chrome.onPopupWindow(popup)
+            return result
         }
 
         override fun onLoadError(session: GeckoSession, uri: String?, error: WebRequestError): GeckoResult<String>? {
@@ -1428,7 +1413,7 @@ class ClintWebView(
         pendingPopups.add(popup)
     }
 
-    private fun createPopupWindow(uri: String): Pair<ClintPopupWindow, GeckoResult<GeckoSession>> {
+    private fun createPopupWindow(uri: String, skipPrompt: Boolean): Pair<ClintPopupWindow, GeckoResult<GeckoSession>> {
         val result = GeckoResult<GeckoSession>()
         val popupSession = GeckoSession(sessionSettings(isPrivate, profileId))
         lateinit var popup: ClintPopupWindow
@@ -1436,7 +1421,7 @@ class ClintWebView(
             url = uri,
             session = popupSession,
             isLoaded = false,
-            skipPrompt = false,
+            skipPrompt = skipPrompt,
             titleProvider = { null },
             onAccept = {
                 pendingPopups.remove(popup)
@@ -1449,27 +1434,6 @@ class ClintWebView(
         )
         trackPopup(popup)
         return popup to result
-    }
-
-    private fun createProbedPopup(probe: ClintPopupProbe, url: String, adoptable: Boolean): ClintPopupWindow {
-        lateinit var popup: ClintPopupWindow
-        popup = ClintPopupWindow(
-            url = url,
-            session = if (adoptable) probe.session else null,
-            isLoaded = adoptable,
-            skipPrompt = adoptable,
-            titleProvider = { probe.title },
-            onAccept = {
-                pendingPopups.remove(popup)
-                if (adoptable) probe.detach() else probe.cancel()
-            },
-            onDecline = {
-                pendingPopups.remove(popup)
-                probe.cancel()
-            }
-        )
-        trackPopup(popup)
-        return popup
     }
 
     companion object {
